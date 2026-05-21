@@ -747,6 +747,7 @@ const fmtDate = (d, showYear = false) => {
   return s;
 };
 const toEastMoney = (code) => {
+  if (!code || typeof code !== 'string') return '#';
   // 6位数字，沪市sh前缀，深市sz前缀，北证bj前缀
   const c = code.replace(/\.SZ|\.SH|\.BJ/g, '');
   if (code.endsWith('.BJ')) return `https://quote.eastmoney.com/bj/${c}.html`;
@@ -913,6 +914,11 @@ async function loadData(selectedDate) {
     }));
     lbData = lbResults.flat();
 
+    // 如果最新交易日没有涨幅榜数据，自动触发同步
+    if (!lbData.length && latestTradeDate) {
+      syncLBData(latestTradeDate, null);
+    }
+
     // 加载上榜频次统计数据
     try {
       const rFreq = await fetch(`/api/frequency?date=${latestTradeDate}`);
@@ -1023,9 +1029,8 @@ function initTabDatePickers() {
         btn2.style.cssText = 'flex:1;padding:8px 0;background:var(--bg-card-hover);border:1px solid var(--border);border-radius:4px;color:#fff;cursor:pointer;font-size:13px;font-family:JetBrains Mono,monospace;';
         btn2.onclick = function(e) {
           e.stopPropagation();
-          const calLatest = [...tradingDates].sort().reverse()[0] || '';
-          const latest = latestActualDate > calLatest ? latestActualDate : calLatest;
-          instance.setDate(formatDateForInput(latest), true);
+          const sorted = [...tradingDates].sort().reverse();
+          instance.setDate(formatDateForInput(sorted[0]), true);
         };
         const wrap = document.createElement('div');
         wrap.style.cssText = 'display:flex;padding:4px 6px;';
@@ -1157,6 +1162,83 @@ async function syncTabData(selDate) {
   if (r1.ok) indexData = await r1.json();
   const r4 = await fetch(`/api/overview?limit=100`);
   if (r4.ok) overviewData = await r4.json();
+}
+
+async function syncLBData(selDate, btn) {
+  const progressWrap = document.getElementById('lbProgressWrap');
+  const progressLabel = document.getElementById('lbProgressLabel');
+  const progressFill = document.getElementById('lbProgressFill');
+  if (btn) {
+    btn.textContent = '同步中';
+    const dots = document.createElement('span');
+    dots.style.cssText = 'display:inline-block;animation:dotBounce 1.2s infinite;margin-left:1px';
+    dots.textContent = '...';
+    btn.appendChild(dots);
+    btn.classList.add('syncing');
+  }
+  progressWrap.classList.add('active');
+  progressFill.style.width = '5%';
+  try {
+    const sortedAll = [...tradingDates].sort();
+    const idx = sortedAll.indexOf(selDate);
+    const tradeDaysNeeded = sortedAll.slice(Math.max(0, idx - 25), idx);
+    progressLabel.textContent = `检查 ${tradeDaysNeeded.length} 个交易日…`;
+    progressFill.style.width = '15%';
+    const rCheck = await fetch(`/api/stock/dates-check?dates=${tradeDaysNeeded.join(',')}`);
+    const haveDates = rCheck.ok ? await rCheck.json() : [];
+    const haveSet = new Set(haveDates);
+    const needSync = tradeDaysNeeded.filter(d => !haveSet.has(d));
+    if (needSync.length) {
+      let done = 0;
+      progressLabel.textContent = `同步股票日线 ${needSync.length} 天…`;
+      const total = needSync.length;
+      await Promise.all(needSync.map(async d => {
+        await fetch(`/api/stock/sync?date=${d}`, { method: 'POST' });
+        done++;
+        progressFill.style.width = `${15 + Math.round((done / total) * 50)}%`;
+        progressLabel.textContent = `同步股票日线 ${done}/${total}…`;
+      }));
+    } else {
+      progressFill.style.width = '50%';
+      progressLabel.textContent = `股票日线已就绪…`;
+    }
+    progressFill.style.width = '75%';
+    progressLabel.textContent = `计算涨幅榜…`;
+    await fetch(`/api/stock/basic/sync`, { method: 'POST' });
+    await fetch(`/api/leaderboard/sync?date=${selDate}`, { method: 'POST' });
+    lbData = [];
+    const LB_TYPES = [['5日', 5], ['10日', 10], ['20日', 20]];
+    const lbResults = await Promise.all(LB_TYPES.map(async ([t]) => {
+      const r = await fetch(`/api/leaderboard?type=${encodeURIComponent(t)}&limit=10&date=${selDate}`);
+      return r.ok ? await r.json() : [];
+    }));
+    lbData = lbResults.flat();
+    LB_TYPES.forEach(([t], i) => {
+      if (Array.isArray(lbResults[i]) && lbResults[i].length > 0 && lbResults[i][0].rank) {
+        lbDataCache.set(selDate + '_' + t, lbResults[i]);
+      }
+    });
+    if (btn) {
+      btn.textContent = '同步完成';
+      btn.classList.remove('syncing');
+      btn.classList.add('synced');
+    }
+    progressFill.style.width = '100%';
+    progressLabel.textContent = '同步完成';
+    setTimeout(() => {
+      if (btn) {
+        btn.textContent = '同步数据';
+        btn.classList.remove('synced');
+      }
+      progressWrap.classList.remove('active');
+      progressFill.style.width = '0%';
+    }, 2000);
+    renderLB();
+  } catch(e) {
+    if (btn) { btn.classList.remove('syncing'); }
+    progressWrap.classList.remove('active');
+    console.error('同步失败:', e);
+  }
 }
 
 function setupTabDatePickers() {
@@ -1507,66 +1589,7 @@ function setupTabDatePickers() {
 
   document.getElementById('lbSyncBtn').addEventListener('click', async () => {
     if (!lbSelDate) return;
-    const btn = document.getElementById('lbSyncBtn');
-    const progressWrap = document.getElementById('lbProgressWrap');
-    const progressLabel = document.getElementById('lbProgressLabel');
-    const progressFill = document.getElementById('lbProgressFill');
-    btn.textContent = '同步中';
-    const dots = document.createElement('span');
-    dots.style.cssText = 'display:inline-block;animation:dotBounce 1.2s infinite;margin-left:1px';
-    dots.textContent = '...';
-    btn.appendChild(dots);
-    btn.classList.add('syncing');
-    progressWrap.classList.add('active');
-    progressFill.style.width = '5%';
-    try {
-      const sortedAll = [...tradingDates].sort();
-      const idx = sortedAll.indexOf(lbSelDate);
-      const tradeDaysNeeded = sortedAll.slice(Math.max(0, idx - 25), idx);
-      progressLabel.textContent = `检查 ${tradeDaysNeeded.length} 个交易日…`;
-      progressFill.style.width = '15%';
-      const rCheck = await fetch(`/api/stock/dates-check?dates=${tradeDaysNeeded.join(',')}`);
-      const haveDates = rCheck.ok ? await rCheck.json() : [];
-      const haveSet = new Set(haveDates);
-      const needSync = tradeDaysNeeded.filter(d => !haveSet.has(d));
-      if (needSync.length) {
-        let done = 0;
-        progressLabel.textContent = `同步股票日线 ${needSync.length} 天…`;
-        const total = needSync.length;
-        await Promise.all(needSync.map(async d => {
-          await fetch(`/api/stock/sync?date=${d}`, { method: 'POST' });
-          done++;
-          progressFill.style.width = `${15 + Math.round((done / total) * 50)}%`;
-          progressLabel.textContent = `同步股票日线 ${done}/${total}…`;
-        }));
-      } else {
-        progressFill.style.width = '50%';
-        progressLabel.textContent = `股票日线已就绪…`;
-      }
-      progressFill.style.width = '75%';
-      progressLabel.textContent = `计算涨幅榜…`;
-      await fetch(`/api/stock/basic/sync`, { method: 'POST' });
-      await fetch(`/api/leaderboard/sync?date=${lbSelDate}`, { method: 'POST' });
-      lbData = [];
-      const LB_TYPES = [['5日', 5], ['10日', 10], ['20日', 20]];
-      const lbResults = await Promise.all(LB_TYPES.map(async ([t]) => {
-        const r = await fetch(`/api/leaderboard?type=${encodeURIComponent(t)}&limit=10&date=${lbSelDate}`);
-        return r.ok ? await r.json() : [];
-      }));
-      lbData = lbResults.flat();
-      btn.textContent = '同步完成';
-      btn.classList.remove('syncing');
-      btn.classList.add('synced');
-      progressFill.style.width = '100%';
-      progressLabel.textContent = '同步完成';
-      setTimeout(() => {
-        btn.textContent = '同步数据';
-        btn.classList.remove('synced');
-        progressWrap.classList.remove('active');
-        progressFill.style.width = '0%';
-      }, 2000);
-      renderLB();
-    } catch(e) { btn.classList.remove('syncing'); progressWrap.classList.remove('active'); console.error('同步失败:', e); }
+    await syncLBData(lbSelDate, document.getElementById('lbSyncBtn'));
   });
 
   document.getElementById('luSyncBtn').addEventListener('click', async () => {
@@ -2061,15 +2084,15 @@ function renderLB() {
       ${data.length ? data.map(d => `
         <div class="lb-row clickable-row" onclick="window.open('${toEastMoney(d.code)}','_blank')">
           <div class="lb-left">
-            <div class="lb-rank r${d.rank}">${d.rank}</div>
-            <div class="lb-name" style="color:#fff">${d.name}</div>
+            <div class="lb-rank r${d.rank || 0}">${d.rank || 0}</div>
+            <div class="lb-name" style="color:#fff">${d.name || ''}</div>
             <div class="lb-change">${d.change != null ? '+' + d.change.toFixed(2) + '%' : '-'}</div>
           </div>
         </div>
         <div class="lb-row lb-row-sub">
           <div class="lb-left">
             <div class="lb-spacer"></div>
-            <div class="lb-code">${d.code}</div>
+            <div class="lb-code">${d.code || ''}</div>
             <div class="lb-volume">${(d.amount || d.volume || 0).toFixed(2)}亿</div>
           </div>
         </div>`).join('') : '<div class="lb-empty">暂无数据</div>'}
@@ -2173,8 +2196,8 @@ function renderLBTable(data) {
     .map(d => `<tr class="clickable-row" onclick="window.open('${toEastMoney(d.code)}','_blank')">
       <td>${fmtDate(d.date)}</td>
       <td><span style="color:${RANK_COLORS[d.rank-1]||'#888'}">TOP ${d.rank}</span></td>
-      <td>${d.code}</td><td style="color:#fff">${d.name}</td>
-      <td class="val-up">+${d.change.toFixed(2)}%</td>
+      <td>${d.code || ''}</td><td style="color:#fff">${d.name || ''}</td>
+      <td class="val-up">${d.change != null ? '+' + d.change.toFixed(2) + '%' : '-'}</td>
       <td>${(d.amount || d.volume || 0).toFixed(2)}</td>
       <td style="max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text-muted);font-size:11px" title="${d.reason || ''}">${d.reason || '暂无公开信息'}</td>
     </tr>`).join('');

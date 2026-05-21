@@ -185,6 +185,15 @@ def get_stock_basic():
 
 # ============ 指数数据 ============
 
+@app.route('/api/index/daily/latest-date', methods=['GET'])
+def get_index_daily_latest_date():
+    """获取实际有数据的最新日期"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    row = c.execute('SELECT date FROM index_daily ORDER BY date DESC LIMIT 1').fetchone()
+    conn.close()
+    return jsonify({'latest_date': row[0] if row else None})
+
 @app.route('/api/index/daily', methods=['GET'])
 def get_index_daily():
     """获取指数日线数据"""
@@ -1016,8 +1025,98 @@ def check_stock_dates():
     return jsonify([r[0] for r in rows])
 
 
+def get_date_range(base_date, months):
+    """计算基准日期往前N个月的日期范围（含首尾）"""
+    dt = datetime.strptime(base_date, '%Y%m%d')
+    start_dt = dt - timedelta(days=months * 30)
+    return start_dt.strftime('%Y%m%d'), base_date
+
+
+@app.route('/api/frequency', methods=['GET'])
+def get_frequency():
+    """上榜频次统计
+
+    参数:
+        date: YYYYMMDD 格式（必选，当前选中日期）
+
+    返回:
+        {
+          "date": "20260520",
+          "tabs": ["1个月", "6个月", "12个月"],  # 前端Tab切换选项
+          "ranges": {
+            "1个月": {"start": "20260420", "end": "20260520"},
+            "6个月": {"start": "20251121", "end": "20260520"},
+            "12个月": {"start": "20250525", "end": "20260520"}
+          },
+          "frequency": {
+            "5日": [
+              {"code": "000001", "name": "平安银行", "1个月": 2, "6个月": 8, "12个月": 15},
+              ...
+            ],
+            "10日": [...],
+            "20日": [...]
+          }
+        }
+    """
+    date = request.args.get('date')
+    if not date:
+        return jsonify({'status': 'error', 'message': '缺少 date 参数'}), 400
+
+    # 计算三个时间区间
+    range_labels = ["1个月", "6个月", "12个月"]
+    ranges = {}
+    for label in range_labels:
+        months = int(label.split("个月")[0])
+        dt = datetime.strptime(date, '%Y%m%d')
+        start_dt = dt - timedelta(days=months * 30)
+        ranges[label] = {"start": start_dt.strftime('%Y%m%d'), "end": date}
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+
+    result = {
+        "date": date,
+        "tabs": range_labels,
+        "ranges": ranges,
+        "frequency": {}
+    }
+
+    # 遍历 5日、10日、20日 三个榜单
+    for lb_type in ["5日", "10日", "20日"]:
+        # 用12个月的起始日期作为查询起点（覆盖所有区间）
+        rows = c.execute('''
+            SELECT code, name, date
+            FROM leaderboard
+            WHERE type=? AND date >= ? AND date <= ?
+            ORDER BY date DESC, rank
+        ''', (lb_type, ranges["12个月"]["start"], date)).fetchall()
+
+        # 统计每只股票在三个时间区间的出现次数
+        stats = {}
+        for row in rows:
+            code = row['code']
+            if code not in stats:
+                stats[code] = {'code': code, 'name': row['name'], '1个月': 0, '6个月': 0, '12个月': 0}
+
+            trade_date = row['date']
+            for label in range_labels:
+                r = ranges[label]
+                if r['start'] <= trade_date <= r['end']:
+                    stats[code][label] += 1
+
+        result["frequency"][lb_type] = [
+            {"code": s['code'], "name": s['name'],
+             "1个月": s['1个月'], "6个月": s['6个月'], "12个月": s['12个月']}
+            for s in stats.values()
+        ]
+
+    conn.close()
+    return jsonify(result)
+
+
 if __name__ == '__main__':
     init_db()
     print(f"数据库初始化完成: {DB_PATH}")
     print("启动 Flask 服务...")
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=5555)

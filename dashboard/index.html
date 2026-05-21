@@ -258,6 +258,21 @@
   .date-sync-btn.synced { color: var(--accent-green); animation: none; }
   @keyframes dotBounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-3px)} }
 
+  .date-nav-btns {
+    display: flex; gap: 0;
+    border: 1px solid var(--border); border-radius: 6px; overflow: hidden;
+    margin-right: 6px;
+  }
+  .date-nav-btn {
+    background: var(--bg-card); color: var(--text-secondary);
+    border: none; padding: 0 14px; height: 32px; cursor: pointer;
+    font-size: 18px; line-height: 32px; transition: all 0.15s;
+    min-width: 40px;
+  }
+  .date-nav-btn:first-child { border-right: 1px solid var(--border); }
+  .date-nav-btn:hover { background: var(--bg-card-hover); color: var(--text-primary); }
+  .date-nav-btn:disabled { opacity: 0.3; cursor: default; }
+
   /* Sync progress bar */
   .sync-progress-wrap { display: none; flex-direction: column; gap: 3px; margin-right: 8px; }
   .sync-left { display: flex; align-items: center; gap: 0; }
@@ -390,7 +405,7 @@
 
   .leaderboard-card {
     background: var(--bg-card); border: 1px solid var(--border);
-    border-radius: 12px; padding: 20px;
+    border-radius: 12px; padding: 16px;
   }
 
   .lb-row {
@@ -450,6 +465,12 @@
     font-size: 12px; color: var(--text-muted);
     text-align: right; white-space: nowrap;
   }
+
+  /* 股票名称可点击跳转 */
+  .stock-link { color: var(--accent-cyan); cursor: pointer; text-decoration: none; }
+  .stock-link:hover { text-decoration: underline; }
+  .clickable-row { cursor: pointer; }
+  .clickable-row:hover { background: rgba(68, 138, 255, 0.06); }
 
   /* Freq bars */
   .freq-bar {
@@ -521,6 +542,50 @@
 
   @keyframes spin { to { transform: rotate(360deg); } }
 
+  .freq-tabs {
+    display: flex; gap: 4px; margin-bottom: 0px;
+  }
+  .freq-tab {
+    padding: 6px 16px; border: 1px solid var(--border);
+    background: var(--bg-card); color: var(--text-secondary);
+    border-radius: 6px; cursor: pointer; font-size: 13px;
+    font-family: 'Noto Sans SC', sans-serif;
+    transition: all 0.2s;
+  }
+  .freq-tab:hover { border-color: var(--accent-blue); color: var(--text-primary); }
+  .freq-tab.active {
+    background: var(--accent-blue); color: #fff;
+    border-color: var(--accent-blue);
+  }
+
+  .leaderboard-card .freq-tabs {
+    display: inline-flex; gap: 4px;
+  }
+  .freq-header {
+    display: flex; align-items: flex-start;
+    margin-bottom: 8px; position: relative;
+  }
+  .freq-header .chart-title {
+    position: absolute; left: 0; top: 0;
+    margin: 0;
+  }
+  .freq-header .freq-tabs {
+    width: 100%; display: flex; justify-content: center;
+  }
+
+  .freq-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+  }
+  .freq-section { background: var(--bg-card); border-radius: 8px; padding: 8px; }
+  .freq-section-title {
+    font-size: 13px; color: var(--text-muted); padding: 0 8px 6px; font-weight: 500;
+  }
+  .freq-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .freq-table th { text-align: left; padding: 4px 8px; color: var(--text-muted); border-bottom: 1px solid var(--border); font-weight: 400; }
+  .freq-table td { padding: 12px 8px; border-bottom: 1px solid rgba(30,42,58,0.3); }
+  .freq-table tbody tr { height: 32px; }
+  .freq-table tr:last-child td { border-bottom: none; }
+
   .tip {
     font-size: 11px; color: var(--text-muted);
     font-family: 'JetBrains Mono', monospace;
@@ -562,6 +627,10 @@
             <div class="sync-progress-bar"><div class="sync-progress-fill" id="idxProgressFill"></div></div>
           </div>
           <button class="date-sync-btn" id="idxSyncBtn">同步数据</button>
+          <div class="date-nav-btns">
+            <button class="date-nav-btn" id="idxPrevBtn" title="上一日">‹</button>
+            <button class="date-nav-btn" id="idxNextBtn" title="下一日">›</button>
+          </div>
         </div>
         <input type="text" id="idxDate" class="date-picker" placeholder="选择日期">
         <span class="all-date-toggle active" id="idxAllToggle">全部日期</span>
@@ -574,6 +643,10 @@
             <div class="sync-progress-bar"><div class="sync-progress-fill" id="lbProgressFill"></div></div>
           </div>
           <button class="date-sync-btn" id="lbSyncBtn">同步数据</button>
+          <div class="date-nav-btns">
+            <button class="date-nav-btn" id="lbPrevBtn" title="上一日">‹</button>
+            <button class="date-nav-btn" id="lbNextBtn" title="下一日">›</button>
+          </div>
         </div>
         <input type="text" id="lbDate" class="date-picker" placeholder="选择日期">
         <span class="all-date-toggle active" id="lbAllToggle">全部日期</span>
@@ -586,6 +659,10 @@
             <div class="sync-progress-bar"><div class="sync-progress-fill" id="luProgressFill"></div></div>
           </div>
           <button class="date-sync-btn" id="luSyncBtn">同步数据</button>
+          <div class="date-nav-btns">
+            <button class="date-nav-btn" id="luPrevBtn" title="上一日">‹</button>
+            <button class="date-nav-btn" id="luNextBtn" title="下一日">›</button>
+          </div>
         </div>
         <input type="text" id="luDate" class="date-picker" placeholder="选择日期">
         <span class="all-date-toggle active" id="luAllToggle">全部日期</span>
@@ -668,6 +745,13 @@ const fmtDate = (d, showYear = false) => {
     return s.slice(0,4)+'年'+s.slice(4,6)+'月'+s.slice(6,8)+'日';
   }
   return s;
+};
+const toEastMoney = (code) => {
+  // 6位数字，沪市sh前缀，深市sz前缀，北证bj前缀
+  const c = code.replace(/\.SZ|\.SH|\.BJ/g, '');
+  if (code.endsWith('.BJ')) return `https://quote.eastmoney.com/bj/${c}.html`;
+  if (code.endsWith('.SH')) return `https://quote.eastmoney.com/sh${c}.html`;
+  return `https://quote.eastmoney.com/sz${c}.html`;
 };
 const normalizeDate = (d) => d.replace(/[年月日]/g, '').replace(' ', '');
 const destroyCharts = (m) => { Object.values(m).forEach(c => c.destroy && c.destroy()); return {}; };
@@ -763,10 +847,13 @@ let lastSelectedDate = '';  // 保留用户选择的日期
 let idxAllMode = true, lbAllMode = false, luAllMode = true;
 let idxSelDate = '', lbSelDate = '', luSelDate = '';
 let lbDataCache = new Map();  // { date: [...] } 按日期缓存涨幅榜数据
+let freqData = null;  // 上榜频次统计数据
+let freqSelRange = '1个月';  // 当前选中的时间区间 Tab
 
 async function loadData(selectedDate) {
   try {
-    // 先获取有效交易日期列表
+    // 同时获取交易日历和有数据的实际最新日期
+    let latestActualDate = '';
     try {
       const rTd = await fetch('/api/trading-dates');
       if (rTd.ok) {
@@ -774,6 +861,14 @@ async function loadData(selectedDate) {
         tradingDates = new Set(dates);
       }
     } catch(e) { console.warn('trading-dates API failed:', e); }
+
+    try {
+      const rLatest = await fetch('/api/index/daily/latest-date');
+      if (rLatest.ok) {
+        const { latest_date } = await rLatest.json();
+        latestActualDate = latest_date || '';
+      }
+    } catch(e) { console.warn('latest-date API failed:', e); }
 
     const r1 = await fetch(`/api/index/daily?limit=500`);
     if (!r1.ok) throw new Error(`API 错误: ${r1.status}`);
@@ -796,8 +891,9 @@ async function loadData(selectedDate) {
     } catch(e) { console.warn('stock/dates-known API failed:', e); }
 
     // 加载涨幅榜单数据（5日/10日/20日）并行获取
-    // 默认加载最新交易日的涨幅榜
-    const latestTradeDate = [...tradingDates].sort().reverse()[0] || '';
+    // 取交易日期历和实际指数数据中较大的日期作为最新交易日
+    const calLatest = [...tradingDates].sort().reverse()[0] || '';
+    const latestTradeDate = latestActualDate > calLatest ? latestActualDate : calLatest;
     lbSelDate = latestTradeDate;
     lbDataCache.clear();
     const LB_TYPES = [['5日', 5], ['10日', 10], ['20日', 20]];
@@ -816,6 +912,12 @@ async function loadData(selectedDate) {
       } catch(e) { console.warn(`leaderboard ${t} API failed:`, e); return []; }
     }));
     lbData = lbResults.flat();
+
+    // 加载上榜频次统计数据
+    try {
+      const rFreq = await fetch(`/api/frequency?date=${latestTradeDate}`);
+      if (rFreq.ok) freqData = await rFreq.json();
+    } catch(e) { console.warn('frequency API failed:', e); }
 
     limitupData = [];
 
@@ -900,7 +1002,7 @@ function initTabDatePickers() {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.textContent = '今天';
-        btn.style.cssText = 'flex:1;padding:8px 0;background:var(--bg-card-hover);border:1px solid var(--border);border-radius:4px;color:var(--accent-cyan);cursor:pointer;font-size:13px;font-family:JetBrains Mono,monospace;margin-right:4px;';
+        btn.style.cssText = 'flex:1;padding:8px 0;background:var(--bg-card-hover);border:1px solid var(--border);border-radius:4px;color:#fff;cursor:pointer;font-size:13px;font-family:JetBrains Mono,monospace;margin-right:4px;';
         const today = new Date();
         const y = String(today.getFullYear());
         const m = String(today.getMonth() + 1).padStart(2, '0');
@@ -918,11 +1020,12 @@ function initTabDatePickers() {
         const btn2 = document.createElement('button');
         btn2.type = 'button';
         btn2.textContent = '最新交易日';
-        btn2.style.cssText = 'flex:1;padding:8px 0;background:var(--bg-card-hover);border:1px solid var(--border);border-radius:4px;color:var(--accent-cyan);cursor:pointer;font-size:13px;font-family:JetBrains Mono,monospace;';
+        btn2.style.cssText = 'flex:1;padding:8px 0;background:var(--bg-card-hover);border:1px solid var(--border);border-radius:4px;color:#fff;cursor:pointer;font-size:13px;font-family:JetBrains Mono,monospace;';
         btn2.onclick = function(e) {
           e.stopPropagation();
-          const sorted = [...tradingDates].sort().reverse();
-          instance.setDate(formatDateForInput(sorted[0]), true);
+          const calLatest = [...tradingDates].sort().reverse()[0] || '';
+          const latest = latestActualDate > calLatest ? latestActualDate : calLatest;
+          instance.setDate(formatDateForInput(latest), true);
         };
         const wrap = document.createElement('div');
         wrap.style.cssText = 'display:flex;padding:4px 6px;';
@@ -966,6 +1069,16 @@ document.getElementById('idxName').addEventListener('change', renderIndex);
 document.getElementById('lbType').addEventListener('change', renderLB);
 document.getElementById('luSector').addEventListener('change', renderLimitup);
 document.getElementById('luStreak').addEventListener('change', renderLimitup);
+
+// 频次统计 Tab 切换 - 使用事件委托避免HTML重新渲染后失效
+document.addEventListener('click', (e) => {
+  if (e.target.classList.contains('freq-tab')) {
+    document.querySelectorAll('.freq-tab').forEach(b => b.classList.remove('active'));
+    e.target.classList.add('active');
+    freqSelRange = e.target.dataset.range;
+    renderLB();
+  }
+});
 
 function getIdxFiltered() {
   const nv = document.getElementById('idxName').value;
@@ -1023,6 +1136,23 @@ async function syncTabData(selDate) {
       ]);
     } catch(e) { console.error('同步失败:', e); }
   }
+  // 同步涨幅榜数据（需要25天股票日线才能计算）
+  const sortedAll = [...tradingDates].sort();
+  const idx2 = sortedAll.indexOf(selDate);
+  if (idx2 >= 0) {
+    const tradeDaysNeeded = sortedAll.slice(Math.max(0, idx2 - 25), idx2);
+    try {
+      const rCheck = await fetch(`/api/stock/dates-check?dates=${tradeDaysNeeded.join(',')}`);
+      const haveDates = rCheck.ok ? await rCheck.json() : [];
+      const haveSet = new Set(haveDates);
+      const needSyncDates = tradeDaysNeeded.filter(d => !haveSet.has(d));
+      if (needSyncDates.length) {
+        await Promise.all(needSyncDates.map(d => fetch(`/api/stock/sync?date=${d}`, { method: 'POST' })));
+      }
+      await fetch(`/api/stock/basic/sync`, { method: 'POST' });
+      await fetch(`/api/leaderboard/sync?date=${selDate}`, { method: 'POST' });
+    } catch(e) { console.error('涨幅榜同步失败:', e); }
+  }
   const r1 = await fetch(`/api/index/daily?limit=500`);
   if (r1.ok) indexData = await r1.json();
   const r4 = await fetch(`/api/overview?limit=100`);
@@ -1042,8 +1172,8 @@ function setupTabDatePickers() {
       fp?.clear();
       idxToggle.classList.add('active');
     } else {
-      const sorted = [...tradingDates].sort().reverse();
-      const targetDate = sorted[0];
+      const calLatest = [...tradingDates].sort().reverse()[0] || '';
+      const targetDate = latestActualDate > calLatest ? latestActualDate : calLatest;
       idxSelDate = targetDate;
       fp?.setDate(formatDateForInput(targetDate), true);
       idxToggle.classList.remove('active');
@@ -1105,7 +1235,7 @@ function setupTabDatePickers() {
 
   // Tab 2: 涨幅榜单
   const lbToggle = document.getElementById('lbAllToggle');
-  lbToggle.addEventListener('click', (e) => {
+  lbToggle.addEventListener('click', async (e) => {
     e.stopPropagation();
     const fp = window.fpInstances['lbDate'];
     if (fp?.isOpen) fp.close();
@@ -1115,11 +1245,14 @@ function setupTabDatePickers() {
       fp?.clear();
       lbToggle.classList.add('active');
     } else {
-      const sorted = [...tradingDates].sort().reverse();
-      const targetDate = sorted[0];
+      const calLatest = [...tradingDates].sort().reverse()[0] || '';
+      const targetDate = latestActualDate > calLatest ? latestActualDate : calLatest;
       lbSelDate = targetDate;
       fp?.setDate(formatDateForInput(targetDate), true);
       lbToggle.classList.remove('active');
+      // 更新 freqData
+      const rFreq = await fetch(`/api/frequency?date=${targetDate}`);
+      if (rFreq.ok) freqData = await rFreq.json();
     }
     renderLB();
   });
@@ -1149,6 +1282,9 @@ function setupTabDatePickers() {
       });
       if (cached.length > 0) {
         lbData = cached;
+        // 同步更新 freqData（用新日期重新获取）
+        const rFreq = await fetch(`/api/frequency?date=${selDate}`);
+        if (rFreq.ok) freqData = await rFreq.json();
         renderLB();
         return;
       }
@@ -1245,6 +1381,10 @@ function setupTabDatePickers() {
         lbDataCache.set(selDate + '_' + t, lbResults[i]);
       }
     });
+
+    // 更新上榜频次统计
+    const rFreq = await fetch(`/api/frequency?date=${selDate}`);
+    if (rFreq.ok) freqData = await rFreq.json();
 
     btn.textContent = '同步完成';
     btn.classList.remove('syncing');
@@ -1464,6 +1604,86 @@ function setupTabDatePickers() {
       renderLimitup();
     } catch(e) { btn.classList.remove('syncing'); progressWrap.classList.remove('active'); console.error('同步失败:', e); }
   });
+
+  // ── 上一日 / 下一日 导航 ──
+  function getSortedDates() {
+    return [...tradingDates].sort();
+  }
+
+  function setupNavBtn(tab) {
+    const prevBtn = document.getElementById(tab + 'PrevBtn');
+    const nextBtn = document.getElementById(tab + 'NextBtn');
+    const picker = document.getElementById(tab + 'Date');
+
+    function getSelDate() {
+      if (tab === 'idx') return idxSelDate;
+      else if (tab === 'lb') return lbSelDate;
+      else return luSelDate;
+    }
+
+    function setSelDate(date) {
+      if (tab === 'idx') idxSelDate = date;
+      else if (tab === 'lb') lbSelDate = date;
+      else luSelDate = date;
+    }
+
+    function updateBtnState(curDate) {
+      const sorted = getSortedDates();
+      const idx = sorted.indexOf(curDate);
+      prevBtn.disabled = idx <= 0;
+      nextBtn.disabled = idx < 0 || idx >= sorted.length - 1;
+    }
+
+    prevBtn.addEventListener('click', () => {
+      const sorted = getSortedDates();
+      const cur = getSelDate();
+      if (!cur) return;
+      const idx = sorted.indexOf(cur);
+      if (idx > 0) {
+        const prevDate = sorted[idx - 1];
+        setSelDate(prevDate);
+        if (fpInstances[picker.id]) fpInstances[picker.id].setDate(formatDateForInput(prevDate), true);
+        updateBtnState(prevDate);
+        picker.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
+
+    nextBtn.addEventListener('click', () => {
+      const sorted = getSortedDates();
+      const cur = getSelDate();
+      if (!cur) return;
+      const idx = sorted.indexOf(cur);
+      if (idx >= 0 && idx < sorted.length - 1) {
+        const nextDate = sorted[idx + 1];
+        setSelDate(nextDate);
+        if (fpInstances[picker.id]) fpInstances[picker.id].setDate(formatDateForInput(nextDate), true);
+        updateBtnState(nextDate);
+        picker.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
+
+    return updateBtnState;
+  }
+
+  const updateIdxNav = setupNavBtn('idx');
+  const updateLbNav = setupNavBtn('lb');
+  const updateLuNav = setupNavBtn('lu');
+
+  // Tab 切换时更新导航按钮状态
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      setTimeout(() => {
+        updateIdxNav(idxSelDate);
+        updateLbNav(lbSelDate);
+        updateLuNav(luSelDate);
+      }, 50);
+    });
+  });
+
+  // 初始化导航按钮状态
+  updateIdxNav(idxSelDate);
+  updateLbNav(lbSelDate);
+  updateLuNav(luSelDate);
 }
 
 // ── Tab 1: 核心指数 ──
@@ -1803,7 +2023,14 @@ function renderLB() {
         <div id="lbLatest"></div>
       </div>
       <div class="leaderboard-card">
-        <div class="chart-title">上榜频次统计</div>
+        <div class="freq-header">
+          <span class="chart-title">上榜频次统计</span>
+          <div class="freq-tabs" style="flex:1;display:flex;justify-content:center;gap:4px">
+            <button class="freq-tab ${freqSelRange==='1个月'?'active':''}" data-range="1个月">1个月</button>
+            <button class="freq-tab ${freqSelRange==='6个月'?'active':''}" data-range="6个月">6个月</button>
+            <button class="freq-tab ${freqSelRange==='12个月'?'active':''}" data-range="12个月">12个月</button>
+          </div>
+        </div>
         <div id="lbFreq"></div>
         <div class="tip">统计各股在筛选范围内出现的次数</div>
       </div>
@@ -1832,10 +2059,10 @@ function renderLB() {
     <div class="lb-column">
       <div class="lb-title">${title}</div>
       ${data.length ? data.map(d => `
-        <div class="lb-row">
+        <div class="lb-row clickable-row" onclick="window.open('${toEastMoney(d.code)}','_blank')">
           <div class="lb-left">
             <div class="lb-rank r${d.rank}">${d.rank}</div>
-            <div class="lb-name">${d.name}</div>
+            <div class="lb-name" style="color:#fff">${d.name}</div>
             <div class="lb-change">${d.change != null ? '+' + d.change.toFixed(2) + '%' : '-'}</div>
           </div>
         </div>
@@ -1856,16 +2083,50 @@ function renderLB() {
     </div>
   `;
 
-  // Freq bars
-  document.getElementById('lbFreq').innerHTML = freqSorted.map(([name, count], i) => {
-    const pct = (count / freqMax * 100).toFixed(0);
-    const hue = 160 - (i / freqSorted.length) * 120;
-    return `<div class="freq-bar">
-      <span class="freq-name">${name}</span>
-      <div class="freq-track"><div class="freq-fill" style="width:${pct}%;background:hsl(${hue},70%,50%)"></div></div>
-      <span class="freq-count">${count}</span>
-    </div>`;
-  }).join('');
+  // Freq table - 5日/10日/20日 三个榜单，切换 Tab 显示不同时间区间
+  const renderFreqTable = (type, stocks) => {
+    const sorted = [...stocks].sort((a, b) => b[freqSelRange] - a[freqSelRange]);
+    const max = sorted.length ? sorted[0][freqSelRange] : 1;
+    return sorted.slice(0, 20).map(s => {
+      const pct = max > 0 ? (s[freqSelRange] / max * 100).toFixed(0) : 0;
+      const hue = 160 - (pct / 100) * 120;
+      return `<tr class="clickable-row" onclick="window.open('${toEastMoney(s.code)}','_blank')">
+        <td style="width:36%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff">${s.name}</td>
+        <td>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="flex:1;height:6px;background:var(--border);border-radius:3px">
+              <div style="width:${pct}%;height:100%;background:hsl(${hue},70%,50%);border-radius:3px"></div>
+            </div>
+            <span style="color:hsl(${hue},70%,60%);font-size:11px">${s[freqSelRange]}</span>
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+  };
+
+  const freqHTML = freqData ? `
+    <div class="freq-grid">
+      <div class="freq-section">
+        <div class="freq-section-title">5日 榜</div>
+        <table class="freq-table">
+          <tbody>${renderFreqTable('5日', freqData.frequency['5日'])}</tbody>
+        </table>
+      </div>
+      <div class="freq-section">
+        <div class="freq-section-title">10日 榜</div>
+        <table class="freq-table">
+          <tbody>${renderFreqTable('10日', freqData.frequency['10日'])}</tbody>
+        </table>
+      </div>
+      <div class="freq-section">
+        <div class="freq-section-title">20日 榜</div>
+        <table class="freq-table">
+          <tbody>${renderFreqTable('20日', freqData.frequency['20日'])}</tbody>
+        </table>
+      </div>
+    </div>` : '<div class="loading">暂无频次数据</div>';
+
+  document.getElementById('lbFreq').innerHTML = freqHTML;
 
   // TOP1 chart
   lbCharts = destroyCharts(lbCharts);
@@ -1909,10 +2170,10 @@ function renderLB() {
 function renderLBTable(data) {
   document.getElementById('lbTbody').innerHTML = data
     .sort((a,b) => a.date.localeCompare(b.date) || a.rank - b.rank)
-    .map(d => `<tr>
+    .map(d => `<tr class="clickable-row" onclick="window.open('${toEastMoney(d.code)}','_blank')">
       <td>${fmtDate(d.date)}</td>
       <td><span style="color:${RANK_COLORS[d.rank-1]||'#888'}">TOP ${d.rank}</span></td>
-      <td>${d.code}</td><td>${d.name}</td>
+      <td>${d.code}</td><td style="color:#fff">${d.name}</td>
       <td class="val-up">+${d.change.toFixed(2)}%</td>
       <td>${(d.amount || d.volume || 0).toFixed(2)}</td>
       <td style="max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text-muted);font-size:11px" title="${d.reason || ''}">${d.reason || '暂无公开信息'}</td>
@@ -1999,11 +2260,11 @@ function renderLUTable(data) {
     .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))
     .map(d => {
       const isStreak = d.streak !== '首板';
-      return `<tr>
+      return `<tr class="clickable-row" onclick="window.open('${toEastMoney(d.code)}','_blank')">
         <td>${fmtDate(d.date)}</td>
         <td>${d.code}</td>
-        <td>${d.name}</td>
-        <td><span style="color:var(--accent-cyan)">${d.sector}</span></td>
+        <td style="color:#fff">${d.name}</td>
+        <td><span style="color:#fff">${d.sector}</span></td>
         <td>${d.time}</td>
         <td style="${isStreak ? 'color:var(--accent-orange);font-weight:600' : 'color:var(--text-muted)'}">${d.streak}</td>
         <td>${d.marketCap.toFixed(1)}</td>

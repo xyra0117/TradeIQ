@@ -5,6 +5,7 @@ Flask + SQLite + TuShare 后端
 
 import os
 import sqlite3
+import time
 from datetime import datetime, timedelta
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
@@ -380,7 +381,9 @@ def sync_leaderboard():
 
     if date in existing_dates:
         date_idx = existing_dates.index(date)
-        available = date_idx + 1  # 有多少天包含 date 当天
+        # existing_dates 是降序排列（最新在前），date_idx 是 date 在其中的位置
+        # 从 date 当天往回数，有 len(existing_dates) - date_idx 个交易日的数据
+        available = len(existing_dates) - date_idx
         if available < max_interval:
             need = max_interval - available
             # 从 date 之前按时间顺序补 (date 往前 need 天)
@@ -455,7 +458,7 @@ def sync_stock_daily(trade_date):
         for _, row in df.iterrows():
             try:
                 name = name_map.get(row['ts_code'], '')
-                c.execute('''INSERT OR REPLACE INTO stock_daily
+                c.execute('''INSERT OR IGNORE INTO stock_daily
                     (ts_code, name, trade_date, open, high, low, close, change, volume, amount)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
                     (row['ts_code'], name, trade_date,
@@ -471,6 +474,65 @@ def sync_stock_daily(trade_date):
     except Exception as e:
         print(f'sync_stock_daily error: {e}')
         return -1
+
+
+def sync_stock_daily_batch(start_date, end_date, dry_run=False):
+    """批量同步 start_date ~ end_date 范围内的缺失交易日线数据
+
+    - 从 trade_cal 获取交易日历
+    - 找出本地数据库缺失的日期
+    - 逐日调用 sync_stock_daily 补数据
+    - 速率限制: 每200天休息3秒
+    """
+    pro = get_pro()
+    df_cal = pro.trade_cal(exchange='SSE', start_date=start_date, end_date=end_date)
+    trading_dates = sorted(df_cal[df_cal['is_open'] == 1]['cal_date'].tolist())
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    existing = set(r[0] for r in c.execute('SELECT DISTINCT trade_date FROM stock_daily').fetchall())
+    conn.close()
+
+    to_sync = [d for d in trading_dates if d not in existing]
+    if dry_run:
+        return {'total': len(trading_dates), 'existing': len(existing), 'missing': len(to_sync), 'dates': to_sync}
+
+    results = {'success': 0, 'failed': 0, 'errors': []}
+    for i, date in enumerate(to_sync):
+        ret = sync_stock_daily(date)
+        if ret > 0:
+            results['success'] += 1
+        else:
+            results['failed'] += 1
+            if ret < 0:
+                results['errors'].append(date)
+        if (i + 1) % 200 == 0:
+            time.sleep(3)
+        else:
+            time.sleep(0.1)
+    return results
+
+
+@app.route('/api/stock/sync/batch', methods=['POST'])
+def sync_stock_daily_batch_api():
+    """批量同步历史日线数据
+
+    参数:
+        start_date: 起始日期 (YYYYMMDD)
+        end_date: 结束日期 (YYYYMMDD)
+        dry_run: 1 表示只返回缺失日期列表，不实际同步
+    """
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    dry_run = request.args.get('dry_run', '0') == '1'
+
+    if not start_date or not end_date:
+        return jsonify({'status': 'error', 'message': '需要 start_date 和 end_date 参数'}), 400
+
+    result = sync_stock_daily_batch(start_date, end_date, dry_run=dry_run)
+    if dry_run:
+        return jsonify({'status': 'ok', **result})
+    return jsonify({'status': 'ok', **result})
 
 
 @app.route('/api/stock/dates-known', methods=['GET'])

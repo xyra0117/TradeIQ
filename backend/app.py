@@ -1032,6 +1032,42 @@ def parse_limitup_image():
                 capture_output=True, text=True, timeout=600
             )
             _ocr_jobs[job_id]['stage'] = 'ocr_done'
+            # 从图片标题读取日期
+            date_prompt = (
+                'What date is shown on this image? '
+                'Output ONLY the date text visible in the title or header area, '
+                'e.g. "05.15" or "5月15日". '
+                'Do not add any explanation or additional text.'
+            )
+            date_r = subprocess.run(
+                ['/usr/local/bin/mmx', 'vision', 'describe', '--image', filepath,
+                 '--output', 'json', '--prompt', date_prompt],
+                capture_output=True, text=True, timeout=30
+            )
+            parsed_date = trade_date or ''
+            if date_r.returncode == 0:
+                try:
+                    date_outer = _json.loads(date_r.stdout.strip())
+                    date_str = date_outer.get('content', '').strip()
+                    if date_str:
+                        # 解析 "05.15" -> "20260515"
+                        m = re.match(r'(\d{1,2})\.(\d{1,2})', date_str)
+                        if m:
+                            month, day = int(m.group(1)), int(m.group(2))
+                            from datetime import datetime as _dt
+                            year = _dt.now().year
+                            parsed_date = f'{year}{month:02d}{day:02d}'
+                        else:
+                            m2 = re.match(r'(\d{1,2})月(\d{1,2})日', date_str)
+                            if m2:
+                                month, day = int(m2.group(1)), int(m2.group(2))
+                                from datetime import datetime as _dt
+                                year = _dt.now().year
+                                parsed_date = f'{year}{month:02d}{day:02d}'
+                except:
+                    pass
+            if not parsed_date:
+                parsed_date = datetime.now().strftime('%Y%m%d')
             parsed_data = []
             try:
                 outer = _json.loads(r.stdout.strip())
@@ -1071,7 +1107,8 @@ def parse_limitup_image():
                 if days not in ('1', '首板', '1天'):
                     streak_stocks.append(s)
 
-            parsed_date = trade_date or datetime.now().strftime('%Y%m%d')
+            if not parsed_date:
+                parsed_date = datetime.now().strftime('%Y%m%d')
 
             def norm(v):
                 if not v or v in ('1', '首板', '1天'):
@@ -1087,9 +1124,10 @@ def parse_limitup_image():
                 try:
                     c.execute('''INSERT INTO limitup (date,code,name,marketCap,time,sector,volume,streak,keyword)
                         VALUES (?,?,?,?,?,?,?,?,?)''',
-                        (parsed_date, s.get('code',''), s.get('name',''), 0,
+                        (parsed_date, s.get('code',''), s.get('name',''),
+                         float(s.get('market_cap') or 0),
                          s.get('time',''), s.get('sector',''),
-                         s.get('turnover', 0), norm(s.get('days','')), ''))
+                         float(s.get('turnover') or 0), norm(s.get('days','')), s.get('keywords', '')))
                     cnt += 1
                 except:
                     pass
@@ -1098,9 +1136,10 @@ def parse_limitup_image():
                     try:
                         c.execute('''INSERT INTO limitup (date,code,name,marketCap,time,sector,volume,streak,keyword)
                             VALUES (?,?,?,?,?,?,?,?,?)''',
-                            (parsed_date, s.get('code',''), s.get('name',''), 0,
+                            (parsed_date, s.get('code',''), s.get('name',''),
+                             float(s.get('market_cap') or 0),
                              s.get('time',''), board_sector,
-                             s.get('turnover', 0) or 0, norm(s.get('days', '1')), s.get('keywords', '')))
+                             float(s.get('turnover') or 0), norm(s.get('days', '1')), s.get('keywords', '')))
                         cnt += 1
                     except:
                         pass

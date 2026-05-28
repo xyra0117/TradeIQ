@@ -1005,6 +1005,18 @@ async function loadData(selectedDate) {
       if (rLu.ok) limitupData = await rLu.json();
     } catch(e) { console.warn('limitup API failed:', e); }
 
+    // 涨停拆解默认显示最近有数据的日期
+    if (limitupData.length > 0) {
+      const luDates = [...new Set(limitupData.map(d => d.date))].sort().reverse();
+      luSelDate = luDates[0];
+      luAllMode = false;
+      const luToggle = document.getElementById('luAllToggle');
+      if (luToggle) luToggle.classList.remove('active');
+      if (luSelDate && window.fpInstances['luDate']) {
+        window.fpInstances['luDate'].setDate(formatDateForInput(luSelDate), true);
+      }
+    }
+
     // 找有数据的最新日期（用于初始加载）
     const validDates = [...new Set(indexData.map(d => d.date))].sort().reverse();
     // 用户切换日期时信任选择，fallback 到最新日期仅在自动加载时
@@ -1024,10 +1036,14 @@ async function loadData(selectedDate) {
     if (lbSelDate && window.fpInstances['lbDate']) {
       window.fpInstances['lbDate'].setDate(formatDateForInput(lbSelDate), true);
     }
+    if (luSelDate && window.fpInstances['luDate']) {
+      window.fpInstances['luDate'].setDate(formatDateForInput(luSelDate), true);
+    }
     document.getElementById('updateTime').textContent =
       `最后更新: ${new Date().toLocaleString('zh-CN')}`;
     renderIndex();
     renderLB();
+    renderLimitup();
   } catch (e) {
     console.error('加载失败:', e);
     const el = document.getElementById('indexContent');
@@ -2367,7 +2383,7 @@ function renderLimitup() {
       <div style="max-height:440px;overflow-y:auto">
         <table>
           <thead><tr>
-            <th>日期</th><th>代码</th><th>名称</th><th>板块</th>
+            <th>板块</th><th>代码</th><th>名称</th>
             <th>涨停时间</th><th>连板</th><th>流通市值</th><th>成交额</th><th>关键词</th>
           </tr></thead>
           <tbody id="luTbody"></tbody>
@@ -2417,22 +2433,48 @@ function renderLimitup() {
 }
 
 function renderLUTable(data) {
-  document.getElementById('luTbody').innerHTML = data
-    .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))
-    .map(d => {
+  // 按板块分组，板块内按时间排序
+  const groups = {};
+  data.forEach(d => {
+    if (!groups[d.sector]) groups[d.sector] = [];
+    groups[d.sector].push(d);
+  });
+  Object.values(groups).forEach(g => g.sort((a, b) => {
+    // 优先看板数（Y天Y板中的Y），其次看涨停时间（早的在前）
+    const boardCount = t => {
+      if (t === '首板') return -1;
+      const m = t.match(/(\d+)天(\d+)板/);
+      return m ? parseInt(m[2]) : 0;
+    };
+    const sa = boardCount(a.streak), sb = boardCount(b.streak);
+    if (sb !== sa) return sb - sa;
+    // 转为分钟比较
+    const toMin = t => {
+      const p = t.split(':').map(Number);
+      return p[0] * 60 + p[1];
+    };
+    return toMin(a.time) - toMin(b.time);
+  }));
+
+  const html = [];
+  Object.entries(groups).sort((a, b) => b[1].length - a[1].length).forEach(([sector, stocks]) => {
+    stocks.forEach((d, i) => {
       const isStreak = d.streak !== '首板';
-      return `<tr class="clickable-row" onclick="window.open('${toEastMoney(d.code)}','_blank')">
-        <td>${fmtDate(d.date)}</td>
+      const sectorHtml = i === 0
+        ? `<td rowspan="${stocks.length}" style="text-align:center;vertical-align:middle;color:var(--accent-cyan);font-weight:600">${sector}</td>`
+        : '';
+      html.push(`<tr class="clickable-row" onclick="window.open('${toEastMoney(d.code)}','_blank')">${sectorHtml}
         <td>${d.code}</td>
         <td style="color:#fff">${d.name}</td>
-        <td><span style="color:#fff">${d.sector}</span></td>
         <td>${d.time}</td>
         <td style="${isStreak ? 'color:var(--accent-orange);font-weight:600' : 'color:var(--text-muted)'}">${d.streak}</td>
         <td>${d.marketCap.toFixed(1)}</td>
         <td>${d.volume.toFixed(2)}</td>
         <td style="max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text-muted);font-size:11px" title="${d.keyword}">${d.keyword}</td>
-      </tr>`;
-    }).join('');
+      </tr>`);
+    });
+  });
+  document.getElementById('luTbody').innerHTML = html.join('');
 }
 
 // ── 涨停简图上传与OCR解析 ──

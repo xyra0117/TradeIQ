@@ -327,6 +327,43 @@ def get_leaderboard():
     return jsonify({'need_sync': True, 'date': date, 'type': lb_type})
 
 
+@app.route('/api/leaderboard/latest-date', methods=['GET'])
+def get_leaderboard_latest_date():
+    """返回 leaderboard 表中最新有数据的日期"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    row = c.execute('SELECT MAX(date) FROM leaderboard').fetchone()
+    conn.close()
+    return jsonify({'latest_date': row[0] if row and row[0] else ''})
+
+
+@app.route('/api/leaderboard/top1', methods=['GET'])
+def get_leaderboard_top1():
+    """返回历史 TOP1 数据（每种类型的 rank=1 记录），用于走势图
+
+    参数:
+        date: YYYYMMDD 格式（可选，默认最新日期）
+        limit: 每种类型返回条数（默认 30）
+    """
+    limit = request.args.get('limit', 30, type=int)
+    date = request.args.get('date')
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    if date:
+        rows = c.execute('''
+            SELECT date, type, code, name, change FROM leaderboard
+            WHERE rank=1 AND date <= ? ORDER BY date DESC LIMIT ?
+        ''', (date, limit * 3)).fetchall()
+    else:
+        rows = c.execute('''
+            SELECT date, type, code, name, change FROM leaderboard
+            WHERE rank=1 ORDER BY date DESC LIMIT ?
+        ''', (limit * 3,)).fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+
 @app.route('/api/leaderboard/status', methods=['GET'])
 def get_leaderboard_status():
     """查询指定日期的 leaderboard 数据状态"""
@@ -384,8 +421,8 @@ def sync_leaderboard():
         # existing_dates 是降序排列（最新在前），date_idx 是 date 在其中的位置
         # 从 date 当天往回数，有 len(existing_dates) - date_idx 个交易日的数据
         available = len(existing_dates) - date_idx
-        if available < max_interval:
-            need = max_interval - available
+        if available < max_interval + 1:
+            need = max_interval + 1 - available
             # 从 date 之前按时间顺序补 (date 往前 need 天)
             sorted_dates = sorted(existing_dates)
             if date in sorted_dates:
@@ -643,10 +680,10 @@ def get_top_stocks(interval_days, end_date, limit=10):
         conn.close()
         return []
     end_idx = dates.index(end_date)
-    if len(dates) - end_idx < interval_days:
+    if len(dates) - end_idx < interval_days + 1:
         conn.close()
         return []
-    start_date = dates[end_idx + interval_days - 1]
+    start_date = dates[end_idx + interval_days]
 
     # 获取 end_date 有数据的股票
     stocks = c.execute(
@@ -1005,6 +1042,32 @@ def get_trading_dates():
     ).fetchall()
     local_dates = [r[0] for r in rows]
     conn.close()
+
+    # 如果本地最新日期比今天早，自动从 TuShare 补最新数据
+    today = datetime.now().strftime('%Y%m%d')
+    if local_dates and local_dates[-1] < today:
+        pro = get_pro()
+        try:
+            df = pro.trade_cal(exchange='SSE', start_date=local_dates[-1], end_date=today)
+            new_dates = df[df['is_open'] == 1]['cal_date'].tolist()
+            if new_dates:
+                conn = sqlite3.connect(DB_PATH)
+                c = conn.cursor()
+                for cal_date in new_dates:
+                    c.execute('INSERT OR IGNORE INTO trading_dates_cache (cal_date) VALUES (?)', (cal_date,))
+                conn.commit()
+                conn.close()
+                # 重新查询
+                conn = sqlite3.connect(DB_PATH)
+                c = conn.cursor()
+                rows = c.execute(
+                    'SELECT cal_date FROM trading_dates_cache WHERE cal_date BETWEEN ? AND ? ORDER BY cal_date',
+                    (start_date, end_date)
+                ).fetchall()
+                local_dates = [r[0] for r in rows]
+                conn.close()
+        except Exception as e:
+            print(f'补全交易日历失败: {e}')
 
     if local_dates:
         return jsonify(local_dates)

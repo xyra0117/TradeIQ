@@ -5,9 +5,13 @@ Flask + SQLite + TuShare 后端
 
 import os
 import sqlite3
+import subprocess
 import time
 from datetime import datetime, timedelta
 from flask import Flask, jsonify, request, send_from_directory
+
+# 涨停简图 OCR 异步任务队列
+_ocr_jobs = {}
 from flask_cors import CORS
 import tushare as ts
 
@@ -991,6 +995,140 @@ def sync_limitup():
 
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)})
+
+
+@app.route('/api/limitup/parse-image', methods=['POST'])
+def parse_limitup_image():
+    """异步解析涨停简图：立即返回 job_id，后台处理 mmx OCR（约3-4分钟）"""
+    if 'image' not in request.files:
+        return jsonify({'status': 'error', 'message': '请上传图片文件'}), 400
+    image_file = request.files['image']
+    if not image_file.filename:
+        return jsonify({'status': 'error', 'message': '请上传图片文件'}), 400
+
+    upload_dir = os.path.join(os.path.dirname(__file__), 'uploads')
+    os.makedirs(upload_dir, exist_ok=True)
+    import uuid
+    job_id = str(uuid.uuid4())[:8]
+    filename = f'limitup_{datetime.now().strftime("%Y%m%d%H%M%S")}_{job_id}_{image_file.filename}'
+    filepath = os.path.join(upload_dir, filename)
+    image_file.save(filepath)
+
+    trade_date = request.form.get('date', '')
+
+    _ocr_jobs[job_id] = {'status': 'processing', 'stage': 'saving_image'}
+
+    def do_ocr():
+        import re, json as _json
+        prompt = (
+            'Output ONLY valid JSON array with: code, name, days, time, market_cap, turnover, keywords, sector. '
+            'Include every single stock visible from this 涨停简图.'
+        )
+        try:
+            _ocr_jobs[job_id]['stage'] = 'ocr_starting'
+            r = subprocess.run(
+                ['/usr/local/bin/mmx', 'vision', 'describe', '--image', filepath,
+                 '--output', 'json', '--prompt', prompt],
+                capture_output=True, text=True, timeout=600
+            )
+            _ocr_jobs[job_id]['stage'] = 'ocr_done'
+            parsed_data = []
+            try:
+                outer = _json.loads(r.stdout.strip())
+                inner = outer.get('content', '')
+                # 去除 markdown 代码块标记 ```json ... ```
+                inner = re.sub(r'^```json\s*', '', inner).strip()
+                inner = re.sub(r'```\s*$', '', inner).strip()
+                if inner.startswith('```'):
+                    inner = re.sub(r'^```[a-z]*\s*', '', inner).strip()
+                    inner = re.sub(r'```\s*$', '', inner).strip()
+                if inner.startswith('['):
+                    parsed_data = _json.loads(inner)
+                elif inner.startswith('"'):
+                    decoded = _json.loads(inner)
+                    if isinstance(decoded, str) and decoded.startswith('['):
+                        parsed_data = _json.loads(decoded)
+            except:
+                pass
+            if not parsed_data:
+                m = re.search(r'\[\s*\{.*?\}\s*\]', r.stdout.strip(), re.DOTALL)
+                if m:
+                    try:
+                        parsed_data = _json.loads(m.group())
+                    except:
+                        pass
+
+            _ocr_jobs[job_id]['stage'] = 'parsing'
+            boards_map = {}
+            streak_stocks = []
+            for s in parsed_data:
+                sector = (s.get('sector') or '其他').strip()
+                sector = re.sub(r'\*\d+$', '', sector)
+                if sector not in boards_map:
+                    boards_map[sector] = []
+                boards_map[sector].append(s)
+                days = s.get('days', '1') or '1'
+                if days not in ('1', '首板', '1天'):
+                    streak_stocks.append(s)
+
+            parsed_date = trade_date or datetime.now().strftime('%Y%m%d')
+
+            def norm(v):
+                if not v or v in ('1', '首板', '1天'):
+                    return '首板'
+                return str(v)
+
+            _ocr_jobs[job_id]['stage'] = 'writing_db'
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            c.execute('DELETE FROM limitup WHERE date=?', (parsed_date,))
+            cnt = 0
+            for s in streak_stocks:
+                try:
+                    c.execute('''INSERT INTO limitup (date,code,name,marketCap,time,sector,volume,streak,keyword)
+                        VALUES (?,?,?,?,?,?,?,?,?)''',
+                        (parsed_date, s.get('code',''), s.get('name',''), 0,
+                         s.get('time',''), s.get('sector',''),
+                         s.get('turnover', 0), norm(s.get('days','')), ''))
+                    cnt += 1
+                except:
+                    pass
+            for board_sector, stocks in boards_map.items():
+                for s in stocks:
+                    try:
+                        c.execute('''INSERT INTO limitup (date,code,name,marketCap,time,sector,volume,streak,keyword)
+                            VALUES (?,?,?,?,?,?,?,?,?)''',
+                            (parsed_date, s.get('code',''), s.get('name',''), 0,
+                             s.get('time',''), board_sector,
+                             s.get('turnover', 0) or 0, norm(s.get('days', '1')), s.get('keywords', '')))
+                        cnt += 1
+                    except:
+                        pass
+            conn.commit()
+            conn.close()
+            _ocr_jobs[job_id] = {'status': 'done', 'stage': 'done', 'count': cnt, 'date': parsed_date,
+                                  'boards': list(boards_map.keys()), 'streak_count': len(streak_stocks)}
+        except Exception as e:
+            _ocr_jobs[job_id] = {'status': 'error', 'stage': 'error', 'error': str(e)}
+
+    import threading
+    t = threading.Thread(target=do_ocr)
+    t.daemon = True
+    t.start()
+
+    return jsonify({'status': 'processing', 'job_id': job_id})
+
+
+@app.route('/api/limitup/parse-status/<job_id>', methods=['GET'])
+def get_parse_status(job_id):
+    job = _ocr_jobs.get(job_id)
+    if not job:
+        return jsonify({'status': 'error', 'message': '任务不存在'}), 404
+    if job['status'] == 'done':
+        return jsonify({'status': 'done', **job})
+    elif job['status'] == 'error':
+        return jsonify({'status': 'error', 'message': job['error']}), 500
+    return jsonify({'status': 'processing'})
 
 
 # ============ 静态文件 ============

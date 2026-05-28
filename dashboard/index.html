@@ -738,6 +738,26 @@
       </div>
     </div>
     <div id="luContent">
+      <div style="padding:16px 0">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+          <span style="font-size:13px;color:var(--text-secondary)">涨停简图解析</span>
+          <div id="luOcrProgress" style="display:none;flex:1">
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px" id="luOcrLabel">准备解析...</div>
+            <div class="sync-progress-bar" style="height:4px"><div class="sync-progress-fill" id="luOcrFill" style="width:0%"></div></div>
+          </div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-start">
+          <div id="luImagePreview" style="display:none;width:120px;height:80px;object-fit:cover;border-radius:6px;border:1px solid var(--border)"></div>
+          <div id="luUploadZone" style="flex:1;border:2px dashed var(--border);border-radius:8px;padding:32px;text-align:center;cursor:pointer;transition:all 0.2s"
+            onclick="document.getElementById('luFileInput').click()">
+            <div style="font-size:32px;margin-bottom:12px">📷</div>
+            <div style="font-size:14px;color:var(--text-secondary);margin-bottom:6px">请上传涨停简图</div>
+            <div style="font-size:12px;color:var(--text-muted)">点击或拖拽上传韭研公社涨停简图，获取完整板块分布和涨停数据</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:8px">支持 JPG/PNG，原图优先，不压缩</div>
+            <input type="file" id="luFileInput" accept="image/*" style="display:none" />
+          </div>
+        </div>
+      </div>
       <div class="loading">正在加载数据...</div>
     </div>
   </div>
@@ -760,6 +780,10 @@ const RANK_COLORS = [
   '#448aff', '#448aff',
   '#8892a4', '#8892a4', '#8892a4', '#8892a4', '#8892a4'
 ];
+
+// ── 全局状态 ──
+let limitupData = [];
+let luMarketSummary = null;
 
 // ── Helpers ──
 const fmtDate = (d, showYear = false) => {
@@ -841,7 +865,7 @@ const mkEChartOpts = (yLabel) => ({
 });
 
 // ── Data ──
-let indexData = [], lbData = [], limitupData = [], overviewData = [];
+let indexData = [], lbData = [], overviewData = [];
 let idxCharts = {};
 let lbCharts = {};
 
@@ -975,6 +999,12 @@ async function loadData(selectedDate) {
 
     limitupData = [];
 
+    // 加载涨停数据
+    try {
+      const rLu = await fetch('/api/limitup?limit=500');
+      if (rLu.ok) limitupData = await rLu.json();
+    } catch(e) { console.warn('limitup API failed:', e); }
+
     // 找有数据的最新日期（用于初始加载）
     const validDates = [...new Set(indexData.map(d => d.date))].sort().reverse();
     // 用户切换日期时信任选择，fallback 到最新日期仅在自动加载时
@@ -1107,7 +1137,7 @@ function initFilters() {
   appendOptions(document.getElementById('idxName'), idxNames, v => v, '全部指数');
 
   const luSectors = [...new Set(limitupData.map(d => d.sector))].sort();
-  appendOptions(document.getElementById('luSector'), luSectors, v => v);
+  appendOptions(document.getElementById('luSector'), luSectors, v => v, '全部板块');
 
   if (tradingDates.size) {
     initTabDatePickers();
@@ -1157,6 +1187,7 @@ function getLUFiltered() {
   const sv = document.getElementById('luSector').value;
   const kv = document.getElementById('luStreak').value;
   const selDate = luAllMode ? '' : luSelDate;
+  console.log('[DEBUG getLUFiltered] sv:', sv, 'kv:', kv, 'selDate:', selDate, 'luAllMode:', luAllMode);
   return limitupData.filter(d => {
     if (selDate && d.date !== selDate) return false;
     if (sv !== 'all' && d.sector !== sv) return false;
@@ -1603,38 +1634,6 @@ function setupTabDatePickers() {
     luAllMode = false;
     luSelDate = selDate;
     luToggle.classList.remove('active');
-    const hasLu = limitupData.some(d => d.date === selDate);
-    if (!hasLu) {
-      const btn = document.getElementById('luSyncBtn');
-      const progressWrap = document.getElementById('luProgressWrap');
-      const progressLabel = document.getElementById('luProgressLabel');
-      const progressFill = document.getElementById('luProgressFill');
-      btn.textContent = '同步中';
-      const dots = document.createElement('span');
-      dots.style.cssText = 'display:inline-block;animation:dotBounce 1.2s infinite;margin-left:1px';
-      dots.textContent = '...';
-      btn.appendChild(dots);
-      btn.classList.add('syncing');
-      progressWrap.classList.add('active');
-      progressFill.style.width = '30%';
-      progressLabel.textContent = '同步涨停数据…';
-      await fetch(`/api/limitup/sync?date=${selDate}`, { method: 'POST' });
-      progressFill.style.width = '70%';
-      progressLabel.textContent = '加载数据…';
-      const r = await fetch('/api/limitup?limit=500');
-      if (r.ok) limitupData = await r.json();
-      btn.textContent = '同步完成';
-      btn.classList.remove('syncing');
-      btn.classList.add('synced');
-      progressFill.style.width = '100%';
-      progressLabel.textContent = '同步完成';
-      setTimeout(() => {
-        btn.textContent = '同步数据';
-        btn.classList.remove('synced');
-        progressWrap.classList.remove('active');
-        progressFill.style.width = '0%';
-      }, 2000);
-    }
     renderLimitup();
   });
 
@@ -1680,39 +1679,8 @@ function setupTabDatePickers() {
   });
 
   document.getElementById('luSyncBtn').addEventListener('click', async () => {
-    if (!luSelDate) return;
-    const btn = document.getElementById('luSyncBtn');
-    const progressWrap = document.getElementById('luProgressWrap');
-    const progressLabel = document.getElementById('luProgressLabel');
-    const progressFill = document.getElementById('luProgressFill');
-    btn.textContent = '同步中';
-    const dots = document.createElement('span');
-    dots.style.cssText = 'display:inline-block;animation:dotBounce 1.2s infinite;margin-left:1px';
-    dots.textContent = '...';
-    btn.appendChild(dots);
-    btn.classList.add('syncing');
-    progressWrap.classList.add('active');
-    progressFill.style.width = '30%';
-    progressLabel.textContent = '同步涨停数据…';
-    try {
-      await fetch(`/api/limitup/sync?date=${luSelDate}`, { method: 'POST' });
-      progressFill.style.width = '70%';
-      progressLabel.textContent = '加载数据…';
-      const r = await fetch('/api/limitup?limit=500');
-      if (r.ok) limitupData = await r.json();
-      btn.textContent = '同步完成';
-      btn.classList.remove('syncing');
-      btn.classList.add('synced');
-      progressFill.style.width = '100%';
-      progressLabel.textContent = '同步完成';
-      setTimeout(() => {
-        btn.textContent = '同步数据';
-        btn.classList.remove('synced');
-        progressWrap.classList.remove('active');
-        progressFill.style.width = '0%';
-      }, 2000);
-      renderLimitup();
-    } catch(e) { btn.classList.remove('syncing'); progressWrap.classList.remove('active'); console.error('同步失败:', e); }
+    // 同步按钮改为触发图片上传
+    document.getElementById('luFileInput').click();
   });
 
   // ── 上一日 / 下一日 导航 ──
@@ -2348,6 +2316,7 @@ async function renderLB() {
 // ── Tab 3: 涨停拆解明细 ──
 function renderLimitup() {
   const data = getLUFiltered();
+  console.log('[DEBUG] limitupData.length:', limitupData.length, 'filtered:', data.length);
   const el = document.getElementById('luContent');
 
   // 统计板块分布
@@ -2363,6 +2332,25 @@ function renderLimitup() {
   });
 
   el.innerHTML = `
+    <div id="luUploadSection">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+        <span style="font-size:13px;color:var(--text-secondary)">涨停简图解析</span>
+        <div id="luOcrProgress" style="display:none;flex:1">
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px" id="luOcrLabel">准备解析...</div>
+          <div class="sync-progress-bar" style="height:4px"><div class="sync-progress-fill" id="luOcrFill" style="width:0%"></div></div>
+        </div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:flex-start">
+        <div id="luImagePreview" style="display:none;width:120px;height:80px;object-fit:cover;border-radius:6px;border:1px solid var(--border)"></div>
+        <div id="luUploadZone" style="flex:1;border:2px dashed var(--border);border-radius:8px;padding:24px;text-align:center;cursor:pointer;transition:all 0.2s"
+          onclick="document.getElementById('luFileInput').click()">
+          <div style="font-size:28px;margin-bottom:10px">📷</div>
+          <div style="font-size:13px;color:var(--text-secondary);margin-bottom:6px">请上传涨停简图</div>
+          <div style="font-size:11px;color:var(--text-muted)">点击或拖拽上传韭研公社涨停简图</div>
+          <input type="file" id="luFileInput" accept="image/*" style="display:none" />
+        </div>
+      </div>
+    </div>
     <div class="leaderboard-grid">
       <div class="leaderboard-card">
         <div class="chart-title">板块涨停分布</div>
@@ -2375,14 +2363,16 @@ function renderLimitup() {
       </div>
     </div>
     <div class="table-box">
-      <div class="chart-title">涨停个股明细</div>
-      <table>
-        <thead><tr>
-          <th>日期</th><th>代码</th><th>名称</th><th>板块</th>
-          <th>涨停时间</th><th>连板</th><th>流通市值</th><th>成交额</th><th>关键词</th>
-        </tr></thead>
-        <tbody id="luTbody"></tbody>
-      </table>
+      <div class="chart-title">涨停个股明细 <span id="luTotalCount" style="color:var(--text-muted);font-size:12px;font-weight:400"></span></div>
+      <div style="max-height:440px;overflow-y:auto">
+        <table>
+          <thead><tr>
+            <th>日期</th><th>代码</th><th>名称</th><th>板块</th>
+            <th>涨停时间</th><th>连板</th><th>流通市值</th><th>成交额</th><th>关键词</th>
+          </tr></thead>
+          <tbody id="luTbody"></tbody>
+        </table>
+      </div>
     </div>
   `;
 
@@ -2418,6 +2408,12 @@ function renderLimitup() {
 
   // 明细表格
   renderLUTable(data);
+
+  // 显示总数
+  document.getElementById('luTotalCount').textContent = `(${data.length}条)`;
+
+  // 上传区域事件绑定（每次render后重新绑定）
+  setupLuUpload();
 }
 
 function renderLUTable(data) {
@@ -2437,6 +2433,157 @@ function renderLUTable(data) {
         <td style="max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text-muted);font-size:11px" title="${d.keyword}">${d.keyword}</td>
       </tr>`;
     }).join('');
+}
+
+// ── 涨停简图上传与OCR解析 ──
+function setupLuUpload() {
+  const uploadZone = document.getElementById('luUploadZone');
+  const fileInput = document.getElementById('luFileInput');
+  if (!uploadZone || !fileInput) return;
+
+  uploadZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    uploadZone.style.borderColor = 'var(--accent-cyan)';
+    uploadZone.style.background = 'rgba(24,255,255,0.05)';
+  });
+  uploadZone.addEventListener('dragleave', () => {
+    uploadZone.style.borderColor = 'var(--border)';
+    uploadZone.style.background = '';
+  });
+  uploadZone.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    uploadZone.style.borderColor = 'var(--border)';
+    uploadZone.style.background = '';
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) {
+      await uploadAndParseLu(file);
+    }
+  });
+  fileInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (file) await uploadAndParseLu(file);
+  });
+}
+
+async function uploadAndParseLu(file) {
+  const ocrProgress = document.getElementById('luOcrProgress');
+  const ocrLabel = document.getElementById('luOcrLabel');
+  const ocrFill = document.getElementById('luOcrFill');
+  const imagePreview = document.getElementById('luImagePreview');
+  const uploadZone = document.getElementById('luUploadZone');
+
+  imagePreview.src = URL.createObjectURL(file);
+  imagePreview.style.display = 'block';
+
+  if (uploadZone) uploadZone.style.display = 'none';
+  ocrProgress.style.display = 'flex';
+  ocrFill.style.width = '5%';
+  ocrLabel.textContent = '图片上传中…';
+
+  const formData = new FormData();
+  formData.append('image', file);
+  if (luSelDate) formData.append('date', luSelDate);
+
+  const startTime = Date.now();
+
+  function animateProgress(pct, label) {
+    ocrFill.style.width = pct + '%';
+    if (label) ocrLabel.textContent = label;
+  }
+
+  const stageLabels = {
+    saving_image: { pct: 10, label: '保存图片中…' },
+    ocr_starting: { pct: 20, label: 'MiniMax 视觉识别启动中…' },
+    ocr_done: { pct: 60, label: '图片识别完成，解析数据…' },
+    parsing: { pct: 75, label: '解析板块与连板数据…' },
+    writing_db: { pct: 90, label: '写入数据库…' },
+    done: { pct: 100, label: '解析完成…' },
+    error: { pct: 0, label: '解析失败' }
+  };
+
+  function animateProgressFromStage(stage) {
+    const info = stageLabels[stage] || { pct: 30, label: 'OCR处理中…' };
+    animateProgress(info.pct, info.label);
+  }
+
+  try {
+    const resp = await fetch('/api/limitup/parse-image', { method: 'POST', body: formData });
+    const result = await resp.json();
+
+    if (result.status !== 'processing') {
+      ocrLabel.textContent = result.message || '提交失败';
+      ocrFill.style.width = '0%';
+      if (uploadZone) uploadZone.style.display = '';
+      return;
+    }
+
+    const jobId = result.job_id;
+    const elapsedSpan = document.getElementById('luElapsed') || (() => {
+      const span = document.createElement('span');
+      span.id = 'luElapsed';
+      span.style.cssText = 'font-size:11px;color:var(--text-muted);margin-left:8px';
+      ocrLabel.parentNode.insertBefore(span, ocrLabel.nextSibling);
+      return span;
+    })();
+
+    animateProgress(10, '保存图片中…');
+
+    function updateTimer() {
+      const secs = Math.floor((Date.now() - startTime) / 1000);
+      const m = Math.floor(secs / 60);
+      const s = secs % 60;
+      elapsedSpan.textContent = m > 0 ? `${m}分${s}秒` : `${s}秒`;
+    }
+    const timerInterval = setInterval(updateTimer, 1000);
+
+    const poll = async () => {
+      try {
+        const r = await fetch(`/api/limitup/parse-status/${jobId}`);
+        const status = await r.json();
+
+        if (status.status === 'done') {
+          clearInterval(timerInterval);
+          animateProgress(100, '解析完成，加载数据…');
+
+          const r2 = await fetch('/api/limitup?limit=500');
+          if (r2.ok) limitupData = await r2.json();
+
+          const luSectors = [...new Set(limitupData.map(d => d.sector))].sort();
+          appendOptions(document.getElementById('luSector'), luSectors, v => v, 'all');
+
+          animateProgress(100, `解析完成：${status.count}条数据`);
+          setTimeout(() => {
+            ocrProgress.style.display = 'none';
+            document.getElementById('luUploadSection').style.display = 'none';
+            renderLimitup();
+          }, 2000);
+
+        } else if (status.status === 'error') {
+          clearInterval(timerInterval);
+          animateProgress(0, '解析失败：' + (status.message || '未知错误'));
+          ocrFill.style.background = 'var(--accent-red)';
+          if (uploadZone) uploadZone.style.display = '';
+          setTimeout(() => { ocrFill.style.background = ''; }, 2000);
+
+        } else {
+          animateProgressFromStage(status.stage || 'processing');
+          setTimeout(poll, 3000);
+        }
+      } catch(e) {
+        clearInterval(timerInterval);
+        ocrLabel.textContent = '状态查询失败';
+        ocrFill.style.width = '0%';
+      }
+    };
+
+    setTimeout(poll, 1000);
+
+  } catch(e) {
+    clearInterval(timerInterval);
+    ocrLabel.textContent = '上传失败：' + e.message;
+    ocrFill.style.width = '0%';
+    if (uploadZone) uploadZone.style.display = '';
+  }
 }
 
 loadData();

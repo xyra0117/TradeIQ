@@ -273,6 +273,24 @@
   .date-nav-btn:hover { background: var(--bg-card-hover); color: var(--text-primary); }
   .date-nav-btn:disabled { opacity: 0.3; cursor: default; }
 
+  /* 悬浮日期导航 */
+  .float-nav {
+    position: fixed; bottom: 28px; right: 28px; z-index: 999;
+    display: flex; flex-direction: column; gap: 0;
+    border-radius: 10px; overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    border: 1px solid var(--border);
+  }
+  .float-nav-btn {
+    background: var(--bg-card); color: var(--text-secondary);
+    border: none; width: 48px; height: 44px; cursor: pointer;
+    font-size: 22px; line-height: 44px; text-align: center;
+    transition: all 0.15s;
+  }
+  .float-nav-btn:first-child { border-bottom: 1px solid var(--border); }
+  .float-nav-btn:hover { background: var(--bg-card-hover); color: var(--text-primary); }
+  .float-nav-btn:disabled { opacity: 0.25; cursor: default; }
+
   /* Sync progress bar */
   .sync-progress-wrap { display: none; flex-direction: column; gap: 3px; margin-right: 8px; }
   .sync-left { display: flex; align-items: center; gap: 0; }
@@ -725,6 +743,12 @@
   </div>
 </div>
 
+<!-- 悬浮日期导航 -->
+<div class="float-nav">
+  <button class="float-nav-btn" id="floatPrevBtn" title="上一日">&#8249;</button>
+  <button class="float-nav-btn" id="floatNextBtn" title="下一日">&#8250;</button>
+</div>
+
 <script>
 const COLORS = {
   '上证指数': '#448aff', '深证成指': '#00e676',
@@ -891,32 +915,56 @@ async function loadData(selectedDate) {
       }
     } catch(e) { console.warn('stock/dates-known API failed:', e); }
 
-    // 加载涨幅榜单数据（5日/10日/20日）并行获取
-    // 取交易日期历和实际指数数据中较大的日期作为最新交易日
-    const calLatest = [...tradingDates].sort().reverse()[0] || '';
-    const latestTradeDate = latestActualDate > calLatest ? latestActualDate : calLatest;
-    lbSelDate = latestTradeDate;
-    lbDataCache.clear();
-    const LB_TYPES = [['5日', 5], ['10日', 10], ['20日', 20]];
-    const lbResults = await Promise.all(LB_TYPES.map(async ([t]) => {
-      try {
-        const r = await fetch(`/api/leaderboard?type=${encodeURIComponent(t)}&limit=10&date=${latestTradeDate}`);
-        if (!r.ok) return [];
-        const data = await r.json();
-        // need_sync 标记说明没数据，不缓存也不使用
-        if (data && data.need_sync) return [];
-        if (Array.isArray(data) && data.length > 0 && data[0].rank) {
-          lbDataCache.set(latestTradeDate + '_' + t, data);
-          return data;
-        }
-        return [];
-      } catch(e) { console.warn(`leaderboard ${t} API failed:`, e); return []; }
-    }));
-    lbData = lbResults.flat();
+    // 加载涨幅榜单数据（5日/10日/20日）
+    // 先查 leaderboard 表中最新有数据的日期
+    let lbLatestDate = '';
+    try {
+      const rLbDate = await fetch('/api/leaderboard/latest-date');
+      if (rLbDate.ok) {
+        const d = await rLbDate.json();
+        lbLatestDate = d.latest_date || '';
+      }
+    } catch(e) { console.warn('leaderboard/latest-date API failed:', e); }
 
-    // 如果最新交易日没有涨幅榜数据，自动触发同步
-    if (!lbData.length && latestTradeDate) {
-      syncLBData(latestTradeDate, null);
+    // 判断是否需要自动同步今日数据：当天是交易日 + 当前时间 >= 17:00 + 榜单还没有今日数据
+    const now = new Date();
+    const todayStr = String(now.getFullYear()) + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0');
+    const needAutoSyncToday = tradingDates.has(todayStr) && now.getHours() >= 17 && lbLatestDate < todayStr;
+
+    let latestTradeDate;
+    if (needAutoSyncToday) {
+      // 自动同步今日个股日线 + 计算今日涨幅榜
+      latestTradeDate = todayStr;
+      lbSelDate = todayStr;
+      lbDataCache.clear();
+      console.log('[leaderboard] 自动同步今日数据:', todayStr);
+      await syncLBDataForDate(todayStr);
+    } else {
+      // 使用已有数据的最新日期
+      const calLatest = [...tradingDates].sort().reverse()[0] || '';
+      latestTradeDate = lbLatestDate || (latestActualDate > calLatest ? latestActualDate : calLatest);
+      lbSelDate = latestTradeDate;
+      lbDataCache.clear();
+      const LB_TYPES = [['5日', 5], ['10日', 10], ['20日', 20]];
+      const lbResults = await Promise.all(LB_TYPES.map(async ([t]) => {
+        try {
+          const r = await fetch(`/api/leaderboard?type=${encodeURIComponent(t)}&limit=10&date=${latestTradeDate}`);
+          if (!r.ok) return [];
+          const data = await r.json();
+          if (data && data.need_sync) return [];
+          if (Array.isArray(data) && data.length > 0 && data[0].rank) {
+            lbDataCache.set(latestTradeDate + '_' + t, data);
+            return data;
+          }
+          return [];
+        } catch(e) { console.warn(`leaderboard ${t} API failed:`, e); return []; }
+      }));
+      lbData = lbResults.flat();
+
+      // fallback: 用已有数据的最新日期也没数据，触发同步
+      if (!lbData.length && latestTradeDate) {
+        syncLBData(latestTradeDate, null);
+      }
     }
 
     // 加载上榜频次统计数据
@@ -1145,7 +1193,7 @@ async function syncTabData(selDate) {
   const sortedAll = [...tradingDates].sort();
   const idx2 = sortedAll.indexOf(selDate);
   if (idx2 >= 0) {
-    const tradeDaysNeeded = sortedAll.slice(Math.max(0, idx2 - 25), idx2);
+    const tradeDaysNeeded = sortedAll.slice(Math.max(0, idx2 - 25), idx2 + 1);
     try {
       const rCheck = await fetch(`/api/stock/dates-check?dates=${tradeDaysNeeded.join(',')}`);
       const haveDates = rCheck.ok ? await rCheck.json() : [];
@@ -1162,6 +1210,41 @@ async function syncTabData(selDate) {
   if (r1.ok) indexData = await r1.json();
   const r4 = await fetch(`/api/overview?limit=100`);
   if (r4.ok) overviewData = await r4.json();
+}
+
+// 静默同步指定日期的个股日线 + 涨幅榜（用于页面加载时自动同步）
+async function syncLBDataForDate(selDate) {
+  const sortedAll = [...tradingDates].sort();
+  const idx = sortedAll.indexOf(selDate);
+  // 包含 selDate 本身 + 之前25个交易日
+  const tradeDaysNeeded = sortedAll.slice(Math.max(0, idx - 25), idx + 1);
+  const rCheck = await fetch(`/api/stock/dates-check?dates=${tradeDaysNeeded.join(',')}`);
+  const haveDates = rCheck.ok ? await rCheck.json() : [];
+  const haveSet = new Set(haveDates);
+  const needSync = tradeDaysNeeded.filter(d => !haveSet.has(d));
+  if (needSync.length) {
+    await Promise.all(needSync.map(d => fetch(`/api/stock/sync?date=${d}`, { method: 'POST' })));
+  }
+  await fetch(`/api/stock/basic/sync`, { method: 'POST' });
+  await fetch(`/api/leaderboard/sync?date=${selDate}`, { method: 'POST' });
+  lbData = [];
+  const LB_TYPES = [['5日', 5], ['10日', 10], ['20日', 20]];
+  const lbResults = await Promise.all(LB_TYPES.map(async ([t]) => {
+    const r = await fetch(`/api/leaderboard?type=${encodeURIComponent(t)}&limit=10&date=${selDate}`);
+    return r.ok ? await r.json() : [];
+  }));
+  lbData = lbResults.flat();
+  LB_TYPES.forEach(([t], i) => {
+    if (Array.isArray(lbResults[i]) && lbResults[i].length > 0 && lbResults[i][0].rank) {
+      lbDataCache.set(selDate + '_' + t, lbResults[i]);
+    }
+  });
+  // 更新频率统计
+  try {
+    const rFreq = await fetch(`/api/frequency?date=${selDate}`);
+    if (rFreq.ok) freqData = await rFreq.json();
+  } catch(e) {}
+  renderLB();
 }
 
 async function syncLBData(selDate, btn) {
@@ -1181,7 +1264,8 @@ async function syncLBData(selDate, btn) {
   try {
     const sortedAll = [...tradingDates].sort();
     const idx = sortedAll.indexOf(selDate);
-    const tradeDaysNeeded = sortedAll.slice(Math.max(0, idx - 25), idx);
+    // 包含 selDate 本身 + 之前25个交易日
+    const tradeDaysNeeded = sortedAll.slice(Math.max(0, idx - 25), idx + 1);
     progressLabel.textContent = `检查 ${tradeDaysNeeded.length} 个交易日…`;
     progressFill.style.width = '15%';
     const rCheck = await fetch(`/api/stock/dates-check?dates=${tradeDaysNeeded.join(',')}`);
@@ -1399,6 +1483,9 @@ function setupTabDatePickers() {
       LB_TYPES.forEach(([t], i) => {
         lbDataCache.set(selDate + '_' + t, statusResults[i]);
       });
+      // 更新上榜频次统计
+      const rFreq = await fetch(`/api/frequency?date=${selDate}`);
+      if (rFreq.ok) freqData = await rFreq.json();
       progressWrap.classList.remove('active');
       progressFill.style.width = '0%';
       renderLB();
@@ -1419,7 +1506,7 @@ function setupTabDatePickers() {
     // 找出 selDate 之前25个交易日
     const sortedAll = [...tradingDates].sort();
     const idx = sortedAll.indexOf(selDate);
-    const tradeDaysNeeded = sortedAll.slice(Math.max(0, idx - 25), idx);
+    const tradeDaysNeeded = sortedAll.slice(Math.max(0, idx - 25), idx + 1);
 
     progressLabel.textContent = `检查 ${tradeDaysNeeded.length} 个交易日…`;
     progressFill.style.width = '30%';
@@ -1707,6 +1794,60 @@ function setupTabDatePickers() {
   updateIdxNav(idxSelDate);
   updateLbNav(lbSelDate);
   updateLuNav(luSelDate);
+
+  // ── 悬浮日期导航 ──
+  const floatPrev = document.getElementById('floatPrevBtn');
+  const floatNext = document.getElementById('floatNextBtn');
+  const tabMap = { index: { get: () => idxSelDate, set: d => idxSelDate = d, picker: 'idxDate', update: updateIdxNav },
+                   leaderboard: { get: () => lbSelDate, set: d => lbSelDate = d, picker: 'lbDate', update: updateLbNav },
+                   limitup: { get: () => luSelDate, set: d => luSelDate = d, picker: 'luDate', update: updateLuNav } };
+
+  function getActiveTab() {
+    const btn = document.querySelector('.tab-btn.active');
+    return btn ? btn.dataset.tab : 'index';
+  }
+
+  function updateFloatNavState() {
+    const tab = getActiveTab();
+    const cfg = tabMap[tab];
+    if (!cfg) return;
+    const sorted = getSortedDates();
+    const cur = cfg.get();
+    const idx = sorted.indexOf(cur);
+    floatPrev.disabled = idx <= 0;
+    floatNext.disabled = idx < 0 || idx >= sorted.length - 1;
+  }
+
+  function floatNavClick(dir) {
+    const tab = getActiveTab();
+    const cfg = tabMap[tab];
+    if (!cfg) return;
+    const sorted = getSortedDates();
+    const cur = cfg.get();
+    const idx = sorted.indexOf(cur);
+    const newIdx = dir === 'prev' ? idx - 1 : idx + 1;
+    if (newIdx < 0 || newIdx >= sorted.length) return;
+    const newDate = sorted[newIdx];
+    cfg.set(newDate);
+    if (fpInstances[cfg.picker]) fpInstances[cfg.picker].setDate(formatDateForInput(newDate), true);
+    cfg.update(newDate);
+    document.getElementById(cfg.picker).dispatchEvent(new Event('change', { bubbles: true }));
+    updateFloatNavState();
+  }
+
+  floatPrev.addEventListener('click', () => floatNavClick('prev'));
+  floatNext.addEventListener('click', () => floatNavClick('next'));
+
+  // Tab 切换和日期变化时更新悬浮按钮状态
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => setTimeout(updateFloatNavState, 100));
+  });
+  updateFloatNavState();
+
+  // 监听所有日期选择器变化，同步更新悬浮按钮
+  ['idxDate', 'lbDate', 'luDate'].forEach(id => {
+    document.getElementById(id)?.addEventListener('change', () => setTimeout(updateFloatNavState, 100));
+  });
 }
 
 // ── Tab 1: 核心指数 ──
@@ -2024,7 +2165,7 @@ function renderOverview() {
 }
 
 // ── Tab 2: 涨幅榜单 ──
-function renderLB() {
+async function renderLB() {
   const lb = getLBFiltered();
   const el = document.getElementById('lbContent');
   if (!lb.length) {
@@ -2063,13 +2204,6 @@ function renderLB() {
         <div class="chart-title">历次 TOP1 涨幅走势</div>
         <div class="chart-container"><canvas id="cTop"></canvas></div>
       </div>
-    </div>
-    <div class="table-box">
-      <div class="chart-title">榜单明细</div>
-      <table>
-        <thead><tr><th>日期</th><th>排名</th><th>代码</th><th>名称</th><th>区间涨幅</th><th>成交额(亿)</th><th>上涨原因</th></tr></thead>
-        <tbody id="lbTbody"></tbody>
-      </table>
     </div>
   `;
 
@@ -2151,56 +2285,64 @@ function renderLB() {
 
   document.getElementById('lbFreq').innerHTML = freqHTML;
 
-  // TOP1 chart
+  // TOP1 chart - 单独获取历史 TOP1 数据
   lbCharts = destroyCharts(lbCharts);
-  const top1s = [...lbDates].sort().map(date => {
-    const r = lb.find(d => d.date === date && d.rank === 1);
-    return r ? { date, change: r.change, name: r.name } : null;
-  }).filter(Boolean);
-
-  lbCharts.top = new Chart(document.getElementById('cTop'), {
-    type: 'line',
-    data: {
-      labels: top1s.map(d => fmtDate(d.date)),
-      datasets: [{
-        label: 'TOP1 区间涨幅(%)', data: top1s.map(d => d.change),
-        borderColor: '#ffd740', backgroundColor: 'rgba(255,215,64,0.1)',
-        borderWidth: 2, pointRadius: 6, tension: 0.3, fill: true,
-        pointBackgroundColor: '#ffd740',
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          backgroundColor: '#1a2332', borderColor: '#1e2a3a', titleColor: '#e2e8f0', bodyColor: '#8892a4', padding: 10, borderRadius: 8,
-          callbacks: { label: (c) => { const d = top1s[c.dataIndex]; return `${d.name}: +${d.change.toFixed(2)}%`; } }
+  try {
+    const top1DateParam = lbSelDate ? `&date=${lbSelDate}` : '';
+    const rTop1 = await fetch(`/api/leaderboard/top1?limit=30${top1DateParam}`);
+    if (rTop1.ok) {
+      const top1Raw = await rTop1.json();
+      const typeColors = { '5日': '#ffd740', '10日': '#4fc3f7', '20日': '#ff8a65' };
+      // 按类型分组，每组按日期升序
+      const grouped = {};
+      top1Raw.forEach(d => {
+        if (!grouped[d.type]) grouped[d.type] = [];
+        grouped[d.type].push(d);
+      });
+      Object.values(grouped).forEach(arr => arr.sort((a, b) => a.date.localeCompare(b.date)));
+      // 用最长的日期序列做 x 轴
+      const allDates = [...new Set(top1Raw.map(d => d.date))].sort();
+      const datasets = ['5日', '10日', '20日'].map(t => {
+        const arr = grouped[t] || [];
+        const dateMap = {};
+        arr.forEach(d => { dateMap[d.date] = d; });
+        return {
+          label: t + ' TOP1',
+          data: allDates.map(dt => dateMap[dt] ? dateMap[dt].change : null),
+          borderColor: typeColors[t],
+          backgroundColor: 'transparent',
+          borderWidth: 2, pointRadius: 3, tension: 0.3,
+          pointBackgroundColor: typeColors[t],
+          spanGaps: true,
+        };
+      });
+      lbCharts.top = new Chart(document.getElementById('cTop'), {
+        type: 'line',
+        data: { labels: allDates.map(fmtDate), datasets },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { display: true, labels: { color: '#8892a4', font: { size: 11 } } },
+            tooltip: {
+              backgroundColor: '#1a2332', borderColor: '#1e2a3a', titleColor: '#e2e8f0', bodyColor: '#8892a4', padding: 10, borderRadius: 8,
+              callbacks: {
+                label: (c) => {
+                  const arr = grouped[c.dataset.label.split(' ')[0]] || [];
+                  const dt = allDates[c.dataIndex];
+                  const item = arr.find(x => x.date === dt);
+                  return item ? `${item.name}: +${item.change.toFixed(2)}%` : '';
+                }
+              }
+            }
+          },
+          scales: {
+            x: { grid: { color: 'rgba(30,42,58,0.5)' }, ticks: { color: '#8892a4', font: { family: "'JetBrains Mono',monospace", size: 10 }, maxRotation: 45 } },
+            y: { grid: { color: 'rgba(30,42,58,0.5)' }, ticks: { color: '#8892a4', font: { family: "'JetBrains Mono',monospace", size: 10 } }, title: { display: true, text: '涨幅(%)', color: '#8892a4' } }
+          }
         }
-      },
-      scales: {
-        x: { grid: { color: 'rgba(30,42,58,0.5)' }, ticks: { color: '#8892a4', font: { family: "'JetBrains Mono',monospace", size: 10 } } },
-        y: { grid: { color: 'rgba(30,42,58,0.5)' }, ticks: { color: '#8892a4', font: { family: "'JetBrains Mono',monospace", size: 10 } }, title: { display: true, text: '涨幅(%)', color: '#8892a4' } }
-      }
+      });
     }
-  });
-
-  // Table
-  renderLBTable(lb);
-}
-
-function renderLBTable(data) {
-  document.getElementById('lbTbody').innerHTML = data
-    .sort((a,b) => a.date.localeCompare(b.date) || a.rank - b.rank)
-    .map(d => `<tr class="clickable-row" onclick="window.open('${toEastMoney(d.code)}','_blank')">
-      <td>${fmtDate(d.date)}</td>
-      <td><span style="color:${RANK_COLORS[d.rank-1]||'#888'}">TOP ${d.rank}</span></td>
-      <td>${d.code || ''}</td><td style="color:#fff">${d.name || ''}</td>
-      <td class="val-up">${d.change != null ? '+' + d.change.toFixed(2) + '%' : '-'}</td>
-      <td>${(d.amount || d.volume || 0).toFixed(2)}</td>
-      <td style="max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text-muted);font-size:11px" title="${d.reason || ''}">${d.reason || '暂无公开信息'}</td>
-    </tr>`).join('');
+  } catch(e) { console.warn('TOP1 chart load failed:', e); }
 }
 
 // ── Tab 3: 涨停拆解明细 ──
@@ -2299,5 +2441,6 @@ function renderLUTable(data) {
 
 loadData();
 </script>
+
 </body>
 </html>

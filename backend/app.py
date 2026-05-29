@@ -942,6 +942,22 @@ def get_limitup():
     return jsonify([dict(r) for r in rows])
 
 
+@app.route('/api/limitup', methods=['DELETE'])
+def delete_limitup():
+    """删除涨停数据"""
+    date = request.args.get('date')
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    if date:
+        c.execute('DELETE FROM limitup WHERE date=?', (date,))
+    else:
+        c.execute('DELETE FROM limitup')
+    conn.commit()
+    cnt = c.rowcount
+    conn.close()
+    return jsonify({'status': 'ok', 'deleted': cnt})
+
+
 @app.route('/api/limitup/sync', methods=['POST'])
 def sync_limitup():
     """从 TuShare 同步涨停数据（受限于1次/分钟）"""
@@ -1021,8 +1037,11 @@ def parse_limitup_image():
     def do_ocr():
         import re, json as _json
         prompt = (
-            'Output ONLY valid JSON array with: code, name, days, time, market_cap, turnover, keywords, sector. '
-            'Include every single stock visible from this 涨停简图.'
+            'Output ONLY valid JSON array with the EXACT board/sector structure visible in the image. '
+            'Format: [{"sector_name": "板块名*股票数", "stocks": [{...stock objects...}]}] '
+            'Each stock object: {"code": "代码", "name": "名称", "days": "连板数", "time": "封板时间", "market_cap": "市值", "turnover": "成交额", "keywords": "关键词"}. '
+            'Preserve ALL boards/sectors shown. Include every single stock visible. '
+            '板块名用中文，如 "机器人*15"、"氟化工*9" 其中*后的数字表示该板块涨停股数量.'
         )
         try:
             _ocr_jobs[job_id]['stage'] = 'ocr_starting'
@@ -1032,7 +1051,7 @@ def parse_limitup_image():
                 capture_output=True, text=True, timeout=600
             )
             _ocr_jobs[job_id]['stage'] = 'ocr_done'
-            # 从图片标题读取日期
+            # 不在这里删除文件，留到所有OCR完成后再删
             date_prompt = (
                 'What date is shown on this image? '
                 'Output ONLY the date text visible in the title or header area, '
@@ -1044,7 +1063,7 @@ def parse_limitup_image():
                  '--output', 'json', '--prompt', date_prompt],
                 capture_output=True, text=True, timeout=30
             )
-            parsed_date = trade_date or ''
+            parsed_date = trade_date
             if date_r.returncode == 0:
                 try:
                     date_outer = _json.loads(date_r.stdout.strip())
@@ -1097,6 +1116,28 @@ def parse_limitup_image():
             _ocr_jobs[job_id]['stage'] = 'parsing'
             boards_map = {}
             streak_stocks = []
+
+            # 兼容两种格式：扁平格式 [{sector, code, ...}] 和 结构化格式 [{sector_name, stocks}]
+            def flatten_structured(data):
+                """将结构化格式展平为扁平格式"""
+                result = []
+                for item in data:
+                    if isinstance(item, dict) and 'stocks' in item:
+                        # 结构化格式：提取板块名和所有股票
+                        sector_base = (item.get('sector_name') or '其他').strip()
+                        sector_base = re.sub(r'\*\d+$', '', sector_base)
+                        for stock in item.get('stocks', []):
+                            stock_copy = dict(stock)
+                            stock_copy['sector'] = sector_base
+                            result.append(stock_copy)
+                    elif isinstance(item, dict):
+                        result.append(item)
+                return result
+
+            if parsed_data and any('stocks' in item for item in parsed_data):
+                # 检测到结构化格式，先展平
+                parsed_data = flatten_structured(parsed_data)
+
             for s in parsed_data:
                 sector = (s.get('sector') or '其他').strip()
                 sector = re.sub(r'\*\d+$', '', sector)
@@ -1145,6 +1186,11 @@ def parse_limitup_image():
                         pass
             conn.commit()
             conn.close()
+            # 删除临时文件
+            try:
+                os.remove(filepath)
+            except Exception:
+                pass
             _ocr_jobs[job_id] = {'status': 'done', 'stage': 'done', 'count': cnt, 'date': parsed_date,
                                   'boards': list(boards_map.keys()), 'streak_count': len(streak_stocks)}
         except Exception as e:

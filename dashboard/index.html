@@ -736,28 +736,17 @@
           <option value="first">仅首板</option>
         </select>
       </div>
-    </div>
-    <div id="luContent">
-      <div style="padding:16px 0">
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
-          <span style="font-size:13px;color:var(--text-secondary)">涨停简图解析</span>
-          <div id="luOcrProgress" style="display:none;flex:1">
-            <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px" id="luOcrLabel">准备解析...</div>
-            <div class="sync-progress-bar" style="height:4px"><div class="sync-progress-fill" id="luOcrFill" style="width:0%"></div></div>
-          </div>
-        </div>
-        <div style="display:flex;gap:12px;align-items:flex-start">
-          <div id="luImagePreview" style="display:none;width:120px;height:80px;object-fit:cover;border-radius:6px;border:1px solid var(--border)"></div>
-          <div id="luUploadZone" style="flex:1;border:2px dashed var(--border);border-radius:8px;padding:32px;text-align:center;cursor:pointer;transition:all 0.2s"
-            onclick="document.getElementById('luFileInput').click()">
-            <div style="font-size:32px;margin-bottom:12px">📷</div>
-            <div style="font-size:14px;color:var(--text-secondary);margin-bottom:6px">请上传涨停简图</div>
-            <div style="font-size:12px;color:var(--text-muted)">点击或拖拽上传韭研公社涨停简图，获取完整板块分布和涨停数据</div>
-            <div style="font-size:11px;color:var(--text-muted);margin-top:8px">支持 JPG/PNG，原图优先，不压缩</div>
-            <input type="file" id="luFileInput" accept="image/*" style="display:none" />
-          </div>
+      <div class="filter-group" style="flex:1;display:flex;align-items:center;gap:8px">
+        <button id="luUploadBtn" style="background:var(--accent-cyan);color:#111;border:none;border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer" onclick="document.getElementById('luFileInput').click()">📷 上传简图</button>
+        <input type="file" id="luFileInput" accept="image/*" style="display:none" />
+        <div id="luImagePreview" style="display:none;width:32px;height:32px;object-fit:cover;border-radius:4px;border:1px solid var(--border)"></div>
+        <div id="luOcrProgress" style="display:none;flex:1;min-width:120px">
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px" id="luOcrLabel">准备解析...</div>
+          <div class="sync-progress-bar" style="height:3px"><div class="sync-progress-fill" id="luOcrFill" style="width:0%"></div></div>
         </div>
       </div>
+    </div>
+    <div id="luContent">
       <div class="loading">正在加载数据...</div>
     </div>
   </div>
@@ -2348,23 +2337,16 @@ function renderLimitup() {
   });
 
   el.innerHTML = `
-    <div id="luUploadSection">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
-        <span style="font-size:13px;color:var(--text-secondary)">涨停简图解析</span>
-        <div id="luOcrProgress" style="display:none;flex:1">
-          <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px" id="luOcrLabel">准备解析...</div>
-          <div class="sync-progress-bar" style="height:4px"><div class="sync-progress-fill" id="luOcrFill" style="width:0%"></div></div>
-        </div>
-      </div>
-      <div style="display:flex;gap:12px;align-items:flex-start">
-        <div id="luImagePreview" style="display:none;width:120px;height:80px;object-fit:cover;border-radius:6px;border:1px solid var(--border)"></div>
-        <div id="luUploadZone" style="flex:1;border:2px dashed var(--border);border-radius:8px;padding:24px;text-align:center;cursor:pointer;transition:all 0.2s"
-          onclick="document.getElementById('luFileInput').click()">
-          <div style="font-size:28px;margin-bottom:10px">📷</div>
-          <div style="font-size:13px;color:var(--text-secondary);margin-bottom:6px">请上传涨停简图</div>
-          <div style="font-size:11px;color:var(--text-muted)">点击或拖拽上传韭研公社涨停简图</div>
-          <input type="file" id="luFileInput" accept="image/*" style="display:none" />
-        </div>
+    <div class="table-box" style="margin-bottom: 32px">
+      <div class="chart-title">涨停个股明细 <span id="luTotalCount" style="color:var(--text-muted);font-size:12px;font-weight:400"></span></div>
+      <div style="max-height:440px;overflow-y:auto">
+        <table>
+          <thead><tr>
+            <th>板块</th><th>代码</th><th>名称</th>
+            <th>涨停时间</th><th>连板</th><th>流通市值</th><th>成交额</th><th>关键词</th>
+          </tr></thead>
+          <tbody id="luTbody"></tbody>
+        </table>
       </div>
     </div>
     <div class="leaderboard-grid">
@@ -2376,18 +2358,6 @@ function renderLimitup() {
         <div class="chart-title">连板股统计</div>
         <div id="luStreakList"></div>
         <div class="tip">仅显示非首板的连板个股</div>
-      </div>
-    </div>
-    <div class="table-box">
-      <div class="chart-title">涨停个股明细 <span id="luTotalCount" style="color:var(--text-muted);font-size:12px;font-weight:400"></span></div>
-      <div style="max-height:440px;overflow-y:auto">
-        <table>
-          <thead><tr>
-            <th>板块</th><th>代码</th><th>名称</th>
-            <th>涨停时间</th><th>连板</th><th>流通市值</th><th>成交额</th><th>关键词</th>
-          </tr></thead>
-          <tbody id="luTbody"></tbody>
-        </table>
       </div>
     </div>
   `;
@@ -2479,28 +2449,9 @@ function renderLUTable(data) {
 
 // ── 涨停简图上传与OCR解析 ──
 function setupLuUpload() {
-  const uploadZone = document.getElementById('luUploadZone');
   const fileInput = document.getElementById('luFileInput');
-  if (!uploadZone || !fileInput) return;
+  if (!fileInput) return;
 
-  uploadZone.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    uploadZone.style.borderColor = 'var(--accent-cyan)';
-    uploadZone.style.background = 'rgba(24,255,255,0.05)';
-  });
-  uploadZone.addEventListener('dragleave', () => {
-    uploadZone.style.borderColor = 'var(--border)';
-    uploadZone.style.background = '';
-  });
-  uploadZone.addEventListener('drop', async (e) => {
-    e.preventDefault();
-    uploadZone.style.borderColor = 'var(--border)';
-    uploadZone.style.background = '';
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith('image/')) {
-      await uploadAndParseLu(file);
-    }
-  });
   fileInput.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (file) await uploadAndParseLu(file);
@@ -2512,12 +2463,10 @@ async function uploadAndParseLu(file) {
   const ocrLabel = document.getElementById('luOcrLabel');
   const ocrFill = document.getElementById('luOcrFill');
   const imagePreview = document.getElementById('luImagePreview');
-  const uploadZone = document.getElementById('luUploadZone');
 
   imagePreview.src = URL.createObjectURL(file);
   imagePreview.style.display = 'block';
 
-  if (uploadZone) uploadZone.style.display = 'none';
   ocrProgress.style.display = 'flex';
   ocrFill.style.width = '5%';
   ocrLabel.textContent = '图片上传中…';
@@ -2555,7 +2504,6 @@ async function uploadAndParseLu(file) {
     if (result.status !== 'processing') {
       ocrLabel.textContent = result.message || '提交失败';
       ocrFill.style.width = '0%';
-      if (uploadZone) uploadZone.style.display = '';
       return;
     }
 
@@ -2596,7 +2544,6 @@ async function uploadAndParseLu(file) {
           animateProgress(100, `解析完成：${status.count}条数据`);
           setTimeout(() => {
             ocrProgress.style.display = 'none';
-            document.getElementById('luUploadSection').style.display = 'none';
             renderLimitup();
           }, 2000);
 
@@ -2604,7 +2551,6 @@ async function uploadAndParseLu(file) {
           clearInterval(timerInterval);
           animateProgress(0, '解析失败：' + (status.message || '未知错误'));
           ocrFill.style.background = 'var(--accent-red)';
-          if (uploadZone) uploadZone.style.display = '';
           setTimeout(() => { ocrFill.style.background = ''; }, 2000);
 
         } else {
@@ -2624,7 +2570,6 @@ async function uploadAndParseLu(file) {
     clearInterval(timerInterval);
     ocrLabel.textContent = '上传失败：' + e.message;
     ocrFill.style.width = '0%';
-    if (uploadZone) uploadZone.style.display = '';
   }
 }
 

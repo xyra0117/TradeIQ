@@ -118,6 +118,54 @@ def init_db():
         exchange TEXT DEFAULT 'SSE'
     )''')
 
+    # 持仓表
+    c.execute('''CREATE TABLE IF NOT EXISTS positions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts_code TEXT NOT NULL,
+        name TEXT,
+        shares REAL NOT NULL,
+        original_shares REAL,
+        cost_price REAL NOT NULL,
+        buy_date TEXT,
+        note TEXT,
+        closed_at TEXT,
+        total_sell_amount REAL DEFAULT 0,
+        realized_pnl REAL DEFAULT 0,
+        created_at TEXT DEFAULT (datetime('now', 'localtime')),
+        updated_at TEXT DEFAULT (datetime('now', 'localtime')),
+        UNIQUE(ts_code, cost_price, buy_date)
+    )''')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_positions_ts_code ON positions(ts_code)')
+
+    # 兼容老库: 给已存在的 positions 表加新列
+    existing_cols = {r[1] for r in c.execute('PRAGMA table_info(positions)').fetchall()}
+    for col, decl in [('closed_at', 'TEXT'), ('total_sell_amount', 'REAL DEFAULT 0'),
+                      ('realized_pnl', 'REAL DEFAULT 0'), ('original_shares', 'REAL')]:
+        if col not in existing_cols:
+            c.execute(f'ALTER TABLE positions ADD COLUMN {col} {decl}')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_positions_closed ON positions(closed_at)')
+
+    # 成交明细表
+    # 用 (trade_no, ts_code, trade_time) 组合去重, 防止源数据 trade_no 重复(如占位 2147483647)
+    c.execute('''CREATE TABLE IF NOT EXISTS trades (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        trade_no TEXT,
+        ts_code TEXT NOT NULL,
+        name TEXT,
+        direction TEXT NOT NULL,
+        price REAL NOT NULL,
+        shares REAL NOT NULL,
+        amount REAL,
+        trade_date TEXT,
+        trade_time TEXT,
+        note TEXT,
+        applied INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT (datetime('now', 'localtime')),
+        UNIQUE(trade_no, ts_code, trade_time)
+    )''')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_trades_ts_code ON trades(ts_code)')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_trades_applied ON trades(applied)')
+
     conn.commit()
     conn.close()
 
@@ -1461,6 +1509,1090 @@ def get_frequency():
 
     conn.close()
     return jsonify(result)
+
+
+# ============ 持仓管理 ============
+
+import pandas as pd
+import requests as _requests
+
+# 列名别名映射: 不同券商导出格式不一样,做宽容识别
+COLUMN_ALIASES = {
+    'ts_code': ['证券代码', '股票代码', '代码', 'code', '证券编码', 'stock_code'],
+    'name': ['证券名称', '股票名称', '名称', 'name', 'stock_name'],
+    'shares': ['证券数量', '持仓数量', '当前持仓', '股份余额', '余额', '数量', '持股数', 'shares', '持仓', '参考持股数', '参考持股', '当前持股'],
+    'cost_price': ['成本价', '买入均价', '成本', '摊薄成本价', 'cost', 'cost_price', '均价', '参考成本价'],
+    'buy_date': ['买入日期', '建仓日期', '日期', 'date', 'buy_date'],
+    'note': ['备注', 'note', 'memo'],
+}
+
+
+def _normalize_code(raw, name=None):
+    """把各种格式的代码标准化成 ts_code 格式 (e.g. 600519 -> 600519.SH)
+
+    - 6位数字: 6/9/0/2/3 开头归深市, 其他归沪市
+    - 带前缀: sh600519 / sz000001 归一化
+    - 已带 .SH/.SZ: 直接返回
+    """
+    if raw is None:
+        return None
+    s = str(raw).strip().upper()
+    if not s:
+        return None
+    if s.endswith('.SH') or s.endswith('.SZ') or s.endswith('.BJ'):
+        return s
+    s = s.replace('SH', '').replace('SZ', '').replace('BJ', '')
+    s = s.lstrip('shzSZ')
+    if not s.isdigit():
+        return None
+    if len(s) == 6:
+        if s.startswith(('6', '9', '5')):
+            return f'{s}.SH'
+        elif s.startswith(('0', '2', '3')):
+            return f'{s}.SZ'
+        elif s.startswith(('4', '8')):
+            return f'{s}.BJ'
+    return s
+
+
+def _read_uploaded_table(filepath, ext):
+    """读取上传文件为 DataFrame, 支持 csv/xlsx/xls"""
+    if ext in ('.xlsx', '.xls'):
+        engine = 'openpyxl' if ext == '.xlsx' else 'xlrd'
+        df = pd.read_excel(filepath, engine=engine, dtype=str)
+    else:
+        # 尝试多种编码
+        for enc in ('utf-8', 'gbk', 'gb18030', 'utf-8-sig'):
+            try:
+                df = pd.read_csv(filepath, encoding=enc, dtype=str)
+                break
+            except (UnicodeDecodeError, Exception):
+                continue
+        else:
+            raise ValueError('无法识别文件编码, 请使用 UTF-8 或 GBK 编码的 CSV')
+    # 清理列名: 去掉 BOM (﻿ / ￾) 和空白
+    cleaned = []
+    for c in df.columns:
+        s = str(c)
+        # 各种 BOM 前缀
+        for bom in ('﻿', '￾', '﻿'):
+            if s.startswith(bom):
+                s = s[1:]
+        s = s.strip()
+        cleaned.append(s)
+    df.columns = cleaned
+    return df
+
+
+def _auto_map_columns(df):
+    """自动识别 DataFrame 列名, 返回 {canonical_name: actual_column}"""
+    # 处理 .1 / .2 这类 pandas 自动加的重复列名后缀 — 只保留第一个
+    cols = []
+    seen = {}
+    for c in df.columns:
+        base = c
+        if '.' in c and c.split('.')[-1].isdigit():
+            base = c.rsplit('.', 1)[0]
+        if base in seen:
+            continue
+        seen[base] = True
+        cols.append(c)
+
+    mapping = {}
+    unmapped_cols = []
+    used = set()
+    for canonical, aliases in COLUMN_ALIASES.items():
+        for alias in aliases:
+            # 优先精确匹配, 再尝试 contains
+            match = None
+            if alias in cols and alias not in used:
+                match = alias
+            else:
+                for c in cols:
+                    if c in used:
+                        continue
+                    if alias and alias in c:
+                        match = c
+                        break
+            if match:
+                mapping[canonical] = match
+                used.add(match)
+                break
+    for col in cols:
+        if col not in used:
+            unmapped_cols.append(col)
+    return mapping, unmapped_cols
+
+
+def _clean_cell(v):
+    """清洗单元格: 去 BOM / 全角空白 / 普通空白"""
+    if v is None or (isinstance(v, float) and pd.isna(v)):
+        return ''
+    s = str(v)
+    for bom in ('﻿', '￾', '﻿'):
+        if s.startswith(bom):
+            s = s[1:]
+    # 全角空格 -> 半角
+    s = s.replace('　', ' ').strip()
+    return s
+
+
+def _parse_positions_from_df(df, column_map):
+    """根据列名映射解析出持仓记录列表"""
+    records = []
+    for _, row in df.iterrows():
+        raw_code = _clean_cell(row.get(column_map.get('ts_code')))
+        if not raw_code:
+            continue
+        ts_code = _normalize_code(raw_code)
+        if not ts_code:
+            continue
+
+        name = _clean_cell(row.get(column_map.get('name', ''), ''))
+
+        try:
+            shares = float(_clean_cell(row[column_map['shares']]).replace(',', ''))
+        except (KeyError, ValueError, TypeError):
+            continue
+        if shares <= 0:
+            continue
+
+        try:
+            cost_price = float(_clean_cell(row[column_map['cost_price']]).replace(',', ''))
+        except (KeyError, ValueError, TypeError):
+            continue
+        if cost_price <= 0:
+            continue
+
+        buy_date = ''
+        if 'buy_date' in column_map:
+            buy_date = _clean_cell(row[column_map['buy_date']])
+
+        note = ''
+        if 'note' in column_map:
+            note = _clean_cell(row[column_map['note']])
+
+        records.append({
+            'ts_code': ts_code,
+            'name': name,
+            'shares': shares,
+            'cost_price': cost_price,
+            'buy_date': buy_date,
+            'note': note,
+        })
+    return records
+
+
+@app.route('/api/positions/preview', methods=['POST'])
+def preview_positions_csv():
+    """解析上传文件, 返回识别结果预览 (不入库)"""
+    if 'file' not in request.files:
+        return jsonify({'status': 'error', 'message': '请上传文件'}), 400
+    f = request.files['file']
+    if not f.filename:
+        return jsonify({'status': 'error', 'message': '请上传文件'}), 400
+
+    ext = os.path.splitext(f.filename)[1].lower()
+    if ext not in ('.csv', '.xlsx', '.xls'):
+        return jsonify({'status': 'error', 'message': f'不支持的文件格式: {ext}, 请使用 csv/xlsx/xls'}), 400
+
+    upload_dir = os.path.join(os.path.dirname(__file__), 'uploads')
+    os.makedirs(upload_dir, exist_ok=True)
+    import uuid
+    tmp_id = str(uuid.uuid4())[:8]
+    safe_name = f'positions_{tmp_id}{ext}'
+    filepath = os.path.join(upload_dir, safe_name)
+    f.save(filepath)
+
+    try:
+        df = _read_uploaded_table(filepath, ext)
+    except Exception as e:
+        try: os.remove(filepath)
+        except: pass
+        return jsonify({'status': 'error', 'message': f'文件解析失败: {e}'}), 400
+
+    mapping, unmapped = _auto_map_columns(df)
+    missing_required = [k for k in ('ts_code', 'shares', 'cost_price') if k not in mapping]
+
+    preview = []
+    if not missing_required:
+        records = _parse_positions_from_df(df, mapping)
+        # 只展示前 20 条
+        for r in records[:20]:
+            preview.append(r)
+    else:
+        records = []
+
+    # 保留文件, 用户确认后用同文件再次调用 import 接口
+    return jsonify({
+        'status': 'success',
+        'tmp_id': tmp_id,
+        'filename': safe_name,
+        'total_rows': len(df),
+        'columns': list(df.columns),
+        'column_map': mapping,
+        'unmapped_columns': unmapped,
+        'missing_required': missing_required,
+        'preview': preview,
+        'parsed_count': len(records),
+    })
+
+
+@app.route('/api/positions/import', methods=['POST'])
+def import_positions():
+    """根据上传文件 (或 column_map override) 真正入库"""
+    data = request.get_json() or {}
+    filename = data.get('filename')
+    column_map_override = data.get('column_map')  # 可选, 让用户手动指定列
+
+    if not filename:
+        return jsonify({'status': 'error', 'message': '缺少 filename'}), 400
+
+    filepath = os.path.join(os.path.dirname(__file__), 'uploads', filename)
+    if not os.path.exists(filepath):
+        return jsonify({'status': 'error', 'message': '上传文件已失效, 请重新上传'}), 400
+
+    ext = os.path.splitext(filename)[1].lower()
+    try:
+        df = _read_uploaded_table(filepath, ext)
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': f'文件解析失败: {e}'}), 400
+
+    mapping, unmapped = _auto_map_columns(df)
+    if column_map_override:
+        mapping.update(column_map_override)
+
+    missing_required = [k for k in ('ts_code', 'shares', 'cost_price') if k not in mapping]
+    if missing_required:
+        return jsonify({
+            'status': 'error',
+            'message': f'缺少必需列: {missing_required}',
+            'columns': list(df.columns),
+            'column_map': mapping,
+        }), 400
+
+    records = _parse_positions_from_df(df, mapping)
+    if not records:
+        return jsonify({'status': 'error', 'message': '未解析出任何有效记录'}), 400
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    inserted = 0
+    updated = 0
+    skipped = 0
+    for r in records:
+        try:
+            cur = c.execute('''INSERT INTO positions
+                (ts_code, name, shares, cost_price, buy_date, note, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))
+                ON CONFLICT(ts_code, cost_price, buy_date) DO UPDATE SET
+                shares=excluded.shares,
+                name=COALESCE(NULLIF(excluded.name, ''), positions.name),
+                note=COALESCE(NULLIF(excluded.note, ''), positions.note),
+                updated_at=datetime('now', 'localtime')''',
+                (r['ts_code'], r['name'], r['shares'], r['cost_price'],
+                 r['buy_date'], r['note']))
+            if cur.rowcount == 1:
+                inserted += 1
+            elif cur.rowcount > 0:
+                updated += 1
+        except Exception as e:
+            print(f'positions 写入错误 {r["ts_code"]}: {e}')
+            skipped += 1
+    conn.commit()
+    conn.close()
+
+    # 清理上传文件
+    try: os.remove(filepath)
+    except: pass
+
+    return jsonify({
+        'status': 'success',
+        'inserted': inserted,
+        'updated': updated,
+        'skipped': skipped,
+        'total': len(records),
+    })
+
+
+@app.route('/api/positions', methods=['GET'])
+def get_positions():
+    """获取持仓列表 (现持仓: shares>0 且未清仓), 可选 ?with_quote=1 拉实时价并计算盈亏"""
+    with_quote = request.args.get('with_quote', '1') == '1'
+    include_closed = request.args.get('include_closed', '0') == '1'
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    if include_closed:
+        rows = c.execute('SELECT * FROM positions ORDER BY created_at DESC').fetchall()
+    else:
+        rows = c.execute(
+            "SELECT * FROM positions WHERE shares > 0 AND closed_at IS NULL ORDER BY created_at DESC"
+        ).fetchall()
+    conn.close()
+
+    positions = [dict(r) for r in rows]
+
+    # 成本市值不依赖行情, 始终先算出来
+    for p in positions:
+        cost = p.get('cost_price')
+        sh = p.get('shares')
+        p['cost_value'] = round(cost * sh, 2) if cost and sh else None
+        p['market_value'] = None
+        p['current_price'] = None
+        p['change_pct'] = None
+        p['quote_time'] = None
+        p['quote_name'] = None
+        p['profit'] = None
+        p['profit_pct'] = None
+
+    if with_quote and positions:
+        codes = list(set(p['ts_code'] for p in positions))
+        quote_map = fetch_sina_quotes(codes)
+        for p in positions:
+            q = quote_map.get(p['ts_code'], {})
+            p['current_price'] = q.get('price')
+            p['prev_close'] = q.get('prev_close')
+            p['change_pct'] = q.get('change_pct')
+            p['quote_time'] = q.get('time')
+            p['quote_name'] = q.get('name') or p['name']
+            cur = p['current_price']
+            prev = p['prev_close']
+            if p.get('cost_value') is not None and cur is not None:
+                p['market_value'] = round(cur * p['shares'], 2)
+                p['profit'] = round(p['market_value'] - p['cost_value'], 2)
+                p['profit_pct'] = round(p['profit'] / p['cost_value'] * 100, 2) if p['cost_value'] else None
+            # 单日盈亏: (现价 - 昨收) × 持仓
+            if cur is not None and prev is not None:
+                p['daily_profit'] = round((cur - prev) * p['shares'], 2)
+            else:
+                p['daily_profit'] = None
+
+    total_mv = sum((p.get('market_value') or 0) for p in positions)
+    total_cost = sum((p.get('cost_value') or 0) for p in positions)
+    total_profit = sum((p.get('profit') or 0) for p in positions)
+    total_daily = sum((p.get('daily_profit') or 0) for p in positions)
+    summary = {
+        'count': len(positions),
+        'total_market_value': round(total_mv, 2),
+        'total_cost': round(total_cost, 2),
+        'total_profit': round(total_profit, 2),
+        'total_profit_pct': round(total_profit / total_cost * 100, 2) if total_cost else None,
+        'total_daily_profit': round(total_daily, 2),
+    }
+
+    return jsonify({'positions': positions, 'summary': summary})
+
+
+@app.route('/api/positions', methods=['POST'])
+def add_position():
+    """手动添加一条持仓"""
+    data = request.get_json() or {}
+    ts_code = _normalize_code(data.get('ts_code'))
+    if not ts_code:
+        return jsonify({'status': 'error', 'message': '股票代码无效'}), 400
+    try:
+        shares = float(data.get('shares', 0))
+        cost_price = float(data.get('cost_price', 0))
+    except (TypeError, ValueError):
+        return jsonify({'status': 'error', 'message': '数量/成本价必须是数字'}), 400
+    if shares <= 0 or cost_price <= 0:
+        return jsonify({'status': 'error', 'message': '数量/成本价必须大于 0'}), 400
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('''INSERT INTO positions
+        (ts_code, name, shares, cost_price, buy_date, note)
+        VALUES (?, ?, ?, ?, ?, ?)''',
+        (ts_code, (data.get('name') or '').strip(), shares, cost_price,
+         (data.get('buy_date') or '').strip(), (data.get('note') or '').strip()))
+    new_id = c.lastrowid
+    conn.commit()
+    conn.close()
+    return jsonify({'status': 'success', 'id': new_id, 'ts_code': ts_code})
+
+
+@app.route('/api/positions/<int:pid>', methods=['PUT'])
+def update_position(pid):
+    """更新单条持仓"""
+    data = request.get_json() or {}
+    fields = []
+    values = []
+    for k in ('name', 'shares', 'cost_price', 'buy_date', 'note'):
+        if k in data:
+            fields.append(f'{k}=?')
+            values.append(data[k])
+    if not fields:
+        return jsonify({'status': 'error', 'message': '无更新字段'}), 400
+    fields.append("updated_at=datetime('now', 'localtime')")
+    values.append(pid)
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute(f'UPDATE positions SET {", ".join(fields)} WHERE id=?', values)
+    if c.rowcount == 0:
+        conn.close()
+        return jsonify({'status': 'error', 'message': '记录不存在'}), 404
+    conn.commit()
+    conn.close()
+    return jsonify({'status': 'success'})
+
+
+@app.route('/api/positions/<int:pid>', methods=['DELETE'])
+def delete_position(pid):
+    """删除单条持仓"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('DELETE FROM positions WHERE id=?', (pid,))
+    if c.rowcount == 0:
+        conn.close()
+        return jsonify({'status': 'error', 'message': '记录不存在'}), 404
+    conn.commit()
+    conn.close()
+    return jsonify({'status': 'success'})
+
+
+@app.route('/api/positions/clear', methods=['POST'])
+def clear_positions():
+    """清空所有持仓"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('DELETE FROM positions')
+    n = c.rowcount
+    conn.commit()
+    conn.close()
+    return jsonify({'status': 'success', 'deleted': n})
+
+
+@app.route('/api/positions/closed', methods=['GET'])
+def get_closed_positions():
+    """获取已清仓列表: shares=0 且 closed_at IS NOT NULL
+    可选 ?with_quote=1 拉现价(用来看浮盈, 通常清仓后用不上)"""
+    with_quote = request.args.get('with_quote', '0') == '1'
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    rows = c.execute(
+        "SELECT * FROM positions WHERE closed_at IS NOT NULL ORDER BY closed_at DESC"
+    ).fetchall()
+    conn.close()
+    closed = []
+    for r in rows:
+        p = dict(r)
+        # 已实现盈亏/卖出额从 DB 字段读
+        p['profit'] = p.get('realized_pnl') or 0
+        p['sell_amount'] = p.get('total_sell_amount') or 0
+        p['original_shares'] = p.get('original_shares') or 0
+        p['cost_value'] = round(p['cost_price'] * p['original_shares'], 2)
+        if p['cost_value']:
+            p['profit_pct'] = round(p['profit'] / p['cost_value'] * 100, 2)
+            p['avg_sell_price'] = round(p['sell_amount'] / p['original_shares'], 4) if p['original_shares'] else None
+        else:
+            p['profit_pct'] = None
+            p['avg_sell_price'] = None
+        closed.append(p)
+
+    total_profit = sum(p['profit'] for p in closed)
+    total_cost = sum(p['cost_value'] for p in closed)
+    summary = {
+        'count': len(closed),
+        'total_realized_pnl': round(total_profit, 2),
+        'total_cost': round(total_cost, 2),
+        'total_pnl_pct': round(total_profit / total_cost * 100, 2) if total_cost else None,
+    }
+    return jsonify({'closed': closed, 'summary': summary})
+
+
+@app.route('/api/positions/restore-closed/<int:pid>', methods=['POST'])
+def restore_closed_position(pid):
+    """把已清仓的记录恢复成持仓 (shares 用 original_shares 备份的值, 需手动核对)"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    row = c.execute('SELECT shares, closed_at, total_sell_amount, realized_pnl FROM positions WHERE id=?', (pid,)).fetchone()
+    if not row or not row[1]:
+        conn.close()
+        return jsonify({'status': 'error', 'message': '记录不是已清仓状态'}), 400
+    c.execute('''UPDATE positions SET closed_at=NULL, shares=?, total_sell_amount=0, realized_pnl=0,
+        updated_at=datetime('now','localtime') WHERE id=?''', (row[0] or 0, pid))
+    conn.commit()
+    conn.close()
+    return jsonify({'status': 'success'})
+
+
+@app.route('/api/positions/backfill-closed', methods=['POST'])
+def backfill_closed_positions():
+    """一次性回填: 从给定的资金股份 xls + 当日成交 xls 重建已清仓记录
+    仅回填当前 DB 中不存在的 (ts_code, cost_price, buy_date) 组合
+    """
+    data = request.get_json() or {}
+    capital_path = data.get('capital_path')
+    trade_path = data.get('trade_path')
+    if not capital_path or not trade_path:
+        return jsonify({'status': 'error', 'message': '需要 capital_path 和 trade_path'}), 400
+    if not os.path.exists(capital_path):
+        return jsonify({'status': 'error', 'message': f'资金股份文件不存在: {capital_path}'}), 400
+    if not os.path.exists(trade_path):
+        return jsonify({'status': 'error', 'message': f'成交文件不存在: {trade_path}'}), 400
+
+    cap_ext = os.path.splitext(capital_path)[1].lower()
+    trd_ext = os.path.splitext(trade_path)[1].lower()
+
+    try:
+        cap_df = _read_uploaded_table(capital_path, cap_ext)
+        trd_df = _read_uploaded_table(trade_path, trd_ext)
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': f'文件解析失败: {e}'}), 400
+
+    cap_map, _ = _auto_map_columns(cap_df)
+    trd_map, _ = _auto_map_trade_columns(trd_df)
+    if not all(k in cap_map for k in ('ts_code', 'shares', 'cost_price')):
+        return jsonify({'status': 'error', 'message': '资金股份缺少必需列'}), 400
+    if not all(k in trd_map for k in ('ts_code', 'direction', 'price', 'shares')):
+        return jsonify({'status': 'error', 'message': '成交表缺少必需列'}), 400
+
+    cap_records = _parse_positions_from_df(cap_df, cap_map)
+    trd_records = _parse_trades_from_df(trd_df, trd_map)
+
+    # 按 ts_code 累计卖出 (用于计算 realized_pnl)
+    sold_by_code = {}
+    for t in trd_records:
+        if t['direction'] == 'sell':
+            sold_by_code.setdefault(t['ts_code'], {'shares': 0, 'amount': 0})
+            sold_by_code[t['ts_code']]['shares'] += t['shares']
+            sold_by_code[t['ts_code']]['amount'] += t['amount'] or (t['price'] * t['shares'])
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+
+    inserted_open = 0
+    inserted_closed = 0
+    skipped_existing = 0
+    today = datetime.now().strftime('%Y-%m-%d')
+    for p in cap_records:
+        existing = c.execute(
+            'SELECT id FROM positions WHERE ts_code=? AND cost_price=? AND buy_date=?',
+            (p['ts_code'], p['cost_price'], p['buy_date'])
+        ).fetchone()
+        if existing:
+            skipped_existing += 1
+            continue
+
+        sold = sold_by_code.get(p['ts_code'])
+        sell_shares = sold['shares'] if sold else 0
+
+        if sell_shares >= p['shares'] - 0.0001:
+            # 全部清仓
+            avg_sell = (sold['amount'] / sold['shares']) if sold['shares'] > 0 else p['cost_price']
+            realized_pnl = round((avg_sell - p['cost_price']) * p['shares'], 2)
+            c.execute('''INSERT INTO positions
+                (ts_code, name, shares, original_shares, cost_price, buy_date, note,
+                 closed_at, total_sell_amount, realized_pnl)
+                VALUES (?, ?, 0, ?, ?, ?, ?, ?, ?, ?)''',
+                (p['ts_code'], p['name'], p['shares'], p['cost_price'], p['buy_date'],
+                 f'[回填] 成本{p["cost_price"]}×{p["shares"]}股, 均价{avg_sell:.2f}清仓',
+                 today, round(sold['amount'], 2), realized_pnl))
+            inserted_closed += 1
+        else:
+            # 现持仓 (部分减仓也算现持仓, 减仓数量记录在 note)
+            remain = p['shares'] - sell_shares
+            note = ''
+            if sell_shares > 0:
+                avg_sell = (sold['amount'] / sold['shares']) if sold['shares'] > 0 else 0
+                note = f'[回填] 今日部分减仓 {int(sell_shares)}股 @均价{avg_sell:.2f}, 剩余{remain}股'
+            c.execute('''INSERT INTO positions
+                (ts_code, name, shares, original_shares, cost_price, buy_date, note,
+                 total_sell_amount, realized_pnl)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                (p['ts_code'], p['name'], remain, p['shares'], p['cost_price'], p['buy_date'],
+                 note, round(sold['amount'], 2) if sold else 0,
+                 round((sold['amount'] / sold['shares'] - p['cost_price']) * sell_shares, 2) if sold and sold['shares'] > 0 else 0))
+            inserted_open += 1
+
+    conn.commit()
+    conn.close()
+    return jsonify({
+        'status': 'success',
+        'inserted_open': inserted_open,
+        'inserted_closed': inserted_closed,
+        'skipped_existing': skipped_existing,
+    })
+
+
+# ============ 成交明细管理 (中信「当日成交」导入) ============
+
+TRADE_COLUMN_ALIASES = {
+    'ts_code': ['证券代码', '代码', 'code'],
+    'name': ['证券名称', '名称', 'name'],
+    'direction': ['买卖标志', '买卖方向', '委托方向', '方向', 'direction'],
+    'price': ['成交价格', '价格', '成交均价', 'price'],
+    'shares': ['成交数量', '数量', '股数', 'shares'],
+    'amount': ['成交金额', '发生金额', '金额', 'amount'],
+    'trade_time': ['成交时间', '时间', 'time'],
+    'trade_date': ['成交日期', '日期', 'date'],
+    'trade_no': ['成交编号', '合同号', 'trade_no', 'order_no'],
+    'note': ['备注', 'note', 'memo'],
+}
+
+
+def _normalize_direction(raw):
+    s = _clean_cell(raw)
+    if not s:
+        return None
+    if any(k in s for k in ('买', 'B', 'b', 'Buy', 'BUY')):
+        return 'buy'
+    if any(k in s for k in ('卖', 'S', 's', 'Sell', 'SELL')):
+        return 'sell'
+    return None
+
+
+def _auto_map_trade_columns(df):
+    """成交表的列名识别"""
+    cols = list(df.columns)
+    mapping = {}
+    used = set()
+    for canonical, aliases in TRADE_COLUMN_ALIASES.items():
+        for alias in aliases:
+            match = None
+            if alias in cols and alias not in used:
+                match = alias
+            else:
+                for c in cols:
+                    if c in used:
+                        continue
+                    if alias and alias in c:
+                        match = c
+                        break
+            if match:
+                mapping[canonical] = match
+                used.add(match)
+                break
+    unmapped = [c for c in cols if c not in used]
+    return mapping, unmapped
+
+
+def _parse_trades_from_df(df, column_map):
+    records = []
+    for _, row in df.iterrows():
+        raw_code = _clean_cell(row.get(column_map.get('ts_code')))
+        if not raw_code:
+            continue
+        ts_code = _normalize_code(raw_code)
+        if not ts_code:
+            continue
+
+        direction = _normalize_direction(row.get(column_map.get('direction')))
+        if not direction:
+            continue
+
+        try:
+            price = float(_clean_cell(row[column_map['price']]).replace(',', ''))
+        except (KeyError, ValueError, TypeError):
+            continue
+        if price <= 0:
+            continue
+
+        try:
+            shares = float(_clean_cell(row[column_map['shares']]).replace(',', ''))
+        except (KeyError, ValueError, TypeError):
+            continue
+        if shares <= 0:
+            continue
+
+        try:
+            amount = float(_clean_cell(row[column_map['amount']]).replace(',', ''))
+        except (KeyError, ValueError, TypeError, KeyError):
+            amount = round(price * shares, 2)
+
+        name = _clean_cell(row.get(column_map.get('name', ''), ''))
+        trade_time = _clean_cell(row.get(column_map.get('trade_time', ''), ''))
+        trade_date = _clean_cell(row.get(column_map.get('trade_date', ''), ''))
+        trade_no = _clean_cell(row.get(column_map.get('trade_no', ''), ''))
+        note = _clean_cell(row.get(column_map.get('note', ''), ''))
+
+        records.append({
+            'trade_no': trade_no,
+            'ts_code': ts_code,
+            'name': name,
+            'direction': direction,
+            'price': price,
+            'shares': shares,
+            'amount': amount,
+            'trade_date': trade_date,
+            'trade_time': trade_time,
+            'note': note,
+        })
+    return records
+
+
+@app.route('/api/trades/preview', methods=['POST'])
+def preview_trades_file():
+    """解析成交表, 返回识别结果 + 去重检查"""
+    if 'file' not in request.files:
+        return jsonify({'status': 'error', 'message': '请上传文件'}), 400
+    f = request.files['file']
+    if not f.filename:
+        return jsonify({'status': 'error', 'message': '请上传文件'}), 400
+    ext = os.path.splitext(f.filename)[1].lower()
+    if ext not in ('.csv', '.xlsx', '.xls'):
+        return jsonify({'status': 'error', 'message': f'不支持的文件格式: {ext}'}), 400
+
+    upload_dir = os.path.join(os.path.dirname(__file__), 'uploads')
+    os.makedirs(upload_dir, exist_ok=True)
+    import uuid
+    tmp_id = str(uuid.uuid4())[:8]
+    safe_name = f'trades_{tmp_id}{ext}'
+    filepath = os.path.join(upload_dir, safe_name)
+    f.save(filepath)
+
+    try:
+        df = _read_uploaded_table(filepath, ext)
+    except Exception as e:
+        try: os.remove(filepath)
+        except: pass
+        return jsonify({'status': 'error', 'message': f'文件解析失败: {e}'}), 400
+
+    mapping, unmapped = _auto_map_trade_columns(df)
+    missing = [k for k in ('ts_code', 'direction', 'price', 'shares') if k not in mapping]
+
+    records = []
+    if not missing:
+        records = _parse_trades_from_df(df, mapping)
+
+    # 查重: 列出本次解析中已存在的 trade_no
+    conn = sqlite3.connect(DB_PATH)
+    existing_nos = set()
+    if records:
+        trade_nos = [r['trade_no'] for r in records if r['trade_no']]
+        if trade_nos:
+            q = ','.join('?' * len(trade_nos))
+            existing_nos = set(r[0] for r in conn.execute(
+                f'SELECT trade_no FROM trades WHERE trade_no IN ({q})', trade_nos).fetchall())
+    conn.close()
+
+    duplicate_count = sum(1 for r in records if r['trade_no'] in existing_nos)
+    new_count = len(records) - duplicate_count
+    buy_count = sum(1 for r in records if r['direction'] == 'buy')
+    sell_count = sum(1 for r in records if r['direction'] == 'sell')
+
+    return jsonify({
+        'status': 'success',
+        'filename': safe_name,
+        'total_rows': len(df),
+        'columns': list(df.columns),
+        'column_map': mapping,
+        'unmapped_columns': unmapped,
+        'missing_required': missing,
+        'parsed_count': len(records),
+        'new_count': new_count,
+        'duplicate_count': duplicate_count,
+        'buy_count': buy_count,
+        'sell_count': sell_count,
+        'preview': records[:20],
+    })
+
+
+@app.route('/api/trades/import', methods=['POST'])
+def import_trades():
+    data = request.get_json() or {}
+    filename = data.get('filename')
+    column_map_override = data.get('column_map')
+    if not filename:
+        return jsonify({'status': 'error', 'message': '缺少 filename'}), 400
+    filepath = os.path.join(os.path.dirname(__file__), 'uploads', filename)
+    if not os.path.exists(filepath):
+        return jsonify({'status': 'error', 'message': '文件已失效, 请重新上传'}), 400
+
+    ext = os.path.splitext(filename)[1].lower()
+    try:
+        df = _read_uploaded_table(filepath, ext)
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': f'文件解析失败: {e}'}), 400
+
+    mapping, _ = _auto_map_trade_columns(df)
+    if column_map_override:
+        mapping.update(column_map_override)
+
+    missing = [k for k in ('ts_code', 'direction', 'price', 'shares') if k not in mapping]
+    if missing:
+        return jsonify({'status': 'error', 'message': f'缺少必需列: {missing}'}), 400
+
+    records = _parse_trades_from_df(df, mapping)
+    if not records:
+        return jsonify({'status': 'error', 'message': '未解析出任何有效成交'}), 400
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    inserted = 0
+    duplicate = 0
+    skipped = 0
+    for r in records:
+        try:
+            cur = c.execute('''INSERT INTO trades
+                (trade_no, ts_code, name, direction, price, shares, amount, trade_date, trade_time, note)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                (r['trade_no'], r['ts_code'], r['name'], r['direction'],
+                 r['price'], r['shares'], r['amount'], r['trade_date'],
+                 r['trade_time'], r['note']))
+            if cur.rowcount == 1:
+                inserted += 1
+        except sqlite3.IntegrityError:
+            duplicate += 1
+        except Exception as e:
+            print(f'trades 写入错误: {e}')
+            skipped += 1
+    conn.commit()
+    conn.close()
+
+    try: os.remove(filepath)
+    except: pass
+
+    return jsonify({
+        'status': 'success',
+        'inserted': inserted,
+        'duplicate': duplicate,
+        'skipped': skipped,
+        'total': len(records),
+    })
+
+
+@app.route('/api/trades', methods=['GET'])
+def list_trades():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute('SELECT * FROM trades ORDER BY trade_date DESC, trade_time DESC, id DESC').fetchall()
+    conn.close()
+    return jsonify({
+        'trades': [dict(r) for r in rows],
+        'count': len(rows),
+    })
+
+
+def _apply_one_trade(c, trade):
+    """把单条成交应用到 positions, 返回 (status, msg)
+    status: 'ok' | 'oversell' | 'missing' """
+    if trade['direction'] == 'buy':
+        # 找 ts_code + cost_price 一致的仓位
+        row = c.execute(
+            'SELECT id, shares, note FROM positions WHERE ts_code=? AND cost_price=? ORDER BY id LIMIT 1',
+            (trade['ts_code'], trade['price'])).fetchone()
+        ts = trade.get('trade_date') or trade.get('trade_time') or ''
+        new_note = f"[{ts} 买入 {trade['shares']}股 @{trade['price']} #{trade['trade_no']}]"
+        if row:
+            c.execute('UPDATE positions SET shares=shares+?, note=COALESCE(note,\"\")||?, updated_at=datetime(\'now\', \'localtime\') WHERE id=?',
+                      (trade['shares'], new_note, row[0]))
+        else:
+            c.execute('''INSERT INTO positions
+                (ts_code, name, shares, cost_price, buy_date, note)
+                VALUES (?, ?, ?, ?, ?, ?)''',
+                (trade['ts_code'], trade['name'], trade['shares'], trade['price'],
+                 trade['trade_date'], new_note))
+        return 'ok', None
+
+    elif trade['direction'] == 'sell':
+        # FIFO: 找 ts_code 相同, 按 created_at ASC 依次扣
+        positions = c.execute(
+            'SELECT id, shares, cost_price, note, total_sell_amount, realized_pnl FROM positions WHERE ts_code=? AND shares>0 ORDER BY datetime(created_at) ASC, id ASC',
+            (trade['ts_code'],)).fetchall()
+        if not positions:
+            return 'missing', f'无可扣减仓位: {trade["ts_code"]} {trade["name"]}'
+
+        remaining = trade['shares']
+        sell_price = trade['price']
+        ts = trade.get('trade_date') or trade.get('trade_time') or ''
+        sell_note = f"[{ts} 卖出 {trade['shares']}股 @{trade['price']} #{trade['trade_no']}]"
+        for pid, pshares, pcost, pnote, prev_sell_amt, prev_pnl in positions:
+            if remaining <= 0:
+                break
+            take = min(remaining, pshares)
+            new_shares = pshares - take
+            new_note = (pnote or '') + sell_note
+            # 累计卖出额 + 已实现盈亏
+            new_sell_amt = (prev_sell_amt or 0) + sell_price * take
+            new_pnl = (prev_pnl or 0) + (sell_price - pcost) * take
+            if new_shares <= 0.0001:
+                # 软删除: shares=0 + closed_at
+                c.execute('''UPDATE positions SET shares=0, note=?, closed_at=datetime('now','localtime'),
+                    total_sell_amount=?, realized_pnl=?, updated_at=datetime('now','localtime') WHERE id=?''',
+                    (new_note, new_sell_amt, new_pnl, pid))
+            else:
+                c.execute('''UPDATE positions SET shares=?, note=?, total_sell_amount=?,
+                    realized_pnl=?, updated_at=datetime('now','localtime') WHERE id=?''',
+                    (new_shares, new_note, new_sell_amt, new_pnl, pid))
+            remaining -= take
+        if remaining > 0.0001:
+            return 'oversell', f'{trade["ts_code"]} 卖超 {remaining}股, 仓位不足'
+        return 'ok', None
+    return 'unknown', '未知方向'
+
+
+@app.route('/api/trades/apply', methods=['POST'])
+def apply_trades():
+    """把已入库未 applied 的成交, 按顺序应用到 positions"""
+    data = request.get_json() or {}
+    trade_ids = data.get('trade_ids')  # 可选: 只 apply 指定 ID
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    if trade_ids:
+        placeholders = ','.join('?' * len(trade_ids))
+        rows = c.execute(
+            f'SELECT * FROM trades WHERE id IN ({placeholders}) AND applied=0 ORDER BY datetime(trade_date), datetime(trade_time), id',
+            trade_ids).fetchall()
+    else:
+        rows = c.execute(
+            'SELECT * FROM trades WHERE applied=0 ORDER BY datetime(COALESCE(NULLIF(trade_date, \'\'), \'9999-12-31\')), datetime(trade_time), id').fetchall()
+
+    cols = [d[0] for d in c.description] if c.description else []
+    trades = [dict(zip(cols, r)) for r in rows]
+
+    applied = []
+    errors = []
+    for t in trades:
+        status, msg = _apply_one_trade(c, t)
+        if status == 'ok':
+            c.execute('UPDATE trades SET applied=1 WHERE id=?', (t['id'],))
+            applied.append({'id': t['id'], 'ts_code': t['ts_code'], 'name': t['name'],
+                            'direction': t['direction'], 'shares': t['shares'], 'price': t['price']})
+        else:
+            errors.append({'id': t['id'], 'ts_code': t['ts_code'], 'name': t['name'],
+                           'status': status, 'message': msg})
+
+    conn.commit()
+    conn.close()
+    return jsonify({
+        'status': 'success' if not errors else 'partial',
+        'applied': applied,
+        'errors': errors,
+        'applied_count': len(applied),
+        'error_count': len(errors),
+    })
+
+
+@app.route('/api/trades/rollback', methods=['POST'])
+def rollback_trades():
+    """撤销 apply: 把指定 trades 的 applied 改回 0 (position 状态不会自动还原!)"""
+    data = request.get_json() or {}
+    trade_ids = data.get('trade_ids') or []
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    if trade_ids:
+        placeholders = ','.join('?' * len(trade_ids))
+        c.execute(f'UPDATE trades SET applied=0 WHERE id IN ({placeholders})', trade_ids)
+    else:
+        c.execute('UPDATE trades SET applied=0 WHERE applied=1')
+    n = c.rowcount
+    conn.commit()
+    conn.close()
+    return jsonify({'status': 'success', 'rolled_back': n,
+                    'warning': '持仓数据未自动还原, 如需修正请手动调整 positions 表'})
+
+
+@app.route('/api/trades/clear', methods=['POST'])
+def clear_trades():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('DELETE FROM trades')
+    n = c.rowcount
+    conn.commit()
+    conn.close()
+    return jsonify({'status': 'success', 'deleted': n})
+
+
+# ============ 新浪实时行情转发 ============
+
+def _sina_code_for_ts(ts_code):
+    """600519.SH -> sh600519, 000001.SZ -> sz000001"""
+    if not ts_code or '.' not in ts_code:
+        return None
+    code, market = ts_code.lower().split('.')
+    prefix = {'sh': 'sh', 'sz': 'sz', 'bj': 'bj'}.get(market, '')
+    return f'{prefix}{code}'
+
+
+def _ts_code_for_sina(sina_code):
+    """sh600519 -> 600519.SH"""
+    if not sina_code:
+        return None
+    s = str(sina_code).lower()
+    if s.startswith('sh'):
+        return f'{s[2:]}.SH'
+    if s.startswith('sz'):
+        return f'{s[2:]}.SZ'
+    if s.startswith('bj'):
+        return f'{s[2:]}.BJ'
+    return None
+
+
+def fetch_sina_quotes(ts_codes):
+    """通过新浪财经 hq.sinajs.cn 拉一批代码的实时行情
+
+    返回 {ts_code: {price, prev_close, change_pct, name, time}}
+    """
+    sina_codes = []
+    code_map = {}
+    for tc in ts_codes:
+        sc = _sina_code_for_ts(tc)
+        if sc:
+            sina_codes.append(sc)
+            code_map[sc] = tc
+    if not sina_codes:
+        return {}
+
+    url = f'https://hq.sinajs.cn/list={",".join(sina_codes)}'
+    headers = {
+        'Referer': 'https://finance.sina.com.cn',
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+    }
+    result = {}
+    try:
+        r = _requests.get(url, headers=headers, timeout=5)
+        if r.status_code != 200:
+            print(f'sina 返回 {r.status_code}')
+            return result
+        for line in r.text.strip().split('\n'):
+            # 格式: var hq_str_sh600519="贵州茅台,1800.00,1780.00,1810.00,1820.00,1790.00,1805.00,...";
+            if '=' not in line or '"' not in line:
+                continue
+            var_part, val_part = line.split('=', 1)
+            sina_code = var_part.strip().replace('var hq_str_', '')
+            val = val_part.strip().strip(';').strip('"')
+            if not val or val == 'NULL':
+                continue
+            fields = val.split(',')
+            if len(fields) < 10:
+                continue
+            # 字段含义: 0=名称 1=今开 2=昨收 3=当前 4=日高 5=日低 ...
+            name = fields[0]
+            try:
+                current = float(fields[3])
+                prev_close = float(fields[2])
+            except (ValueError, IndexError):
+                continue
+            if prev_close <= 0:
+                continue
+            change_pct = (current - prev_close) / prev_close * 100
+            # 时间: index 30 起始 HHMMSS (不同市场略有差异)
+            quote_time = fields[30] if len(fields) > 30 else ''
+            ts_code = _ts_code_for_sina(sina_code)
+            if ts_code:
+                result[ts_code] = {
+                    'price': current,
+                    'prev_close': prev_close,
+                    'change_pct': round(change_pct, 2),
+                    'name': name,
+                    'time': quote_time,
+                }
+    except Exception as e:
+        print(f'fetch_sina_quotes 错误: {e}')
+    return result
+
+
+@app.route('/api/positions/quote', methods=['GET'])
+def get_positions_quote():
+    """独立 quote 端点, 给前端手动刷新 / 调试用"""
+    codes_param = request.args.get('codes', '')
+    codes = [c.strip() for c in codes_param.split(',') if c.strip()]
+    if not codes:
+        return jsonify({})
+    return jsonify(fetch_sina_quotes(codes))
 
 
 if __name__ == '__main__':

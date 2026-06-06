@@ -4,11 +4,16 @@ Flask + SQLite + TuShare 后端
 """
 
 import os
+import re
 import sqlite3
 import subprocess
 import time
-from datetime import datetime, timedelta
+import json
+import asyncio
+import uuid as _uuid
+from datetime import datetime, timedelta, date
 from flask import Flask, jsonify, request, send_from_directory
+import requests as _requests
 
 # 涨停简图 OCR 异步任务队列
 _ocr_jobs = {}
@@ -22,6 +27,31 @@ CORS(app)
 DB_PATH = os.path.join(os.path.dirname(__file__), 'market_data.db')
 TUSHARE_TOKEN = '1905eff139f559e9caa61c7363ac18e6217a33032e9e434812db1e34'
 INTERVALS = [('5日', 5), ('10日', 10), ('20日', 20)]  # 涨幅榜区间 (名称, 天数)
+
+# 中信证券 A股 手续费 (用户 2026-06-04 确认: 万1.0 低佣)
+FEE_CONFIG = {
+    'commission_rate': 0.0001,   # 券商佣金 万1.0 (双边)
+    'min_commission': 5.0,       # 最低 5元/笔
+    'transfer_rate': 0.00001,    # 过户费 0.001% (沪深, 双边)
+    'stamp_rate': 0.0005,        # 印花税 0.05% (卖出单边)
+}
+
+
+def calc_buy_fees(cost_value):
+    """买入时手续费: 佣金 + 过户费 (单边, 沉没成本)"""
+    if not cost_value or cost_value <= 0:
+        return 0.0
+    return max(cost_value * FEE_CONFIG['commission_rate'], FEE_CONFIG['min_commission']) \
+           + cost_value * FEE_CONFIG['transfer_rate']
+
+
+def calc_sell_fees(market_value):
+    """卖出时手续费: 佣金 + 过户费 + 印花税 (单边, 未来才发生, 仅供提示)"""
+    if not market_value or market_value <= 0:
+        return 0.0
+    return max(market_value * FEE_CONFIG['commission_rate'], FEE_CONFIG['min_commission']) \
+           + market_value * FEE_CONFIG['transfer_rate'] \
+           + market_value * FEE_CONFIG['stamp_rate']
 
 # 初始化数据库
 def init_db():
@@ -140,7 +170,8 @@ def init_db():
     # 兼容老库: 给已存在的 positions 表加新列
     existing_cols = {r[1] for r in c.execute('PRAGMA table_info(positions)').fetchall()}
     for col, decl in [('closed_at', 'TEXT'), ('total_sell_amount', 'REAL DEFAULT 0'),
-                      ('realized_pnl', 'REAL DEFAULT 0'), ('original_shares', 'REAL')]:
+                      ('realized_pnl', 'REAL DEFAULT 0'), ('original_shares', 'REAL'),
+                      ('position_type', 'TEXT')]:
         if col not in existing_cols:
             c.execute(f'ALTER TABLE positions ADD COLUMN {col} {decl}')
     c.execute('CREATE INDEX IF NOT EXISTS idx_positions_closed ON positions(closed_at)')
@@ -881,30 +912,7 @@ def sync_overview():
         down5_7 = len(df[(df['pct_chg'] >= -7) & (df['pct_chg'] < -5)])
         down7 = len(df[df['pct_chg'] < -7])
 
-        # 同时把涨停股写入 limitup 表（从日线数据直接筛选，不依赖 limit_list_d）
-        # 需要获取股票名称
-        codes = df[df['pct_chg'] >= 9.9]['ts_code'].tolist()
-        name_map = {}
-        for i in range(0, len(codes), 100):
-            batch = codes[i:i+100]
-            try:
-                df_basic = pro.stock_basic(ts_code=','.join(batch))
-                for _, r in df_basic.iterrows():
-                    name_map[r['ts_code']] = r['name']
-            except:
-                pass
-
-        conn = sqlite3.connect(DB_PATH)
-        c = conn.cursor()
-        for _, row in df[df['pct_chg'] >= 9.9].iterrows():
-            ts_code = row['ts_code']
-            c.execute('''INSERT OR REPLACE INTO limitup
-                (date, code, name, marketCap, time, sector, volume, streak, keyword)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-                (trade_date, ts_code, name_map.get(ts_code, ''),
-                 row.get('amount', 0) or 0, '', '',
-                 row.get('vol', 0) or 0, '首板', ''))
-        conn.commit()
+        # limitup 表的写入已移除，只通过韭研 OCR 通道填充
 
         # 全市场总成交额 = sum(daily.amount) / 100000 (千元转亿)
         total_volume = df['amount'].sum() / 100000
@@ -958,8 +966,15 @@ def sync_overview():
 
 # ============ 涨停数据 ============
 
-# 简单限流：记录上次同步时间，间隔内拒绝重复请求
-_last_sync_time = {}  # date -> timestamp
+@app.route('/api/limitup/latest-date', methods=['GET'])
+def get_limitup_latest_date():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('SELECT MAX(date) FROM limitup')
+    row = c.fetchone()
+    conn.close()
+    return jsonify({'latest_date': row[0] or ''})
+
 
 @app.route('/api/limitup', methods=['GET'])
 def get_limitup():
@@ -970,7 +985,9 @@ def get_limitup():
 
     date = request.args.get('date')
     sector = request.args.get('sector', 'all')
-    limit = request.args.get('limit', 200, type=int)
+    limit = request.args.get('limit', 5000, type=int)
+    if limit > 50000:
+        limit = 50000
 
     query = 'SELECT * FROM limitup WHERE 1=1'
     params = []
@@ -1006,59 +1023,304 @@ def delete_limitup():
     return jsonify({'status': 'ok', 'deleted': cnt})
 
 
-@app.route('/api/limitup/sync', methods=['POST'])
-def sync_limitup():
-    """从 TuShare 同步涨停数据（受限于1次/分钟）"""
-    global _last_sync_time
-    import time
-
-    pro = get_pro()
-    today = datetime.now().strftime('%Y%m%d')
-
+def run_ocr_job(filepath, job_id, trade_date):
+    """模块级 OCR 任务：跑 mmx → 解析 → 写库 → 保留原图。供 /parse-image 和 /fetch 复用。"""
+    import re, json as _json
+    prompt = (
+        '请仔细查看这张中国A股涨停股票截图，识别所有可见的股票信息。\n'
+        '请严格按照以下 JSON 数组格式输出（不要任何解释、不要 markdown 代码块标记）：\n'
+        '[{"sector":"板块名","stocks":[{"code":"股票代码","name":"股票名称","days":"连板数","time":"封板时间","market_cap":"市值","turnover":"成交额","keywords":"关键词"}]}]\n'
+        '要求：\n'
+        '1) 保留图中所有板块/分组，每个板块下的股票全部列出，不要遗漏\n'
+        '2) 板块名是中文，例如 "机器人"、"氟化工"（不需要带 *N 后缀）\n'
+        '3) 如果某字段看不清，填空字符串 "" 或 "0"\n'
+        '4) 输出必须是合法 JSON 数组，从 [ 开始到 ] 结束'
+    )
     try:
-        # 简单限流：距上次同步不足60秒则拒绝
-        key = 'limitup'
-        now = time.time()
-        last = _last_sync_time.get(key, 0)
-        if now - last < 60:
-            # 返回已有数据，不重复请求
-            conn = sqlite3.connect(DB_PATH)
-            c = conn.cursor()
-            c.execute('SELECT COUNT(*) FROM limitup WHERE date=?', (today,))
-            count = c.fetchone()[0]
-            conn.close()
-            return jsonify({
-                'status': 'rate_limited',
-                'message': f'限流中，请{(60 - int(now - last))}秒后重试',
-                'cached_count': count
-            })
+        _ocr_jobs[job_id]['stage'] = 'ocr_starting'
+        r = subprocess.run(
+            ['/usr/local/bin/mmx', 'vision', 'describe', '--image', filepath,
+             '--output', 'json', '--prompt', prompt],
+            capture_output=True, text=True, timeout=600
+        )
+        # 把 mmx 的原始输出落到文件，便于排查（即使识别失败也能看）
+        try:
+            debug_path = filepath + '.stdout.txt'
+            with open(debug_path, 'w', encoding='utf-8') as _df:
+                _df.write(f'--- returncode: {r.returncode } ---\n')
+                _df.write(f'--- stderr ---\n{r.stderr}\n')
+                _df.write(f'--- stdout ---\n{r.stdout}\n')
+        except Exception:
+            pass
+        _ocr_jobs[job_id]['stage'] = 'ocr_done'
+        # 即使 returncode != 0 也不直接报错，先看 stdout 里有没有能解析的内容
+        if r.returncode != 0:
+            _ocr_jobs[job_id]['mmx_stderr'] = (r.stderr or '')[:500]
+        date_prompt = (
+            'What date is shown on this image? '
+            'Output ONLY the date text visible in the title or header area, '
+            'e.g. "05.15" or "5月15日". '
+            'Do not add any explanation or additional text.'
+        )
+        date_r = subprocess.run(
+            ['/usr/local/bin/mmx', 'vision', 'describe', '--image', filepath,
+             '--output', 'json', '--prompt', date_prompt],
+            capture_output=True, text=True, timeout=30
+        )
+        parsed_date = trade_date
+        if date_r.returncode == 0:
+            try:
+                date_outer = _json.loads(date_r.stdout.strip())
+                date_str = date_outer.get('content', '').strip()
+                if date_str:
+                    m = re.match(r'(\d{1,2})\.(\d{1,2})', date_str)
+                    if m:
+                        month, day = int(m.group(1)), int(m.group(2))
+                        from datetime import datetime as _dt
+                        year = _dt.now().year
+                        parsed_date = f'{year}{month:02d}{day:02d}'
+                    else:
+                        m2 = re.match(r'(\d{1,2})月(\d{1,2})日', date_str)
+                        if m2:
+                            month, day = int(m2.group(1)), int(m2.group(2))
+                            from datetime import datetime as _dt
+                            year = _dt.now().year
+                            parsed_date = f'{year}{month:02d}{day:02d}'
+            except Exception:
+                pass
+        if not parsed_date:
+            parsed_date = datetime.now().strftime('%Y%m%d')
+        parsed_data = []
+        try:
+            outer = _json.loads(r.stdout.strip())
+            inner = outer.get('content', '')
+            inner = re.sub(r'^```json\s*', '', inner).strip()
+            inner = re.sub(r'```\s*$', '', inner).strip()
+            if inner.startswith('```'):
+                inner = re.sub(r'^```[a-z]*\s*', '', inner).strip()
+                inner = re.sub(r'```\s*$', '', inner).strip()
+            if inner.startswith('['):
+                parsed_data = _json.loads(inner)
+            elif inner.startswith('"'):
+                decoded = _json.loads(inner)
+                if isinstance(decoded, str) and decoded.startswith('['):
+                    parsed_data = _json.loads(decoded)
+        except Exception as parse_err:
+            _ocr_jobs[job_id]['parse_error'] = f'{type(parse_err).__name__}: {parse_err}'
+        if not parsed_data:
+            m = re.search(r'\[\s*\{.*?\}\s*\]', r.stdout.strip(), re.DOTALL)
+            if m:
+                try:
+                    parsed_data = _json.loads(m.group())
+                except Exception as parse_err2:
+                    _ocr_jobs[job_id]['parse_error'] = (
+                        f'{_ocr_jobs[job_id].get("parse_error", "")} | '
+                        f'regex 匹配后仍解析失败: {parse_err2}'
+                    )
+        # 把 mmx 原始输出前 800 字回传前端，方便排查
+        _ocr_jobs[job_id]['raw_stdout'] = (r.stdout or '')[:800]
 
-        df = pro.limit_list_d(start_date=today, end_date=today)
-        _last_sync_time[key] = now
+        _ocr_jobs[job_id]['stage'] = 'parsing'
+        boards_map = {}
+        streak_stocks = []
 
+        if parsed_data and any('stocks' in item for item in parsed_data):
+            flat = []
+            for item in parsed_data:
+                if isinstance(item, dict) and 'stocks' in item:
+                    sector_base = (item.get('sector') or item.get('sector_name') or '其他').strip()
+                    sector_base = re.sub(r'\*\d+$', '', sector_base)
+                    for stock in item.get('stocks', []):
+                        stock_copy = dict(stock)
+                        stock_copy['sector'] = sector_base
+                        flat.append(stock_copy)
+                elif isinstance(item, dict):
+                    flat.append(item)
+            parsed_data = flat
+
+        for s in parsed_data:
+            sector = (s.get('sector') or '其他').strip()
+            sector = re.sub(r'\*\d+$', '', sector)
+            if sector not in boards_map:
+                boards_map[sector] = []
+            boards_map[sector].append(s)
+            days = s.get('days', '1') or '1'
+            if days not in ('1', '首板', '1天'):
+                streak_stocks.append(s)
+
+        if not parsed_date:
+            parsed_date = datetime.now().strftime('%Y%m%d')
+
+        def to_float(v):
+            try:
+                if not v: return 0.0
+                s = str(v).replace(',', '').replace('亿', '').replace('万', '')
+                return float(s)
+            except Exception:
+                return 0.0
+
+        def norm(v):
+            if not v or v in ('1', '首板', '1天'):
+                return '首板'
+            return str(v)
+
+        _ocr_jobs[job_id]['stage'] = 'writing_db'
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
-
-        count = 0
-        for _, row in df.iterrows():
+        c.execute('DELETE FROM limitup WHERE date=?', (parsed_date,))
+        cnt = 0
+        for s in streak_stocks:
             try:
-                c.execute('''INSERT OR REPLACE INTO limitup
-                    (date, code, name, marketCap, time, sector, volume, streak, keyword)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-                    (today, row['ts_code'], row['name'], row['total_mv'] or 0,
-                     row['first_time'] or '', row['industry'] or '',
-                     row['amount'] or 0, '首板', ''))
-                count += 1
-            except:
-                continue
-
+                c.execute('''INSERT INTO limitup (date,code,name,marketCap,time,sector,volume,streak,keyword)
+                    VALUES (?,?,?,?,?,?,?,?,?)''',
+                    (parsed_date, s.get('code',''), s.get('name',''),
+                     to_float(s.get('market_cap')),
+                     s.get('time',''), s.get('sector',''),
+                     to_float(s.get('turnover')), norm(s.get('days','')), s.get('keywords', '')))
+                cnt += 1
+            except Exception:
+                pass
+        for board_sector, stocks in boards_map.items():
+            for s in stocks:
+                try:
+                    c.execute('''INSERT INTO limitup (date,code,name,marketCap,time,sector,volume,streak,keyword)
+                        VALUES (?,?,?,?,?,?,?,?,?)''',
+                        (parsed_date, s.get('code',''), s.get('name',''),
+                         to_float(s.get('market_cap')),
+                         s.get('time',''), board_sector,
+                         to_float(s.get('turnover')), norm(s.get('days', '1')), s.get('keywords', '')))
+                    cnt += 1
+                except Exception:
+                    pass
         conn.commit()
         conn.close()
-
-        return jsonify({'status': 'success', 'date': today, 'count': count})
-
+        # 保留原图与 .stdout.txt 供排查，下次拉取同一日期时再覆盖
+        result = {
+            'status': 'done', 'stage': 'done', 'count': cnt, 'date': parsed_date,
+            'boards': list(boards_map.keys()), 'streak_count': len(streak_stocks),
+            'image_path': filepath,
+        }
+        # 解析失败时也回传详情
+        if cnt == 0:
+            result['parse_error'] = _ocr_jobs[job_id].get('parse_error', 'mmx 未返回可解析的 JSON 数组')
+            result['raw_stdout'] = _ocr_jobs[job_id].get('raw_stdout', '')
+            result['mmx_stderr'] = _ocr_jobs[job_id].get('mmx_stderr', '')
+        _ocr_jobs[job_id] = result
     except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)})
+        _ocr_jobs[job_id] = {'status': 'error', 'stage': 'error', 'error': str(e)}
+
+
+def fetch_jiuye_diagram(date_str):
+    """从韭研公社拉取某日涨停简图，存到 uploads/，返回 (filepath, job_id) 或 raise。date_str 格式 YYYY-MM-DD。
+
+    用 Playwright 真实浏览器加载页面，拦截前端自动发出的 diagram-url 请求拿到图 URL。
+    原因：直接用 requests 调 API 会被风控拒绝（sessionToken 在 API 侧已失效），
+    但浏览器内前端 JS 调时服务端会放行。Cookie 从 backend/.jiuye_cookies.json 读取。
+    """
+    cookies_path = os.path.join(os.path.dirname(__file__), '.jiuye_cookies.json')
+    if not os.path.exists(cookies_path):
+        raise RuntimeError(f'cookie 文件不存在: {cookies_path}，请从浏览器 F12 导出 cookies 到此文件')
+    with open(cookies_path, 'r', encoding='utf-8') as f:
+        cookie_list = json.load(f)
+    if not isinstance(cookie_list, list) or not cookie_list:
+        raise RuntimeError('cookie 文件格式错误：应为非空数组')
+
+    upload_dir = os.path.join(os.path.dirname(__file__), 'uploads')
+    os.makedirs(upload_dir, exist_ok=True)
+    job_id = _uuid.uuid4().hex[:8]
+    ymd = date_str.replace('-', '')
+
+    async def _fetch():
+        from playwright.async_api import async_playwright
+        img_url_holder = {'url': None, 'err': None}
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            context = await browser.new_context(
+                user_agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+                viewport={'width': 1440, 'height': 900},
+            )
+            await context.add_cookies(cookie_list)
+            page = await context.new_page()
+            async def on_resp(r):
+                if 'diagram-url' in r.url and r.request.method == 'POST':
+                    try:
+                        body = await r.json()
+                    except Exception:
+                        body = await r.text()
+                    err = body.get('errCode') if isinstance(body, dict) else None
+                    if err in ('0', 0):
+                        img_url_holder['url'] = body.get('data')
+                    else:
+                        img_url_holder['err'] = body
+            page.on('response', on_resp)
+            try:
+                await page.goto(f'https://www.jiuyangongshe.com/action/{date_str}',
+                                wait_until='domcontentloaded', timeout=45000)
+            except Exception as e:
+                await browser.close()
+                raise RuntimeError(f'打开页面失败: {e}')
+            await page.wait_for_timeout(2000)
+            # diagram-url 仅在"涨停简图" tab 激活时前端 JS 才会调，需点击该 tab
+            try:
+                await page.locator('text=涨停简图').first.click(timeout=5000)
+            except Exception:
+                # 找不到时尝试 Vue store 强切
+                await page.evaluate("""() => {
+                    const app = document.querySelector('#app');
+                    if (!app || !app.__vue__) return 'no vue';
+                    const walk = (n) => {
+                        if (n.activeName !== undefined) { n.activeName = 'diagram'; return true; }
+                        if (n.$children) for (const c of n.$children) if (walk(c)) return true;
+                        return false;
+                    };
+                    return walk(app.__vue__) ? 'toggled' : 'no activeName';
+                }""")
+            # 等 diagram-url 响应（最久 12 秒）
+            for _ in range(24):
+                if img_url_holder['url'] or img_url_holder['err']:
+                    break
+                await page.wait_for_timeout(500)
+            await browser.close()
+            if img_url_holder['err']:
+                raise RuntimeError(f'韭研 API 错误: {img_url_holder["err"].get("msg")} (errCode={img_url_holder["err"].get("errCode")})')
+            if not img_url_holder['url']:
+                raise RuntimeError('未捕获到 diagram-url 响应（该日可能无涨停数据或 cookie 已失效）')
+            return img_url_holder['url']
+
+    img_url = asyncio.run(_fetch())
+    img_resp = _requests.get(img_url, timeout=60)
+    img_resp.raise_for_status()
+    ext = '.png'
+    base = img_url.split('?')[0].split('/')[-1]
+    if '.' in base:
+        e = '.' + base.rsplit('.', 1)[-1].lower()
+        if 1 < len(e) <= 5:
+            ext = e
+    filename = f'jiuye_{ymd}_{job_id}{ext}'
+    filepath = os.path.join(upload_dir, filename)
+    with open(filepath, 'wb') as f:
+        f.write(img_resp.content)
+    return filepath, job_id, ymd
+
+
+@app.route('/api/limitup/fetch', methods=['POST'])
+def fetch_limitup_from_jiuye():
+    """从韭研公社拉取指定日期的涨停简图并自动 OCR 入库。date 格式 YYYY-MM-DD。"""
+    data = request.get_json(silent=True) or request.form
+    date_str = (data.get('date') or '').strip()
+    if not date_str or len(date_str) != 10 or date_str[4] != '-':
+        return jsonify({'status': 'error', 'message': 'date 必填，格式 YYYY-MM-DD'}), 400
+    trade_date = date_str.replace('-', '')
+    try:
+        filepath, job_id, _ = fetch_jiuye_diagram(date_str)
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': f'拉取图片失败: {e}'}), 502
+    _ocr_jobs[job_id] = {'status': 'processing', 'stage': 'fetched'}
+    import threading
+    t = threading.Thread(target=run_ocr_job, args=(filepath, job_id, trade_date))
+    t.daemon = True
+    t.start()
+    return jsonify({'status': 'processing', 'job_id': job_id, 'date': trade_date})
 
 
 @app.route('/api/limitup/parse-image', methods=['POST'])
@@ -1082,170 +1344,8 @@ def parse_limitup_image():
 
     _ocr_jobs[job_id] = {'status': 'processing', 'stage': 'saving_image'}
 
-    def do_ocr():
-        import re, json as _json
-        prompt = (
-            'Output ONLY valid JSON array with the EXACT board/sector structure visible in the image. '
-            'Format: [{"sector_name": "板块名*股票数", "stocks": [{...stock objects...}]}] '
-            'Each stock object: {"code": "代码", "name": "名称", "days": "连板数", "time": "封板时间", "market_cap": "市值", "turnover": "成交额", "keywords": "关键词"}. '
-            'Preserve ALL boards/sectors shown. Include every single stock visible. '
-            '板块名用中文，如 "机器人*15"、"氟化工*9" 其中*后的数字表示该板块涨停股数量.'
-        )
-        try:
-            _ocr_jobs[job_id]['stage'] = 'ocr_starting'
-            r = subprocess.run(
-                ['/usr/local/bin/mmx', 'vision', 'describe', '--image', filepath,
-                 '--output', 'json', '--prompt', prompt],
-                capture_output=True, text=True, timeout=600
-            )
-            _ocr_jobs[job_id]['stage'] = 'ocr_done'
-            # 不在这里删除文件，留到所有OCR完成后再删
-            date_prompt = (
-                'What date is shown on this image? '
-                'Output ONLY the date text visible in the title or header area, '
-                'e.g. "05.15" or "5月15日". '
-                'Do not add any explanation or additional text.'
-            )
-            date_r = subprocess.run(
-                ['/usr/local/bin/mmx', 'vision', 'describe', '--image', filepath,
-                 '--output', 'json', '--prompt', date_prompt],
-                capture_output=True, text=True, timeout=30
-            )
-            parsed_date = trade_date
-            if date_r.returncode == 0:
-                try:
-                    date_outer = _json.loads(date_r.stdout.strip())
-                    date_str = date_outer.get('content', '').strip()
-                    if date_str:
-                        # 解析 "05.15" -> "20260515"
-                        m = re.match(r'(\d{1,2})\.(\d{1,2})', date_str)
-                        if m:
-                            month, day = int(m.group(1)), int(m.group(2))
-                            from datetime import datetime as _dt
-                            year = _dt.now().year
-                            parsed_date = f'{year}{month:02d}{day:02d}'
-                        else:
-                            m2 = re.match(r'(\d{1,2})月(\d{1,2})日', date_str)
-                            if m2:
-                                month, day = int(m2.group(1)), int(m2.group(2))
-                                from datetime import datetime as _dt
-                                year = _dt.now().year
-                                parsed_date = f'{year}{month:02d}{day:02d}'
-                except:
-                    pass
-            if not parsed_date:
-                parsed_date = datetime.now().strftime('%Y%m%d')
-            parsed_data = []
-            try:
-                outer = _json.loads(r.stdout.strip())
-                inner = outer.get('content', '')
-                # 去除 markdown 代码块标记 ```json ... ```
-                inner = re.sub(r'^```json\s*', '', inner).strip()
-                inner = re.sub(r'```\s*$', '', inner).strip()
-                if inner.startswith('```'):
-                    inner = re.sub(r'^```[a-z]*\s*', '', inner).strip()
-                    inner = re.sub(r'```\s*$', '', inner).strip()
-                if inner.startswith('['):
-                    parsed_data = _json.loads(inner)
-                elif inner.startswith('"'):
-                    decoded = _json.loads(inner)
-                    if isinstance(decoded, str) and decoded.startswith('['):
-                        parsed_data = _json.loads(decoded)
-            except:
-                pass
-            if not parsed_data:
-                m = re.search(r'\[\s*\{.*?\}\s*\]', r.stdout.strip(), re.DOTALL)
-                if m:
-                    try:
-                        parsed_data = _json.loads(m.group())
-                    except:
-                        pass
-
-            _ocr_jobs[job_id]['stage'] = 'parsing'
-            boards_map = {}
-            streak_stocks = []
-
-            # 兼容两种格式：扁平格式 [{sector, code, ...}] 和 结构化格式 [{sector_name, stocks}]
-            def flatten_structured(data):
-                """将结构化格式展平为扁平格式"""
-                result = []
-                for item in data:
-                    if isinstance(item, dict) and 'stocks' in item:
-                        # 结构化格式：提取板块名和所有股票
-                        sector_base = (item.get('sector_name') or '其他').strip()
-                        sector_base = re.sub(r'\*\d+$', '', sector_base)
-                        for stock in item.get('stocks', []):
-                            stock_copy = dict(stock)
-                            stock_copy['sector'] = sector_base
-                            result.append(stock_copy)
-                    elif isinstance(item, dict):
-                        result.append(item)
-                return result
-
-            if parsed_data and any('stocks' in item for item in parsed_data):
-                # 检测到结构化格式，先展平
-                parsed_data = flatten_structured(parsed_data)
-
-            for s in parsed_data:
-                sector = (s.get('sector') or '其他').strip()
-                sector = re.sub(r'\*\d+$', '', sector)
-                if sector not in boards_map:
-                    boards_map[sector] = []
-                boards_map[sector].append(s)
-                days = s.get('days', '1') or '1'
-                if days not in ('1', '首板', '1天'):
-                    streak_stocks.append(s)
-
-            if not parsed_date:
-                parsed_date = datetime.now().strftime('%Y%m%d')
-
-            def norm(v):
-                if not v or v in ('1', '首板', '1天'):
-                    return '首板'
-                return str(v)
-
-            _ocr_jobs[job_id]['stage'] = 'writing_db'
-            conn = sqlite3.connect(DB_PATH)
-            c = conn.cursor()
-            c.execute('DELETE FROM limitup WHERE date=?', (parsed_date,))
-            cnt = 0
-            for s in streak_stocks:
-                try:
-                    c.execute('''INSERT INTO limitup (date,code,name,marketCap,time,sector,volume,streak,keyword)
-                        VALUES (?,?,?,?,?,?,?,?,?)''',
-                        (parsed_date, s.get('code',''), s.get('name',''),
-                         float(s.get('market_cap') or 0),
-                         s.get('time',''), s.get('sector',''),
-                         float(s.get('turnover') or 0), norm(s.get('days','')), s.get('keywords', '')))
-                    cnt += 1
-                except:
-                    pass
-            for board_sector, stocks in boards_map.items():
-                for s in stocks:
-                    try:
-                        c.execute('''INSERT INTO limitup (date,code,name,marketCap,time,sector,volume,streak,keyword)
-                            VALUES (?,?,?,?,?,?,?,?,?)''',
-                            (parsed_date, s.get('code',''), s.get('name',''),
-                             float(s.get('market_cap') or 0),
-                             s.get('time',''), board_sector,
-                             float(s.get('turnover') or 0), norm(s.get('days', '1')), s.get('keywords', '')))
-                        cnt += 1
-                    except:
-                        pass
-            conn.commit()
-            conn.close()
-            # 删除临时文件
-            try:
-                os.remove(filepath)
-            except Exception:
-                pass
-            _ocr_jobs[job_id] = {'status': 'done', 'stage': 'done', 'count': cnt, 'date': parsed_date,
-                                  'boards': list(boards_map.keys()), 'streak_count': len(streak_stocks)}
-        except Exception as e:
-            _ocr_jobs[job_id] = {'status': 'error', 'stage': 'error', 'error': str(e)}
-
     import threading
-    t = threading.Thread(target=do_ocr)
+    t = threading.Thread(target=run_ocr_job, args=(filepath, job_id, trade_date))
     t.daemon = True
     t.start()
 
@@ -1522,7 +1622,7 @@ COLUMN_ALIASES = {
     'name': ['证券名称', '股票名称', '名称', 'name', 'stock_name'],
     'shares': ['证券数量', '持仓数量', '当前持仓', '股份余额', '余额', '数量', '持股数', 'shares', '持仓', '参考持股数', '参考持股', '当前持股'],
     'cost_price': ['成本价', '买入均价', '成本', '摊薄成本价', 'cost', 'cost_price', '均价', '参考成本价'],
-    'buy_date': ['买入日期', '建仓日期', '日期', 'date', 'buy_date'],
+    'buy_date': ['买入日期', '建仓日期', '名称日期', '日期', 'date', 'buy_date'],
     'note': ['备注', 'note', 'memo'],
 }
 
@@ -1637,6 +1737,49 @@ def _clean_cell(v):
     return s
 
 
+def _upsert_position(c, r):
+    """写入单条持仓。如果是加仓（同一 ts_code 已存在未清仓记录），自动合并：shares 累加，cost_price 加权平均，buy_date 取最早。返回 ('inserted' | 'added' | 'updated' | 'skipped', id)。"""
+    # 1) 查同 ts_code 的未清仓持仓（按买入时间最早的优先合并；如果有 original_shares 表示是还原回来的也合并）
+    existing = c.execute(
+        '''SELECT id, shares, cost_price, buy_date, original_shares FROM positions
+           WHERE ts_code=? AND closed_at IS NULL
+           ORDER BY (buy_date IS NULL), buy_date, id
+           LIMIT 1''',
+        (r['ts_code'],)
+    ).fetchone()
+    if existing:
+        old_id, old_shares, old_cost, old_buy_date, old_original = existing
+        old_shares = old_shares or 0
+        old_cost = old_cost or 0
+        new_shares = old_shares + r['shares']
+        if new_shares <= 0:
+            return 'skipped', old_id
+        # 加权平均成本价
+        new_cost = (old_shares * old_cost + r['shares'] * r['cost_price']) / new_shares
+        # 交易日期取最新 (加仓时显示最近一次加仓的日期)
+        candidates = [d for d in (old_buy_date, r.get('buy_date') or '') if d]
+        new_buy_date = max(candidates) if candidates else date.today().isoformat()
+        new_original = (old_original or old_shares) + r['shares']
+        c.execute('''UPDATE positions SET
+            shares=?, cost_price=?, buy_date=?, original_shares=?,
+            position_type='加仓',
+            name=COALESCE(NULLIF(?, ''), positions.name),
+            note=COALESCE(NULLIF(?, ''), positions.note),
+            updated_at=datetime('now', 'localtime')
+            WHERE id=?''',
+            (new_shares, new_cost, new_buy_date, new_original,
+             r.get('name') or '', r.get('note') or '', old_id))
+        return 'added', old_id
+    # 2) 没有现存未清仓持仓 → 新增
+    # 资金股份 导入: buy_date 留空 (用户 2026-06-04 反馈)
+    cur = c.execute('''INSERT INTO positions
+        (ts_code, name, shares, original_shares, cost_price, buy_date, note, position_type, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, '建仓', datetime('now', 'localtime'))''',
+        (r['ts_code'], r.get('name') or '', r['shares'], r['shares'],
+         r['cost_price'], r.get('buy_date') or '', r.get('note') or ''))
+    return 'inserted', cur.lastrowid
+
+
 def _parse_positions_from_df(df, column_map):
     """根据列名映射解析出持仓记录列表"""
     records = []
@@ -1744,6 +1887,7 @@ def import_positions():
     data = request.get_json() or {}
     filename = data.get('filename')
     column_map_override = data.get('column_map')  # 可选, 让用户手动指定列
+    file_date = data.get('file_date')  # 文件名里的日期, buy_date 兜底 (用户 2026-06-05 反馈)
 
     if not filename:
         return jsonify({'status': 'error', 'message': '缺少 filename'}), 400
@@ -1775,27 +1919,26 @@ def import_positions():
     if not records:
         return jsonify({'status': 'error', 'message': '未解析出任何有效记录'}), 400
 
+    # 文件名日期兜底: CSV 里没 buy_date 的行, 用 file_date
+    if file_date:
+        for r in records:
+            if not (r.get('buy_date') or '').strip():
+                r['buy_date'] = file_date
+
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     inserted = 0
-    updated = 0
+    added = 0
     skipped = 0
     for r in records:
         try:
-            cur = c.execute('''INSERT INTO positions
-                (ts_code, name, shares, cost_price, buy_date, note, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))
-                ON CONFLICT(ts_code, cost_price, buy_date) DO UPDATE SET
-                shares=excluded.shares,
-                name=COALESCE(NULLIF(excluded.name, ''), positions.name),
-                note=COALESCE(NULLIF(excluded.note, ''), positions.note),
-                updated_at=datetime('now', 'localtime')''',
-                (r['ts_code'], r['name'], r['shares'], r['cost_price'],
-                 r['buy_date'], r['note']))
-            if cur.rowcount == 1:
+            action, _ = _upsert_position(c, r)
+            if action == 'inserted':
                 inserted += 1
-            elif cur.rowcount > 0:
-                updated += 1
+            elif action == 'added':
+                added += 1
+            else:
+                skipped += 1
         except Exception as e:
             print(f'positions 写入错误 {r["ts_code"]}: {e}')
             skipped += 1
@@ -1809,7 +1952,7 @@ def import_positions():
     return jsonify({
         'status': 'success',
         'inserted': inserted,
-        'updated': updated,
+        'added': added,
         'skipped': skipped,
         'total': len(records),
     })
@@ -1860,28 +2003,98 @@ def get_positions():
             prev = p['prev_close']
             if p.get('cost_value') is not None and cur is not None:
                 p['market_value'] = round(cur * p['shares'], 2)
-                p['profit'] = round(p['market_value'] - p['cost_value'], 2)
-                p['profit_pct'] = round(p['profit'] / p['cost_value'] * 100, 2) if p['cost_value'] else None
-            # 单日盈亏: (现价 - 昨收) × 持仓
+                # 浮动盈亏: 跟中信证券公式保持一致
+                # 公式: (现价 - 持仓成本价) × 数量 - 卖出佣金(万1, min5) - 印花税(万5) - 卖出过户费(万0.1)
+                # 持仓成本价 = cost_price (含买入费, broker 摊薄成本价口径)
+                # 买入费 不进入 profit, 只在 tooltip 提示
+                p['buy_fee'] = round(calc_buy_fees(p['cost_value']), 2)
+                p['cost_with_fees'] = round(p['cost_value'] + p['buy_fee'], 2)
+                p['sell_commission'] = round(max(p['market_value'] * FEE_CONFIG['commission_rate'],
+                                                  FEE_CONFIG['min_commission']), 2)
+                p['stamp_tax'] = round(p['market_value'] * FEE_CONFIG['stamp_rate'], 2)
+                # 沪市 (.SH) 含卖出过户费, 深市 (.SZ) 不含 (过户费打包在佣金里)
+                is_shanghai = p['ts_code'].endswith('.SH')
+                p['sell_transfer_fee'] = round(p['market_value'] * FEE_CONFIG['transfer_rate'], 2) if is_shanghai else 0
+                # 浮动盈亏 = (现价 - 持仓成本) × 数量 - 卖佣 - 印花税 - 卖出过户费(沪市)
+                p['profit'] = round((p['current_price'] - p['cost_price']) * p['shares']
+                                    - p['sell_commission'] - p['stamp_tax'] - p['sell_transfer_fee'], 2)
+                # 盈亏比 = (现价 - 持仓成本价) / 持仓成本价 × 100 (broker 每股毛百分比)
+                p['profit_pct'] = round((p['current_price'] - p['cost_price']) / p['cost_price'] * 100, 3) if p['cost_price'] else None
+                # 预估卖出费: 若按现价全部卖出, 还要花多少 (含过户费, 用于 tooltip)
+                p['sell_cost_estimate'] = round(calc_sell_fees(p['market_value']), 2)
+            # 单日盈亏: (现价 - 昨收) × 持仓 (不扣费, 反映日内价差)
             if cur is not None and prev is not None:
                 p['daily_profit'] = round((cur - prev) * p['shares'], 2)
             else:
                 p['daily_profit'] = None
+            # 仓位类型标签: 减仓优先判定, 否则用 DB hint / fallback
+            p['position_type'] = _classify_position_type(p)
 
     total_mv = sum((p.get('market_value') or 0) for p in positions)
     total_cost = sum((p.get('cost_value') or 0) for p in positions)
+    total_cost_with_fees = sum((p.get('cost_with_fees') or 0) for p in positions)
+    total_buy_fee = sum((p.get('buy_fee') or 0) for p in positions)
+    total_sell_estimate = sum((p.get('sell_cost_estimate') or 0) for p in positions)
+    total_sell_commission = sum((p.get('sell_commission') or 0) for p in positions)
+    total_stamp_tax = sum((p.get('stamp_tax') or 0) for p in positions)
     total_profit = sum((p.get('profit') or 0) for p in positions)
     total_daily = sum((p.get('daily_profit') or 0) for p in positions)
     summary = {
         'count': len(positions),
         'total_market_value': round(total_mv, 2),
         'total_cost': round(total_cost, 2),
+        'total_cost_with_fees': round(total_cost_with_fees, 2),
+        'total_buy_fee': round(total_buy_fee, 2),
+        'total_sell_estimate': round(total_sell_estimate, 2),
+        'total_sell_commission': round(total_sell_commission, 2),
+        'total_stamp_tax': round(total_stamp_tax, 2),
         'total_profit': round(total_profit, 2),
         'total_profit_pct': round(total_profit / total_cost * 100, 2) if total_cost else None,
         'total_daily_profit': round(total_daily, 2),
+        'fee_config': FEE_CONFIG,
     }
 
     return jsonify({'positions': positions, 'summary': summary})
+
+
+def _classify_position_type(p):
+    """根据 DB 字段 / shares / original_shares 判断当前持仓的标签: 建仓 / 加仓 / 减仓
+    规则:
+      - shares < original_shares → 减仓 (卖过, 这个判定比 DB hint 优先)
+      - shares == original_shares:
+        - 优先用 DB 的 position_type 字段 (新数据由 trade apply 写入)
+        - 老数据 (position_type 为空) fall back 到 note 中 "买入" 次数
+    """
+    try:
+        shares = p.get('shares') or 0
+        original = p.get('original_shares') or 0
+        # 减仓优先级最高: shares < original 永远判减仓
+        if original > 0 and shares < original - 0.0001:
+            return '减仓'
+        # shares == original: 用 DB hint, 没有就 fall back
+        db_type = p.get('position_type')
+        if db_type:
+            return db_type
+        note = p.get('note') or ''
+        if note.count('买入') >= 2:
+            return '加仓'
+        return '建仓'
+    except Exception:
+        return '建仓'
+
+
+def _classify_closed_type(p):
+    """已清仓列表标签: 全部卖出 → 清仓; 部分卖出 → 减仓
+    规则: shares == 0 (或 original_shares - shares 不足 1 股) → 清仓
+    """
+    try:
+        shares = p.get('shares') or 0
+        original = p.get('original_shares') or 0
+        if shares < 0.5 or (original > 0 and shares >= original - 0.5):
+            return '清仓'
+        return '减仓'
+    except Exception:
+        return '清仓'
 
 
 @app.route('/api/positions', methods=['POST'])
@@ -1901,15 +2114,22 @@ def add_position():
 
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute('''INSERT INTO positions
-        (ts_code, name, shares, cost_price, buy_date, note)
-        VALUES (?, ?, ?, ?, ?, ?)''',
-        (ts_code, (data.get('name') or '').strip(), shares, cost_price,
-         (data.get('buy_date') or '').strip(), (data.get('note') or '').strip()))
-    new_id = c.lastrowid
+    action, new_id = _upsert_position(c, {
+        'ts_code': ts_code,
+        'name': (data.get('name') or '').strip(),
+        'shares': shares,
+        'cost_price': cost_price,
+        'buy_date': (data.get('buy_date') or '').strip(),
+        'note': (data.get('note') or '').strip(),
+    })
     conn.commit()
     conn.close()
-    return jsonify({'status': 'success', 'id': new_id, 'ts_code': ts_code})
+    return jsonify({
+        'status': 'success',
+        'id': new_id,
+        'ts_code': ts_code,
+        'action': action,  # 'inserted' 新建 / 'added' 加仓合并
+    })
 
 
 @app.route('/api/positions/<int:pid>', methods=['PUT'])
@@ -1963,11 +2183,10 @@ def clear_positions():
     return jsonify({'status': 'success', 'deleted': n})
 
 
-@app.route('/api/positions/closed', methods=['GET'])
-def get_closed_positions():
-    """获取已清仓列表: shares=0 且 closed_at IS NOT NULL
-    可选 ?with_quote=1 拉现价(用来看浮盈, 通常清仓后用不上)"""
-    with_quote = request.args.get('with_quote', '0') == '1'
+@app.route('/api/positions/sell', methods=['GET'])
+def get_sell_positions():
+    """获取卖出列表 (原「已清仓」, 重命名): closed_at IS NOT NULL 的仓位
+    总是拉现价用来算「清仓后涨幅」"""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
@@ -1976,6 +2195,9 @@ def get_closed_positions():
     ).fetchall()
     conn.close()
     closed = []
+    # 拉所有持仓的实时价 (用于"清仓后涨幅")
+    ts_codes = [dict(r)['ts_code'] for r in rows]
+    quote_map = fetch_sina_quotes(ts_codes) if ts_codes else {}
     for r in rows:
         p = dict(r)
         # 已实现盈亏/卖出额从 DB 字段读
@@ -1984,19 +2206,39 @@ def get_closed_positions():
         p['original_shares'] = p.get('original_shares') or 0
         p['cost_value'] = round(p['cost_price'] * p['original_shares'], 2)
         if p['cost_value']:
-            p['profit_pct'] = round(p['profit'] / p['cost_value'] * 100, 2)
+            p['profit_pct'] = round(p['profit'] / p['cost_value'] * 100, 3)
             p['avg_sell_price'] = round(p['sell_amount'] / p['original_shares'], 4) if p['original_shares'] else None
         else:
             p['profit_pct'] = None
             p['avg_sell_price'] = None
+        # 卖出时的交易税费 (按交易所规则: 沪市含过户费, 深市不含 — 跟中信证券交割单对齐)
+        sell_commission = max(p['sell_amount'] * FEE_CONFIG['commission_rate'], FEE_CONFIG['min_commission'])
+        stamp_tax = p['sell_amount'] * FEE_CONFIG['stamp_rate']
+        is_shanghai = p['ts_code'].endswith('.SH')  # 沪市: 单独列示过户费
+        transfer_fee = p['sell_amount'] * FEE_CONFIG['transfer_rate'] if is_shanghai else 0
+        p['sell_fees'] = round(sell_commission + stamp_tax + transfer_fee, 2) if p['sell_amount'] else 0.0
+        p['includes_transfer'] = is_shanghai
+        # 清仓后涨幅 = (现价 - 卖出均价) / 卖出均价 × 100
+        cur_q = quote_map.get(p['ts_code'], {})
+        cur_price = cur_q.get('price')
+        if cur_price and p['avg_sell_price']:
+            p['current_price'] = cur_price
+            p['post_close_change_pct'] = round((cur_price - p['avg_sell_price']) / p['avg_sell_price'] * 100, 3)
+        else:
+            p['current_price'] = None
+            p['post_close_change_pct'] = None
+        # 仓位类型标签: 用 DB hint / fallback
+        p['position_type'] = _classify_closed_type(p)
         closed.append(p)
 
     total_profit = sum(p['profit'] for p in closed)
     total_cost = sum(p['cost_value'] for p in closed)
+    total_sell_fees = sum(p.get('sell_fees', 0) for p in closed)
     summary = {
         'count': len(closed),
         'total_realized_pnl': round(total_profit, 2),
         'total_cost': round(total_cost, 2),
+        'total_sell_fees': round(total_sell_fees, 2),
         'total_pnl_pct': round(total_profit / total_cost * 100, 2) if total_cost else None,
     }
     return jsonify({'closed': closed, 'summary': summary})
@@ -2257,18 +2499,48 @@ def preview_trades_file():
     if not missing:
         records = _parse_trades_from_df(df, mapping)
 
-    # 查重: 列出本次解析中已存在的 trade_no
+    # 查重 + 持仓一致性: 检测已 applied 的记录是否在持仓的 note 中还留有痕迹
+    # 真重复按 UNIQUE(trade_no, ts_code, trade_time) 三元组判定, 避免分笔成交被误判
     conn = sqlite3.connect(DB_PATH)
-    existing_nos = set()
+    existing_map = {}  # (trade_no, ts_code, trade_time) -> {id, applied}
     if records:
-        trade_nos = [r['trade_no'] for r in records if r['trade_no']]
+        trade_nos = sorted({r['trade_no'] for r in records if r['trade_no']})
         if trade_nos:
             q = ','.join('?' * len(trade_nos))
-            existing_nos = set(r[0] for r in conn.execute(
-                f'SELECT trade_no FROM trades WHERE trade_no IN ({q})', trade_nos).fetchall())
+            for r in conn.execute(
+                f'SELECT id, trade_no, ts_code, trade_time, applied FROM trades WHERE trade_no IN ({q})',
+                trade_nos).fetchall():
+                key = (r[1] or '', r[2] or '', r[3] or '')
+                existing_map[key] = {'id': r[0], 'ts_code': r[2], 'applied': r[4]}
+        # 抓取这批 ts_code 涉及的所有持仓 note, 用于判断 trade_no 是否在 note 中
+        ts_codes = sorted({r['ts_code'] for r in records})
+        if ts_codes:
+            q2 = ','.join('?' * len(ts_codes))
+            all_notes = '\n'.join(r[0] or '' for r in conn.execute(
+                f'SELECT note FROM positions WHERE ts_code IN ({q2})', ts_codes).fetchall())
+        else:
+            all_notes = ''
+    else:
+        all_notes = ''
     conn.close()
 
-    duplicate_count = sum(1 for r in records if r['trade_no'] in existing_nos)
+    duplicate_count = 0
+    stale_count = 0
+    for r in records:
+        key = (r['trade_no'] or '', r['ts_code'] or '', r.get('trade_time') or '')
+        info = existing_map.get(key)
+        if info:
+            duplicate_count += 1
+            r['existing_id'] = info['id']
+            r['already_applied'] = info['applied'] == 1
+            # stale: 已 applied, 但对应持仓的 note 中找不到该 trade_no (持仓被删/被改)
+            r['stale'] = info['applied'] == 1 and r['trade_no'] and f"#{r['trade_no']}" not in all_notes
+            if r['stale']:
+                stale_count += 1
+        else:
+            r['existing_id'] = None
+            r['already_applied'] = False
+            r['stale'] = False
     new_count = len(records) - duplicate_count
     buy_count = sum(1 for r in records if r['direction'] == 'buy')
     sell_count = sum(1 for r in records if r['direction'] == 'sell')
@@ -2284,6 +2556,7 @@ def preview_trades_file():
         'parsed_count': len(records),
         'new_count': new_count,
         'duplicate_count': duplicate_count,
+        'stale_count': stale_count,
         'buy_count': buy_count,
         'sell_count': sell_count,
         'preview': records[:20],
@@ -2319,12 +2592,24 @@ def import_trades():
     if not records:
         return jsonify({'status': 'error', 'message': '未解析出任何有效成交'}), 400
 
+    # 合并分笔成交: 同 (trade_no, ts_code, trade_time, direction, price) 视为同一次委托的分次成交, 累加 shares/amount
+    merged = {}
+    for r in records:
+        key = (r['trade_no'], r['ts_code'], r.get('trade_time', ''), r['direction'], r['price'])
+        if key in merged:
+            merged[key]['shares'] = (merged[key].get('shares') or 0) + (r.get('shares') or 0)
+            merged[key]['amount'] = (merged[key].get('amount') or 0) + (r.get('amount') or 0)
+        else:
+            merged[key] = dict(r)
+    merged_records = list(merged.values())
+    merge_count = len(records) - len(merged_records)
+
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     inserted = 0
     duplicate = 0
     skipped = 0
-    for r in records:
+    for r in merged_records:
         try:
             cur = c.execute('''INSERT INTO trades
                 (trade_no, ts_code, name, direction, price, shares, amount, trade_date, trade_time, note)
@@ -2350,7 +2635,8 @@ def import_trades():
         'inserted': inserted,
         'duplicate': duplicate,
         'skipped': skipped,
-        'total': len(records),
+        'total': len(merged_records),
+        'merged_from': len(records),
     })
 
 
@@ -2366,25 +2652,113 @@ def list_trades():
     })
 
 
-def _apply_one_trade(c, trade):
+@app.route('/api/trades/buys', methods=['GET'])
+def list_buy_trades():
+    """获取所有买入成交明细 (trades 表 direction='buy'), 给持仓 Tab 的「买入」用
+    每笔 buy 的 position_status 跟现持仓 tab 保持一致: 直接读对应 position 的 position_type
+    (建仓 / 加仓 / 减仓). 仓位已清仓时也用其最终 type.
+    按 trade_date DESC 展示, 最新的在前
+    """
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    # LEFT JOIN positions on ts_code, 只取 active (未清仓) 的那条
+    rows = conn.execute(
+        """SELECT t.*, p.position_type AS pos_type, p.shares AS pos_shares,
+                  p.original_shares AS pos_original_shares, p.closed_at AS pos_closed_at
+           FROM trades t
+           LEFT JOIN positions p
+             ON p.ts_code = t.ts_code AND p.closed_at IS NULL
+           WHERE t.direction = 'buy'
+           ORDER BY t.trade_date DESC, t.trade_time DESC, t.id DESC"""
+    ).fetchall()
+    conn.close()
+    buys = [dict(r) for r in rows]
+
+    # 拉行情算"买入后涨幅"
+    quote_map = fetch_sina_quotes([b['ts_code'] for b in buys]) if buys else {}
+
+    # 用现持仓同样的 _classify_position_type 逻辑, 跟 dashboard 现持仓 tab 完全一致
+    for b in buys:
+        # 构造跟 get_positions 一样的 p 字典, 让 _classify_position_type 能直接处理
+        p = {
+            'shares': b.get('pos_shares'),
+            'original_shares': b.get('pos_original_shares'),
+            'position_type': b.get('pos_type'),
+            'note': b.get('note'),
+        }
+        # 仓位不存在 (LEFT JOIN 没匹配) → 默认建仓
+        if p.get('shares') is None:
+            b['position_status'] = '建仓'
+        else:
+            b['position_status'] = _classify_position_type(p)
+        # 买入交易税费 (佣金 max(额×万1, 5) + 过户费 额×万0.1, 跟现持仓 tooltip 同公式)
+        buy_amt = b.get('amount') or (b.get('price', 0) * b.get('shares', 0))
+        b['buy_fees'] = round(calc_buy_fees(buy_amt), 2) if buy_amt > 0 else 0.0
+        # 买入后涨幅 = (现价 - 买入价) / 买入价 × 100
+        cur_price = quote_map.get(b['ts_code'], {}).get('price')
+        if cur_price and b.get('price'):
+            b['current_price'] = cur_price
+            b['post_buy_change_pct'] = round((cur_price - b['price']) / b['price'] * 100, 3)
+        else:
+            b['current_price'] = None
+            b['post_buy_change_pct'] = None
+
+    total_amount = sum((b.get('amount') or (b.get('price', 0) * b.get('shares', 0))) for b in buys)
+    total_shares = sum(b.get('shares') or 0 for b in buys)
+    total_buy_fees = sum(b.get('buy_fees', 0) for b in buys)
+    summary = {
+        'count': len(buys),
+        'total_amount': round(total_amount, 2),
+        'total_buy_fees': round(total_buy_fees, 2),
+        'total_shares': round(total_shares, 0),
+        'unique_codes': len(set(b['ts_code'] for b in buys)),
+    }
+    return jsonify({'buys': buys, 'summary': summary})
+
+
+def _apply_one_trade(c, trade, closed_at_expr="datetime('now','localtime')"):
     """把单条成交应用到 positions, 返回 (status, msg)
-    status: 'ok' | 'oversell' | 'missing' """
+    status: 'ok' | 'oversell' | 'missing'
+    closed_at_expr: SQL 表达式, 关闭仓位时写入 closed_at"""
     if trade['direction'] == 'buy':
-        # 找 ts_code + cost_price 一致的仓位
+        # 找同 ts_code 未清仓的仓位 (按买入时间最早优先合并, 与 _upsert_position 一致)
         row = c.execute(
-            'SELECT id, shares, note FROM positions WHERE ts_code=? AND cost_price=? ORDER BY id LIMIT 1',
-            (trade['ts_code'], trade['price'])).fetchone()
+            '''SELECT id, shares, cost_price, buy_date FROM positions
+               WHERE ts_code=? AND closed_at IS NULL
+               ORDER BY (buy_date IS NULL), buy_date, id
+               LIMIT 1''',
+            (trade['ts_code'],)).fetchone()
         ts = trade.get('trade_date') or trade.get('trade_time') or ''
         new_note = f"[{ts} 买入 {trade['shares']}股 @{trade['price']} #{trade['trade_no']}]"
+        # trade['price'] 是成交价 (excl fees). 持仓成本价 = 成交价 + 买入费/股
+        trade_amount = trade['price'] * trade['shares']
+        trade_buy_fee = calc_buy_fees(trade_amount)
+        trade_cost_per_share = round((trade_amount + trade_buy_fee) / trade['shares'], 4)
         if row:
-            c.execute('UPDATE positions SET shares=shares+?, note=COALESCE(note,\"\")||?, updated_at=datetime(\'now\', \'localtime\') WHERE id=?',
-                      (trade['shares'], new_note, row[0]))
+            old_id, old_shares, old_cost, old_buy_date = row
+            old_shares = old_shares or 0
+            old_cost = old_cost or 0
+            new_shares = old_shares + trade['shares']
+            # 加权平均成本价 (持仓成本价口径, 已含买入费)
+            new_cost = (old_shares * old_cost + trade['shares'] * trade_cost_per_share) / new_shares
+            # 交易日期取最新 (加仓仓位显示最近一次加仓的日期, 方便追溯)
+            candidates = [d for d in (old_buy_date, trade.get('trade_date') or '') if d]
+            new_buy_date = max(candidates) if candidates else date.today().isoformat()
+            c.execute('''UPDATE positions SET shares=?, cost_price=?, buy_date=?,
+                original_shares=COALESCE(original_shares, shares)+?,
+                position_type='加仓',
+                name=COALESCE(NULLIF(?, ''), positions.name),
+                note=COALESCE(note,'')||?, updated_at=datetime('now','localtime') WHERE id=?''',
+                (new_shares, new_cost, new_buy_date, trade['shares'],
+                 trade.get('name') or '', new_note, old_id))
         else:
+            # 新建仓: trade 没带 trade_date 时, 默认用今天
+            buy_date = trade.get('trade_date') or date.today().isoformat()
             c.execute('''INSERT INTO positions
-                (ts_code, name, shares, cost_price, buy_date, note)
-                VALUES (?, ?, ?, ?, ?, ?)''',
-                (trade['ts_code'], trade['name'], trade['shares'], trade['price'],
-                 trade['trade_date'], new_note))
+                (ts_code, name, shares, original_shares, cost_price, buy_date, note, position_type)
+                VALUES (?, ?, ?, ?, ?, ?, ?, '建仓')''',
+                (trade['ts_code'], trade['name'], trade['shares'], trade['shares'],
+                 trade_cost_per_share, buy_date, new_note))
         return 'ok', None
 
     elif trade['direction'] == 'sell':
@@ -2399,18 +2773,24 @@ def _apply_one_trade(c, trade):
         sell_price = trade['price']
         ts = trade.get('trade_date') or trade.get('trade_time') or ''
         sell_note = f"[{ts} 卖出 {trade['shares']}股 @{trade['price']} #{trade['trade_no']}]"
+        is_shanghai = trade['ts_code'].endswith('.SH')  # 沪市含过户费, 深市不含
         for pid, pshares, pcost, pnote, prev_sell_amt, prev_pnl in positions:
             if remaining <= 0:
                 break
             take = min(remaining, pshares)
             new_shares = pshares - take
             new_note = (pnote or '') + sell_note
-            # 累计卖出额 + 已实现盈亏
-            new_sell_amt = (prev_sell_amt or 0) + sell_price * take
-            new_pnl = (prev_pnl or 0) + (sell_price - pcost) * take
+            # 累计卖出额 + 已实现盈亏 (按交易所规则扣 sell 侧费用)
+            # 沪市: 卖佣 + 印花税 + 过户费; 深市: 卖佣 + 印花税 (过户费打包在佣金里)
+            sell_amt_inc = sell_price * take
+            sell_commission = max(sell_amt_inc * FEE_CONFIG['commission_rate'], FEE_CONFIG['min_commission'])
+            transfer_inc = sell_amt_inc * FEE_CONFIG['transfer_rate'] if is_shanghai else 0
+            sell_fees_inc = sell_commission + sell_amt_inc * FEE_CONFIG['stamp_rate'] + transfer_inc
+            new_sell_amt = (prev_sell_amt or 0) + sell_amt_inc
+            new_pnl = (prev_pnl or 0) + (sell_price - pcost) * take - sell_fees_inc
             if new_shares <= 0.0001:
                 # 软删除: shares=0 + closed_at
-                c.execute('''UPDATE positions SET shares=0, note=?, closed_at=datetime('now','localtime'),
+                c.execute(f'''UPDATE positions SET shares=0, note=?, closed_at={closed_at_expr},
                     total_sell_amount=?, realized_pnl=?, updated_at=datetime('now','localtime') WHERE id=?''',
                     (new_note, new_sell_amt, new_pnl, pid))
             else:
@@ -2429,6 +2809,11 @@ def apply_trades():
     """把已入库未 applied 的成交, 按顺序应用到 positions"""
     data = request.get_json() or {}
     trade_ids = data.get('trade_ids')  # 可选: 只 apply 指定 ID
+    force_trade_ids = data.get('force_trade_ids') or []  # 强制重跑已 applied 的指定 ID
+    closed_at_date = data.get('closed_at_date')  # 可选: 文件名里的日期, 用于 closed_at
+    file_date = data.get('file_date')  # 文件名里的日期, trade_date 空时用这个
+    if closed_at_date and not re.fullmatch(r'\d{4}-\d{2}-\d{2}', closed_at_date):
+        return jsonify({'status': 'error', 'message': 'closed_at_date 格式必须为 YYYY-MM-DD'}), 400
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     if trade_ids:
@@ -2436,6 +2821,11 @@ def apply_trades():
         rows = c.execute(
             f'SELECT * FROM trades WHERE id IN ({placeholders}) AND applied=0 ORDER BY datetime(trade_date), datetime(trade_time), id',
             trade_ids).fetchall()
+    elif force_trade_ids:
+        placeholders = ','.join('?' * len(force_trade_ids))
+        rows = c.execute(
+            f'SELECT * FROM trades WHERE id IN ({placeholders}) ORDER BY datetime(trade_date), datetime(trade_time), id',
+            force_trade_ids).fetchall()
     else:
         rows = c.execute(
             'SELECT * FROM trades WHERE applied=0 ORDER BY datetime(COALESCE(NULLIF(trade_date, \'\'), \'9999-12-31\')), datetime(trade_time), id').fetchall()
@@ -2445,12 +2835,23 @@ def apply_trades():
 
     applied = []
     errors = []
+    warnings = []
+    closed_at_value = f"'{data.get('closed_at_date')} 15:00:00'" if data.get('closed_at_date') else "datetime('now','localtime')"
     for t in trades:
-        status, msg = _apply_one_trade(c, t)
-        if status == 'ok':
+        # 文件名日期兜底: trade 自己没 trade_date 时用 file_date (用户 2026-06-05 反馈)
+        if file_date and not (t.get('trade_date') or '').strip():
+            t['trade_date'] = file_date
+            # 同时把 trade 自身 DB 字段也补上, 后续查询也能看到日期
+            c.execute('UPDATE trades SET trade_date=? WHERE id=?', (file_date, t['id']))
+        status, msg = _apply_one_trade(c, t, closed_at_expr=closed_at_value)
+        if status in ('ok', 'oversell'):
+            # 仓位确实被扣减了 (即使卖超) → 标记为已应用, 避免卡在 limbo
             c.execute('UPDATE trades SET applied=1 WHERE id=?', (t['id'],))
             applied.append({'id': t['id'], 'ts_code': t['ts_code'], 'name': t['name'],
                             'direction': t['direction'], 'shares': t['shares'], 'price': t['price']})
+            if status == 'oversell':
+                warnings.append({'id': t['id'], 'ts_code': t['ts_code'], 'name': t['name'],
+                                 'message': msg})
         else:
             errors.append({'id': t['id'], 'ts_code': t['ts_code'], 'name': t['name'],
                            'status': status, 'message': msg})
@@ -2461,8 +2862,10 @@ def apply_trades():
         'status': 'success' if not errors else 'partial',
         'applied': applied,
         'errors': errors,
+        'warnings': warnings,
         'applied_count': len(applied),
         'error_count': len(errors),
+        'warning_count': len(warnings),
     })
 
 

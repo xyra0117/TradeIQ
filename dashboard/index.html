@@ -465,6 +465,12 @@
   .lb-name {
     font-size: 14px; font-weight: 600; color: var(--text-primary);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    flex: 1; min-width: 0;
+  }
+  .lb-price {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; color: var(--text-secondary);
+    white-space: nowrap;
   }
 
   .lb-code {
@@ -691,6 +697,92 @@
   .pos-preview-box .ok { color: var(--accent-green); }
   .pos-preview-box .warn { color: var(--accent-yellow, #ffd740); }
 
+  /* ── 持仓行可展开: 箭头 + 展开内容 ── */
+  .pos-row { cursor: pointer; transition: background 0.12s; }
+  .pos-row:hover { background: rgba(255,255,255,0.03); }
+  .pos-row-expanded { background: rgba(74, 158, 255, 0.05); }
+  .pos-expand-icon {
+    display: inline-block; width: 14px; font-size: 10px;
+    color: var(--text-muted); transition: transform 0.18s ease;
+    margin-right: 4px; user-select: none;
+  }
+  .pos-expand-icon.expanded { transform: rotate(90deg); color: var(--accent-cyan); }
+
+  .pos-detail-row > td { border-top: 0 !important; }
+  .pos-detail-box { padding: 14px 18px 18px 36px; border-left: 2px solid var(--accent-cyan); }
+  .pos-detail-loading { padding: 20px 0; text-align: center; color: var(--text-muted); font-size: 13px; }
+  .pos-detail-empty { padding: 24px 0; text-align: center; color: var(--text-muted); font-size: 13px; }
+
+  .pos-detail-summary { margin-bottom: 12px; }
+  .pos-detail-head { display: flex; align-items: stretch; gap: 22px; }
+  .pos-detail-head-item { display: flex; flex-direction: column; justify-content: center; }
+  .pos-detail-head-subgrid {
+    display: grid; grid-template-columns: repeat(3, auto);
+    gap: 10px 22px; flex: 1;
+  }
+  .pos-detail-head-divider {
+    width: 1px; background: var(--border); margin: 4px 0;
+  }
+  .pos-detail-label {
+    font-size: 11px; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 1px;
+    font-family: 'JetBrains Mono', monospace; margin-bottom: 4px;
+  }
+  .pos-detail-big {
+    font-size: 24px; font-weight: 700;
+    font-family: 'JetBrains Mono', monospace; line-height: 1.1;
+  }
+  .pos-detail-sub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; font-family: 'JetBrains Mono', monospace; }
+  .pos-detail-sub-gray { color: var(--text-muted); }
+
+  .pos-stat { display: flex; flex-direction: column; }
+  .pos-stat-label {
+    font-size: 10px; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.8px;
+    font-family: 'JetBrains Mono', monospace; margin-bottom: 2px;
+  }
+  .pos-stat-value {
+    font-size: 13px; font-weight: 500;
+    font-family: 'JetBrains Mono', monospace; color: var(--text-primary);
+  }
+  .pos-stat-unit { font-size: 11px; color: var(--text-muted); font-weight: 400; }
+
+  .pos-detail-table-wrap { overflow-x: auto; }
+  .pos-detail-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .pos-detail-table th, .pos-detail-table td {
+    padding: 7px 10px; border-bottom: 1px solid var(--border);
+  }
+  .pos-detail-table th {
+    color: var(--text-muted); font-weight: 500;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    text-align: left; background: var(--bg-card);
+  }
+  .pos-detail-table tbody tr:hover { background: rgba(255,255,255,0.02); }
+  .pos-applied-tag {
+    display: inline-block; padding: 1px 6px; border-radius: 3px;
+    font-size: 10px; font-weight: 500;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .pos-applied-ok { background: rgba(24,255,255,0.12); color: var(--accent-cyan); }
+  .pos-applied-pending { background: rgba(74,85,104,0.2); color: var(--text-muted); }
+  .pos-applied-del { background: rgba(255,82,82,0.12); color: var(--accent-red); }
+
+  /* ── 交易方向标签 (7 种) ── */
+  .dir-tag {
+    display: inline-block; padding: 2px 8px; border-radius: 4px;
+    font-size: 11px; font-weight: 500;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .dir-tag-buy      { background: rgba(255, 82, 82, 0.12);  color: var(--accent-green); }
+  .dir-tag-sell     { background: rgba(0, 230, 118, 0.12);  color: var(--accent-red); }
+  .dir-tag-dividend { background: rgba(255, 167, 38, 0.15); color: #ffb74d; }
+  .dir-tag-tax      { background: rgba(255, 82, 82, 0.10);  color: #ff8a80; }
+  .dir-tag-bonus    { background: rgba(171, 71, 188, 0.15); color: #ce93d8; }
+  .dir-tag-transfer { background: rgba(120, 144, 156, 0.18);color: var(--text-muted); }
+  .dir-tag-freeze   { background: rgba(33, 150, 243, 0.15); color: #64b5f6; }
+  .dir-tag-fee      { background: rgba(158, 158, 158, 0.18);color: var(--text-muted); }
+  .dir-tag-other    { background: rgba(158, 158, 158, 0.18);color: var(--text-muted); }
+
   @keyframes spin { to { transform: rotate(360deg); } }
 
   .freq-tabs {
@@ -824,9 +916,9 @@
           <span class="filter-label" style="margin:0 4px 0 8px">自动</span>
           <select class="filter-select" id="posAutoInterval" style="width:auto">
             <option value="0">关闭</option>
-            <option value="1">1秒</option>
+            <option value="1" selected>1秒 (仅交易时段)</option>
             <option value="30">30秒</option>
-            <option value="60" selected>60秒</option>
+            <option value="60">60秒</option>
             <option value="300">5分钟</option>
           </select>
         </div>
@@ -916,11 +1008,12 @@
       </div>
     </div>
 
-    <!-- 子切换: 现持仓 / 买入 / 卖出 -->
+    <!-- 子切换: 现持仓 / 买入 / 卖出 / 对账日志 -->
     <div class="pos-subtabs">
       <button class="pos-subtab active" data-possub="open">现持仓</button>
       <button class="pos-subtab" data-possub="buy">买入 <span id="posBuyCount" class="pos-subtab-count" style="display:none"></span></button>
       <button class="pos-subtab" data-possub="sell">卖出 <span id="posSellCount" class="pos-subtab-count" style="display:none"></span></button>
+      <button class="pos-subtab" data-possub="reconcile">对账日志 <span id="posReconcileCount" class="pos-subtab-count" style="display:none"></span></button>
     </div>
 
     <!-- 汇总卡 (现持仓) -->
@@ -974,20 +1067,24 @@
         <div class="pos-stat-value" id="posSellStatCount">—</div>
       </div>
       <div class="pos-stat">
-        <div class="pos-stat-label">卖出总成本</div>
+        <div class="pos-stat-label">卖出总金额</div>
         <div class="pos-stat-value" id="posSellStatCost">—</div>
       </div>
       <div class="pos-stat">
-        <div class="pos-stat-label">卖出总成交</div>
+        <div class="pos-stat-label">卖出总股数</div>
         <div class="pos-stat-value" id="posSellStatSell">—</div>
       </div>
       <div class="pos-stat">
         <div class="pos-stat-label">卖出总税费</div>
         <div class="pos-stat-value" id="posSellStatFees">—</div>
       </div>
-      <div class="pos-stat">
+      <div class="pos-stat" title="所有 sell 单 FIFO 严格对账后的累计已实现盈亏, 买卖费都扣">
         <div class="pos-stat-label">已实现盈亏</div>
         <div class="pos-stat-value" id="posSellStatPnl">—</div>
+      </div>
+      <div class="pos-stat">
+        <div class="pos-stat-label">涉及股票</div>
+        <div class="pos-stat-value" id="posSellStatCodes">—</div>
       </div>
     </div>
 
@@ -1006,7 +1103,7 @@
             <th style="text-align:right" class="sortable" data-sort="market_value">持仓市值 <span class="sort-arrow"></span></th>
             <th style="text-align:right" class="sortable" data-sort="profit">浮动盈亏 <span class="sort-arrow"></span></th>
             <th style="text-align:right" class="sortable" data-sort="profit_pct">盈亏比 <span class="sort-arrow"></span></th>
-            <th>交易日期</th>
+            <th class="sortable" data-sort="last_trade_date">交易日期 <span class="sort-arrow"></span></th>
             <th>操作</th>
           </tr>
         </thead>
@@ -1024,7 +1121,7 @@
             <th>代码</th>
             <th>名称</th>
             <th style="text-align:right" class="sortable" data-sort="shares">成交数量 <span class="sort-arrow"></span></th>
-            <th style="text-align:right" class="sortable" data-sort="price">成本价 <span class="sort-arrow"></span></th>
+            <th style="text-align:right" class="sortable" data-sort="price">成交价格 <span class="sort-arrow"></span></th>
             <th style="text-align:right" class="sortable" data-sort="amount">买入总额 <span class="sort-arrow"></span></th>
             <th style="text-align:right" class="sortable" data-sort="buy_fees">交易税费 <span class="sort-arrow"></span></th>
             <th style="text-align:right" class="sortable" data-sort="trade_date">交易日期 <span class="sort-arrow"></span></th>
@@ -1045,22 +1142,61 @@
             <th style="width:40px;text-align:center;color:var(--text-muted)">序号</th>
             <th>代码</th>
             <th>名称</th>
-            <th style="text-align:right" class="sortable" data-sort="original_shares">成交数量 <span class="sort-arrow"></span></th>
-            <th style="text-align:right" class="sortable" data-sort="cost_price">成本价 <span class="sort-arrow"></span></th>
-            <th style="text-align:right" class="sortable" data-sort="avg_sell_price">卖出均价 <span class="sort-arrow"></span></th>
-            <th style="text-align:right" class="sortable" data-sort="sell_amount">卖出总额 <span class="sort-arrow"></span></th>
+            <th style="text-align:right" class="sortable" data-sort="shares">成交数量 <span class="sort-arrow"></span></th>
+            <th style="text-align:right" class="sortable" data-sort="price">成交价格 <span class="sort-arrow"></span></th>
+            <th style="text-align:right" class="sortable" data-sort="amount">卖出总额 <span class="sort-arrow"></span></th>
             <th style="text-align:right" class="sortable" data-sort="sell_fees">交易税费 <span class="sort-arrow"></span></th>
-            <th style="text-align:right" class="sortable" data-sort="profit">已实现盈亏 <span class="sort-arrow"></span></th>
-            <th style="text-align:right" class="sortable" data-sort="profit_pct">盈亏比 <span class="sort-arrow"></span></th>
-            <th style="text-align:right" class="sortable" data-sort="post_close_change_pct">清仓后涨幅 <span class="sort-arrow"></span></th>
+            <th style="text-align:right" class="sortable" data-sort="realized_pnl">已实现盈亏 <span class="sort-arrow"></span></th>
+            <th style="text-align:right" class="sortable" data-sort="post_sell_change_pct">卖出后涨幅 <span class="sort-arrow"></span></th>
             <th>交易日期</th>
             <th>状态</th>
           </tr>
         </thead>
         <tbody id="posSellTableBody">
-          <tr><td colspan="13" style="text-align:center;color:var(--text-muted);padding:40px 0">暂无卖出记录</td></tr>
+          <tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:40px 0">暂无卖出记录</td></tr>
         </tbody>
       </table>
+    </div>
+
+    <!-- 对账日志 subtab -->
+    <div id="posReconcileBox" style="display:none">
+      <div class="pos-summary" id="posReconcileSummary">
+        <div class="pos-stat">
+          <div class="pos-stat-label">总记录数</div>
+          <div class="pos-stat-value" id="posReconcileStatTotal">—</div>
+        </div>
+        <div class="pos-stat">
+          <div class="pos-stat-label">涉及股票</div>
+          <div class="pos-stat-value" id="posReconcileStatCodes">—</div>
+        </div>
+        <div class="pos-stat">
+          <div class="pos-stat-label">最近修复</div>
+          <div class="pos-stat-value" id="posReconcileStatLatest">—</div>
+        </div>
+        <div class="pos-stat" style="cursor:pointer" id="posReconcileClearBtn">
+          <div class="pos-stat-label" style="color:var(--accent-red)">清空日志</div>
+          <div class="pos-stat-value">—</div>
+        </div>
+      </div>
+      <div class="table-box">
+        <table id="posReconcileTable">
+          <thead>
+            <tr>
+              <th style="width:160px">修复时间</th>
+              <th>代码</th>
+              <th>名称</th>
+              <th>字段</th>
+              <th style="text-align:right">旧值</th>
+              <th style="text-align:right">新值</th>
+              <th style="text-align:right">差值</th>
+              <th style="width:120px">触发成交</th>
+            </tr>
+          </thead>
+          <tbody id="posReconcileTableBody">
+            <tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:40px 0">暂无对账记录 (apply trade 后会在这里显示自动修正)</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 </div>
@@ -2563,6 +2699,7 @@ async function renderLB() {
           <div class="lb-left">
             <div class="lb-rank r${d.rank || 0}">${d.rank || 0}</div>
             <div class="lb-name" style="color:#fff">${d.name || ''}</div>
+            <div class="lb-price">${d.close != null ? d.close.toFixed(2) : '—'}</div>
             <div class="lb-change">${d.change != null ? '+' + d.change.toFixed(2) + '%' : '-'}</div>
           </div>
         </div>
@@ -3156,15 +3293,46 @@ function updateSortArrows(tableId, sortState) {
   });
 }
 
+// ── 持仓/买入/卖出 行可展开: 点行展开该个股的成交明细 ──
+// 通用: 3 个 tab 共享 tradesDetailCache, 各自维护 expanded set
+const expandedPos = new Set();     // 现持仓 tab
+const expandedBuys = new Set();    // 买入 tab
+const expandedSells = new Set();   // 卖出 tab
+const tradesDetailCache = {};      // ts_code → {trades, summary, anchorPos, fetchedAt}
+let _detailLoading = null;         // 当前正在请求的 ts_code (避免并发)
+
+function _setIsExpanded(tableKey, code, on) {
+  const s = tableKey === 'positions' ? expandedPos : tableKey === 'buys' ? expandedBuys : expandedSells;
+  if (on) s.add(code); else s.delete(code);
+}
+function _isExpanded(tableKey, code) {
+  return (tableKey === 'positions' ? expandedPos : tableKey === 'buys' ? expandedBuys : expandedSells).has(code);
+}
+// trade_date 归一化: 任意 8/10 位格式 → '2026-06-09' (10 位带横线, 显示用)
+function _normDate(s) {
+  const d = (s || '').replace(/[-/]/g, '').slice(0, 8);
+  if (d.length !== 8) return s || '';
+  return `${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`;
+}
+function _posExpandIcon(tableKey, code) {
+  const on = _isExpanded(tableKey, code);
+  return `<span class="pos-expand-icon${on ? ' expanded' : ''}" data-ts-code="${code}">▶</span>`;
+}
+function _posClass(tableKey, code) {
+  return `pos-row${_isExpanded(tableKey, code) ? ' pos-row-expanded' : ''}`;
+}
+
 function renderPositionsTable(list) {
   const tbody = document.getElementById('posTableBody');
   if (!list || list.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;color:var(--text-muted);padding:40px 0">暂无持仓, 请导入 CSV/Excel 或手动添加</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;color:var(--text-muted);padding:40px 0">暂无持仓, 请导入 CSV/Excel 或手动添加</td></tr>';
     return;
   }
   const sorted = applySort(list, posSort);
   updateSortArrows('posTable', posSort);
-  tbody.innerHTML = sorted.map((p, idx) => {
+  const rows = [];
+  const seenCodes = new Set();
+  sorted.forEach((p, idx) => {
     const code = p.ts_code.replace(/\.SH|\.SZ|\.BJ/, '');
     const link = toEastMoney(p.ts_code);
     const name = p.quote_name || p.name || code;
@@ -3187,10 +3355,10 @@ function renderPositionsTable(list) {
       '  已扣卖出过户费: ' + fmtMoney(transferFee),
       '未计入: 买入费 ' + fmtMoney(p.buy_fee) + ' (沉没)',
     ].join('\n') : '';
-    return `
-      <tr>
+    rows.push(`
+      <tr class="${_posClass('positions', p.ts_code)}" data-ts-code="${p.ts_code}">
         <td style="text-align:center;color:var(--text-muted)">${idx + 1}</td>
-        <td><a href="${link}" target="_blank" style="color:var(--accent-blue);text-decoration:none">${code}</a></td>
+        <td>${_posExpandIcon('positions', p.ts_code)} <a href="${link}" target="_blank" style="color:var(--accent-blue);text-decoration:none" onclick="event.stopPropagation()">${code}</a></td>
         <td>${name}</td>
         <td style="text-align:right">${fmtMoney(p.shares)}</td>
         <td style="text-align:right">${fmtPrice(p.cost_price)}</td>
@@ -3200,10 +3368,301 @@ function renderPositionsTable(list) {
         <td style="text-align:right">${mv !== null && mv !== undefined ? fmtMoney(mv) : '—'}</td>
         <td style="text-align:right;cursor:help" class="${profitClass(profit)}" title="${profitTip}">${profit !== null && profit !== undefined ? (profit >= 0 ? '+' : '') + fmtMoney(profit) : '—'}</td>
         <td style="text-align:right" class="${profitClass(pct)}">${pct !== null && pct !== undefined ? fmtPct(pct) : '—'}</td>
-        <td>${p.buy_date || '—'}</td>
+        <td>${_normDate(p.last_trade_date || p.buy_date) || '—'}</td>
         <td><span class="pos-type-tag pos-type-${p.position_type || '建仓'}">${p.position_type || '建仓'}</span></td>
-      </tr>`;
+      </tr>`);
+    if (_isExpanded('positions', p.ts_code) && !seenCodes.has(p.ts_code)) {
+      rows.push(_renderPosDetailRow('positions', p.ts_code, 13));
+      seenCodes.add(p.ts_code);
+    }
+  });
+  tbody.innerHTML = rows.join('');
+  // 绑定行 click (只在 tbody 上做一次事件代理, 不重复绑)
+  _bindPosRowClicks('posTableBody', 'positions');
+}
+
+function _bindPosRowClicks(tbodyId, tableKey) {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
+  if (tbody._posClickBound) return;
+  tbody._posClickBound = true;
+  tbody.addEventListener('click', e => {
+    // 链接/按钮不触发
+    if (e.target.closest('a, button, input, select, label')) return;
+    const tr = e.target.closest('tr.pos-row');
+    if (!tr) return;
+    const code = tr.dataset.tsCode;
+    if (!code) return;
+    if (tableKey === 'positions') togglePositionExpand(code);
+    else if (tableKey === 'buys') toggleBuyExpand(code);
+    else if (tableKey === 'sells') toggleSellExpand(code);
+  });
+}
+
+function toggleBuyExpand(tsCode) {
+  if (_isExpanded('buys', tsCode)) {
+    _setIsExpanded('buys', tsCode, false);
+    _clearTradesDetailIfUnused(tsCode);
+    _rerenderTable('buys');
+  } else {
+    _setIsExpanded('buys', tsCode, true);
+    _rerenderTable('buys');
+    // 数据从本地 buysCache 拼, 0 加载. _buildDetailFromLocalCache 已自动 fallback 到 fetch
+  }
+}
+
+function toggleSellExpand(tsCode) {
+  if (_isExpanded('sells', tsCode)) {
+    _setIsExpanded('sells', tsCode, false);
+    _clearTradesDetailIfUnused(tsCode);
+    _rerenderTable('sells');
+  } else {
+    _setIsExpanded('sells', tsCode, true);
+    _rerenderTable('sells');
+  }
+}
+
+function togglePositionExpand(tsCode) {
+  if (_isExpanded('positions', tsCode)) {
+    _setIsExpanded('positions', tsCode, false);
+    _clearTradesDetailIfUnused(tsCode);
+    _rerenderPositionRows();
+  } else {
+    _setIsExpanded('positions', tsCode, true);
+    _rerenderPositionRows();
+  }
+}
+
+function _clearTradesDetailIfUnused(tsCode) {
+  if (!expandedBuys.has(tsCode) && !expandedSells.has(tsCode)) {
+    delete tradesDetailCache[tsCode];
+  }
+}
+
+function _rerenderPositionRows() {
+  // 重新渲染表格, 保留展开状态和缓存. 不重新拉 positions (避免闪烁 + 后端命中)
+  renderPositionsTable(positionsCache);
+}
+
+function _renderPosDetailRow(tableKey, tsCode, colspan) {
+  // 优先从本地 cache 拼 (0 加载, 0 API 调用)
+  const local = _buildDetailFromLocalCache(tsCode);
+  let body;
+  if (local) {
+    body = _renderPosDetailContent(local);
+  } else {
+    // fallback: tab 切到时还没拉完 (极端), 显示加载并 fetch
+    body = `<div class="pos-detail-loading">加载 ${tsCode.replace(/\.SH|\.SZ|\.BJ/, '')} 交易记录…</div>`;
+    _fetchTradesDetail(tableKey, tsCode);
+  }
+  return `<tr class="pos-detail-row" data-ts-code="${tsCode}"><td colspan="${colspan}" style="padding:0;background:var(--bg-secondary)">${body}</td></tr>`;
+}
+
+// 从本地 buysCache + sellCache 拼某只股票的 trades 详情
+// 优先用 tradesAllSummaryCache (后端 /api/trades/all_summary 一次性返回所有 620 只股票, 0 加载)
+// 优点: 0 API 调用, 0 加载, FIFO 严格 (跟中信证券 100% 对账)
+const tradesAllSummaryCache = {};  // ts_code → {trades, summary, summary_pos}
+
+async function _preloadAllTradesSummary() {
+  if (Object.keys(tradesAllSummaryCache).length > 0) return;  // 已预拉
+  try {
+    const r = await fetch('/api/trades/all_summary');
+    if (!r.ok) return;
+    const arr = await r.json();
+    for (const x of arr) {
+      tradesAllSummaryCache[x.ts_code] = x;
+    }
+  } catch (e) {
+    console.warn('preload all_summary failed:', e);
+  }
+}
+
+function _buildDetailFromLocalCache(tsCode) {
+  // 优先用后端批量接口预拉的数据
+  if (tradesAllSummaryCache[tsCode]) {
+    return tradesAllSummaryCache[tsCode];
+  }
+  // 降级: 从 buysCache + sellCache 拼
+  if (!buysCache.length && !sellCache.length) return null;
+  const buys = buysCache.filter(t => t.ts_code === tsCode && t.direction === 'buy');
+  const sells = sellCache.filter(t => t.ts_code === tsCode && t.direction === 'sell');
+  if (!buys.length && !sells.length) return null;
+  const trades = [...buys, ...sells].sort((a, b) => {
+    if (a.trade_date !== b.trade_date) return b.trade_date.localeCompare(a.trade_date);
+    return (b.trade_time || '').localeCompare(a.trade_time || '');
+  });
+  let totalBuy = 0, totalSell = 0, totalBuyFees = 0, totalSellFees = 0, realized = 0;
+  buys.forEach(t => {
+    totalBuy += (t.amount || t.price * t.shares);
+    totalBuyFees += (t.buy_fees || 0);
+  });
+  sells.forEach(t => {
+    totalSell += (t.amount || t.price * t.shares);
+    totalSellFees += (t.sell_fees || 0);
+    if (t.realized_pnl !== undefined && t.realized_pnl !== null) realized += t.realized_pnl;
+  });
+  let holdDays = 0;
+  if (buys.length) {
+    const allDates = [...buys, ...sells].map(t => t.trade_date).filter(Boolean).sort();
+    if (allDates.length) {
+      const first = allDates[0];
+      const last = allDates[allDates.length - 1];
+      const lastDate = sells.length ? new Date() : new Date(last.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'));
+      const firstDate = new Date(first.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'));
+      holdDays = Math.max(0, Math.round((lastDate - firstDate) / 86400000));
+    }
+  }
+  const summary_pos = positionsCache.find(p => p.ts_code === tsCode) || null;
+  return {
+    trades,
+    summary: {
+      buy_count: buys.length, sell_count: sells.length,
+      total_buy_amount: totalBuy, total_sell_amount: totalSell,
+      total_buy_fees: totalBuyFees, total_sell_fees: totalSellFees,
+      total_fees: totalBuyFees + totalSellFees,
+      realized_pnl: realized, hold_days: holdDays,
+    },
+    summary_pos,
+  };
+}
+
+function _renderPosDetailContent(cache) {
+  const { summary, trades, summary_pos } = cache;
+  // 总盈亏 = 持仓浮动盈亏 (positionsCache) + 已实现盈亏 (trades summary)
+  const unreal = summary_pos ? (summary_pos.profit || 0) : 0;
+  const realized = summary ? (summary.realized_pnl || 0) : 0;
+  const totalPnl = unreal + realized;
+  const pnlPct = (summary && summary.total_buy_amount && summary.total_buy_amount > 0)
+    ? (totalPnl / (summary.total_buy_amount + (summary.total_buy_fees || 0)) * 100)
+    : 0;
+  const holdDays = (summary && summary.hold_days) || 0;
+  const totalFees = (summary && summary.total_fees) || 0;
+  const totalBuy = (summary && summary.total_buy_amount) || 0;
+  const totalSell = (summary && summary.total_sell_amount) || 0;
+  const buyCount = (summary && summary.buy_count) || 0;
+  const sellCount = (summary && summary.sell_count) || 0;
+
+  // ── 顶部 summary 条: 总盈亏 + 盈亏比例最显眼, 其他指标 grid 排 ──
+  const pnlSign = totalPnl >= 0 ? '+' : '';
+  const pctSign = pnlPct >= 0 ? '+' : '';
+  const pnlColor = totalPnl >= 0 ? 'val-up' : 'val-down';
+  const unrealTxt = unreal.toLocaleString('zh-CN', { maximumFractionDigits: 2 });
+  const realTxt   = realized.toLocaleString('zh-CN', { maximumFractionDigits: 2 });
+
+  return `
+    <div class="pos-detail-box">
+      <div class="pos-detail-summary">
+        <div class="pos-detail-head">
+          <div class="pos-detail-head-item">
+            <div class="pos-detail-label">总盈亏</div>
+            <div class="pos-detail-big ${pnlColor}">${pnlSign}${totalPnl.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}</div>
+            <div class="pos-detail-sub">${pnlSign}${pctPct(pnlPct)} <span class="pos-detail-sub-gray">(盈亏比例)</span></div>
+          </div>
+          <div class="pos-detail-head-divider"></div>
+          <div class="pos-detail-head-item pos-detail-head-subgrid">
+            <div class="pos-stat"><div class="pos-stat-label">持仓天数</div><div class="pos-stat-value">${holdDays} 天</div></div>
+            <div class="pos-stat"><div class="pos-stat-label">累计买入</div><div class="pos-stat-value">${totalBuy.toLocaleString('zh-CN', { maximumFractionDigits: 0 })}<span class="pos-stat-unit"> 元 · ${buyCount} 笔</span></div></div>
+            <div class="pos-stat"><div class="pos-stat-label">累计卖出</div><div class="pos-stat-value">${totalSell.toLocaleString('zh-CN', { maximumFractionDigits: 0 })}<span class="pos-stat-unit"> 元 · ${sellCount} 笔</span></div></div>
+            <div class="pos-stat"><div class="pos-stat-label">总税费</div><div class="pos-stat-value">${totalFees.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}<span class="pos-stat-unit"> 元</span></div></div>
+            <div class="pos-stat" title="持仓浮动盈亏 = (现价-成本)×数量 - 卖佣 - 印花税 - 过户费"><div class="pos-stat-label">持仓浮动</div><div class="pos-stat-value ${unreal >= 0 ? 'val-up' : 'val-down'}">${unreal >= 0 ? '+' : ''}${unrealTxt}</div></div>
+            <div class="pos-stat" title="FIFO 简化: 卖出净额 - 卖单对应买入成本(含买入费)"><div class="pos-stat-label">已实现盈亏</div><div class="pos-stat-value ${realized >= 0 ? 'val-up' : 'val-down'}">${realized >= 0 ? '+' : ''}${realTxt}</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="pos-detail-table-wrap">
+        ${_renderPosTradesTable(trades || [])}
+      </div>
+    </div>
+  `;
+}
+
+function pctPct(n) { return n.toFixed(3) + '%'; }
+
+// 7 种 direction 映射: 颜色 class + 中文标签
+const DIR_META = {
+  buy:          { cls: 'dir-tag-buy',     text: '买入' },
+  sell:         { cls: 'dir-tag-sell',    text: '卖出' },
+  dividend:     { cls: 'dir-tag-dividend',text: '红利' },
+  tax:          { cls: 'dir-tag-tax',     text: '股息税' },
+  bonus:        { cls: 'dir-tag-bonus',   text: '送股' },
+  transfer_out: { cls: 'dir-tag-transfer',text: '调账' },
+  freeze:       { cls: 'dir-tag-freeze',  text: '冻结' },
+  combo_fee:    { cls: 'dir-tag-fee',     text: '组合费' },
+};
+
+function _renderPosTradesTable(trades) {
+  if (!trades.length) {
+    return '<div class="pos-detail-empty">该个股暂无交易记录</div>';
+  }
+  const rows = trades.map((t, i) => {
+    const code = (t.ts_code || '').replace(/\.SH|\.SZ|\.BJ/, '');
+    const dt = t.trade_date
+      ? `${_normDate(t.trade_date)}${t.trade_time ? ' ' + t.trade_time.substring(0, 8) : ''}`
+      : '—';
+    const meta = DIR_META[t.direction] || { cls: 'dir-tag-other', text: t.direction || '—' };
+    const dirClass = meta.cls;
+    const dirText = meta.text;
+    const amt = (t.amount ?? (t.price * t.shares)).toLocaleString('zh-CN', { maximumFractionDigits: 2 });
+    let appliedTag;
+    if (t.applied === 1) appliedTag = '<span class="pos-applied-tag pos-applied-ok">已应用</span>';
+    else if (t.applied === 0) appliedTag = '<span class="pos-applied-tag pos-applied-pending">未应用</span>';
+    else appliedTag = '<span class="pos-applied-tag pos-applied-del">已删除</span>';
+    return `<tr${t.applied === -1 ? ' style="opacity:0.4;text-decoration:line-through"' : ''}>
+      <td style="text-align:center;color:var(--text-muted)">${i + 1}</td>
+      <td>${dt}</td>
+      <td>${code}</td>
+      <td>${t.name || '—'}</td>
+      <td><span class="dir-tag ${dirClass}">${dirText}</span></td>
+      <td style="text-align:right">${(t.shares ?? 0).toLocaleString('zh-CN', { maximumFractionDigits: 0 })}</td>
+      <td style="text-align:right">${(t.price ?? 0).toFixed(3)}</td>
+      <td style="text-align:right">${amt}</td>
+      <td>${appliedTag}</td>
+    </tr>`;
   }).join('');
+  return `<table class="pos-detail-table">
+    <thead><tr>
+      <th style="width:50px">#</th>
+      <th>交易日期</th>
+      <th>代码</th>
+      <th>名称</th>
+      <th>方向</th>
+      <th style="text-align:right">成交数量</th>
+      <th style="text-align:right">成交价格</th>
+      <th style="text-align:right">卖出总额</th>
+      <th>状态</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+async function _fetchTradesDetail(tableKey, tsCode) {
+  if (_detailLoading === tsCode) return;  // 已在请求
+  _detailLoading = tsCode;
+  try {
+    const r = await fetch(`/api/trades?ts_code=${encodeURIComponent(tsCode)}&include_deleted=1`);
+    if (!r.ok) throw new Error('API ' + r.status);
+    const d = await r.json();
+    // 关联 position 浮动盈亏 (如果有的话, 没持仓就 null)
+    const posObj = positionsCache.find(x => x.ts_code === tsCode) || null;
+    tradesDetailCache[tsCode] = {
+      trades: d.trades || [],
+      summary: d.summary || null,
+      summary_pos: posObj,
+      fetchedAt: Date.now(),
+    };
+  } catch (e) {
+    tradesDetailCache[tsCode] = { error: e.message, trades: [], summary: null };
+  } finally {
+    _detailLoading = null;
+  }
+  // 还在展开中才重渲染
+  if (_isExpanded(tableKey, tsCode)) _rerenderTable(tableKey);
+}
+
+function _rerenderTable(tableKey) {
+  if (tableKey === 'positions') renderPositionsTable(positionsCache);
+  else if (tableKey === 'buys') renderBuyTable(buysCache);
+  else if (tableKey === 'sells') renderSellTable(sellCache);
 }
 
 async function deletePosition(id) {
@@ -3222,6 +3681,8 @@ function renderPositions() {
   loadPositions({ silent: false });
   loadBuyPositions();
   loadSellPositions();
+  _preloadAllTradesSummary();  // 预拉所有 ts_code 的 summary (FIFO 精确), 后续展开 0 加载
+  loadReconcileLog();           // 拉对账日志 (更新 subtab 角标)
   startPosAutoRefresh();
   refreshTradesPending();
 }
@@ -3264,7 +3725,9 @@ function renderBuyTable(list) {
   }
   const sorted = applySort(list, buySort);
   updateSortArrows('posBuyTable', buySort);
-  tbody.innerHTML = sorted.map((t, idx) => {
+  const rows = [];
+  const seenCodes = new Set();
+  sorted.forEach((t, idx) => {
     const code = t.ts_code.replace(/\.SH|\.SZ|\.BJ/, '');
     const link = toEastMoney(t.ts_code);
     const statusTag = t.position_status === '加仓'
@@ -3272,16 +3735,18 @@ function renderBuyTable(list) {
       : t.position_status === '减仓'
         ? '<span class="pos-type-tag pos-type-减仓">减仓</span>'
         : '<span class="pos-type-tag pos-type-建仓">建仓</span>';
-    const dateOnly = t.trade_date || '—';
+    const dateOnly = t.trade_date
+      ? `${_normDate(t.trade_date)}${t.trade_time ? ' ' + t.trade_time.substring(0, 8) : ''}`
+      : '—';
     const post = t.post_buy_change_pct;
     const postTxt = (post !== null && post !== undefined) ? fmtPct(post) : '—';
     const postTitle = t.current_price && t.price
       ? `买入价 ${t.price.toFixed(3)} → 现价 ${t.current_price.toFixed(3)}`
       : '';
-    return `
-      <tr>
+    rows.push(`
+      <tr class="${_posClass('buys', t.ts_code)}" data-ts-code="${t.ts_code}">
         <td style="text-align:center;color:var(--text-muted)">${idx + 1}</td>
-        <td><a href="${link}" target="_blank" style="color:var(--accent-blue);text-decoration:none">${code}</a></td>
+        <td>${_posExpandIcon('buys', t.ts_code)} <a href="${link}" target="_blank" style="color:var(--accent-blue);text-decoration:none" onclick="event.stopPropagation()">${code}</a></td>
         <td>${t.name || code}</td>
         <td style="text-align:right">${fmtMoney(t.shares)}</td>
         <td style="text-align:right">${fmtPrice(t.price)}</td>
@@ -3290,17 +3755,89 @@ function renderBuyTable(list) {
         <td style="text-align:right">${dateOnly}</td>
         <td style="text-align:right" class="${profitClass(post)}" title="${postTitle}">${postTxt}</td>
         <td>${statusTag}</td>
-      </tr>`;
-  }).join('');
+      </tr>`);
+    if (_isExpanded('buys', t.ts_code) && !seenCodes.has(t.ts_code)) {
+      rows.push(_renderPosDetailRow('buys', t.ts_code, 10));
+      seenCodes.add(t.ts_code);
+    }
+  });
+  tbody.innerHTML = rows.join('');
+  _bindPosRowClicks('posBuyTableBody', 'buys');
 }
 
-// ── 卖出 (原已清仓, 重命名) ──
+// ── 对账日志 (self-heal 事件记录) ──
+async function loadReconcileLog() {
+  try {
+    const r = await fetch('/api/positions/reconcile-log?limit=200');
+    if (!r.ok) throw new Error('API ' + r.status);
+    const data = await r.json();
+    const log = data.log || [];
+    const summary = data.summary || {};
+    // summary
+    document.getElementById('posReconcileStatTotal').textContent = summary.count || 0;
+    document.getElementById('posReconcileStatCodes').textContent = summary.codes_count || 0;
+    document.getElementById('posReconcileStatLatest').textContent = summary.latest || '—';
+    // subtab 角标
+    const badge = document.getElementById('posReconcileCount');
+    if (summary.count > 0) { badge.textContent = summary.count; badge.style.display = ''; }
+    else { badge.style.display = 'none'; }
+    // table
+    const tbody = document.getElementById('posReconcileTableBody');
+    if (log.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:40px 0">暂无对账记录 (apply trade 后会在这里显示自动修正)</td></tr>';
+      return;
+    }
+    tbody.innerHTML = log.map(r => {
+      const code = (r.ts_code || '').replace(/\.SH|\.SZ|\.BJ/, '');
+      const oldTxt = r.old_value !== null && r.old_value !== undefined
+        ? (r.field === 'cost_price' ? Number(r.old_value).toFixed(3) : Number(r.old_value).toFixed(2))
+        : '—';
+      const newTxt = r.new_value !== null && r.new_value !== undefined
+        ? (r.field === 'cost_price' ? Number(r.new_value).toFixed(3) : Number(r.new_value).toFixed(2))
+        : '—';
+      const diffVal = r.diff || 0;
+      const diffSign = diffVal > 0 ? '+' : '';
+      const diffTxt = `${diffSign}${diffVal.toFixed(4)}`;
+      const fieldLabel = ({shares:'股数', cost_price:'成本价', original_shares:'累计买入股数', first_buy_amount:'首次买入金额', add_count:'加仓次数', realized_pnl:'已实现盈亏', total_sell_amount:'卖出总额', merged_into:'合并'})[r.field] || r.field;
+      const tradeTag = r.triggered_by_trade_id
+        ? `trade#${r.triggered_by_trade_id}` + (r.triggered_by_trade_date ? `<br><span style="color:var(--text-muted);font-size:11px">${r.triggered_by_trade_date}</span>` : '')
+        : '—';
+      return `<tr>
+        <td style="color:var(--text-muted);font-size:12px">${r.created_at || '—'}</td>
+        <td>${code}</td>
+        <td>${r.name || '—'}</td>
+        <td>${fieldLabel}</td>
+        <td style="text-align:right">${oldTxt}</td>
+        <td style="text-align:right;color:var(--accent-cyan)">${newTxt}</td>
+        <td style="text-align:right;color:${diffVal > 0 ? 'var(--accent-green)' : diffVal < 0 ? 'var(--accent-red)' : 'var(--text-muted)'}">${diffTxt}</td>
+        <td>${tradeTag}</td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    console.warn('loadReconcileLog failed:', e);
+  }
+}
+
+document.getElementById('posReconcileClearBtn').addEventListener('click', async () => {
+  if (!confirm('确认清空对账日志? (不会影响 positions 数据)')) return;
+  try {
+    const r = await fetch('/api/positions/reconcile-log', { method: 'DELETE' });
+    if (!r.ok) throw new Error('API ' + r.status);
+    const d = await r.json();
+    alert(`已清空 ${d.deleted} 条日志`);
+    loadReconcileLog();
+  } catch (e) {
+    alert('清空失败: ' + e.message);
+  }
+});
+
+// ── 卖出 (逐笔, 一行 = 一笔 sell) ──
 async function loadSellPositions() {
   try {
-    const r = await fetch('/api/positions/sell');
+    const r = await fetch('/api/trades/sells');
     if (!r.ok) return;
     const data = await r.json();
-    sellCache = data.closed || [];
+    sellCache = data.sells || [];
     renderSellTable(sellCache);
     renderSellSummary(data.summary || {});
     const badge = document.getElementById('posSellCount');
@@ -3318,49 +3855,68 @@ async function loadSellPositions() {
 
 function renderSellSummary(s) {
   document.getElementById('posSellStatCount').textContent = s.count ?? '—';
-  document.getElementById('posSellStatCost').textContent = fmtMoney(s.total_cost);
-  document.getElementById('posSellStatSell').textContent = fmtMoney((s.total_realized_pnl || 0) + (s.total_cost || 0));
+  document.getElementById('posSellStatCost').textContent = fmtMoney(s.total_sell_amount);
+  document.getElementById('posSellStatSell').textContent = (s.total_sell_shares || 0).toLocaleString('zh-CN') + ' 股';
   document.getElementById('posSellStatFees').textContent = fmtMoney(s.total_sell_fees || 0);
+  // 已实现盈亏 (累计, 正绿负红, 买卖费都扣)
+  const pnl = s.total_realized_pnl;
   const pnlEl = document.getElementById('posSellStatPnl');
-  const p = s.total_realized_pnl || 0;
-  pnlEl.textContent = (p >= 0 ? '+' : '') + fmtMoney(p);
-  pnlEl.className = 'pos-stat-value ' + profitClass(p);
+  if (pnl != null) {
+    pnlEl.textContent = (pnl >= 0 ? '+' : '') + fmtMoney(pnl);
+    pnlEl.className = 'pos-stat-value ' + profitClass(pnl);
+  } else {
+    pnlEl.textContent = '—';
+    pnlEl.className = 'pos-stat-value';
+  }
+  document.getElementById('posSellStatCodes').textContent = s.unique_codes != null ? s.unique_codes + ' 只' : '—';
 }
 
 function renderSellTable(list) {
   const tbody = document.getElementById('posSellTableBody');
   if (!list || list.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;color:var(--text-muted);padding:40px 0">暂无卖出记录</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:40px 0">暂无卖出记录</td></tr>';
     return;
   }
   const sorted = applySort(list, sellSort);
   updateSortArrows('posSellTable', sellSort);
-  tbody.innerHTML = sorted.map((p, idx) => {
-    const code = p.ts_code.replace(/\.SH|\.SZ|\.BJ/, '');
-    const link = toEastMoney(p.ts_code);
-    const sign = (p.profit >= 0 ? '+' : '');
-    const post = p.post_close_change_pct;
+  const rows = [];
+  const seenCodes = new Set();
+  sorted.forEach((s, idx) => {
+    const code = s.ts_code.replace(/\.SH|\.SZ|\.BJ/, '');
+    const link = toEastMoney(s.ts_code);
+    const post = s.post_sell_change_pct;
     const postTxt = (post !== null && post !== undefined) ? fmtPct(post) : '—';
-    const postTitle = p.current_price && p.avg_sell_price
-      ? `清仓价 ${p.avg_sell_price.toFixed(3)} → 现价 ${p.current_price.toFixed(3)}`
+    const postTitle = s.current_price && s.price
+      ? `卖出价 ${s.price.toFixed(3)} → 现价 ${s.current_price.toFixed(3)}`
       : '';
-    return `
-      <tr>
+    const dt = s.trade_date
+      ? `${_normDate(s.trade_date)}${s.trade_time ? ' ' + s.trade_time.substring(0, 8) : ''}`
+      : '—';
+    const posTag = s.is_closed
+      ? '<span class="pos-type-tag pos-type-清仓">清仓</span>'
+      : '<span class="pos-type-tag pos-type-减仓">减仓</span>';
+    const pnl = s.realized_pnl;
+    rows.push(`
+      <tr class="${_posClass('sells', s.ts_code)}" data-ts-code="${s.ts_code}">
         <td style="text-align:center;color:var(--text-muted)">${idx + 1}</td>
-        <td><a href="${link}" target="_blank" style="color:var(--accent-blue);text-decoration:none">${code}</a></td>
-        <td>${p.name || code}</td>
-        <td style="text-align:right">${fmtMoney(p.original_shares)}</td>
-        <td style="text-align:right">${fmtPrice(p.cost_price)}</td>
-        <td style="text-align:right">${p.avg_sell_price !== null && p.avg_sell_price !== undefined ? fmtPrice(p.avg_sell_price) : '—'}</td>
-        <td style="text-align:right">${fmtMoney(p.sell_amount)}</td>
-        <td style="text-align:right;color:var(--text-muted)">${fmtMoney(p.sell_fees || 0)}</td>
-        <td style="text-align:right" class="${profitClass(p.profit)}">${sign}${fmtMoney(p.profit)}</td>
-        <td style="text-align:right" class="${profitClass(p.profit_pct)}">${fmtPct(p.profit_pct)}</td>
+        <td>${_posExpandIcon('sells', s.ts_code)} <a href="${link}" target="_blank" style="color:var(--accent-blue);text-decoration:none" onclick="event.stopPropagation()">${code}</a></td>
+        <td>${s.name || code}</td>
+        <td style="text-align:right">${fmtMoney(s.shares)}</td>
+        <td style="text-align:right">${fmtPrice(s.price)}</td>
+        <td style="text-align:right">${fmtMoney(s.amount || (s.price * s.shares))}</td>
+        <td style="text-align:right;color:var(--text-muted)">${fmtMoney(s.sell_fees || 0)}</td>
+        <td style="text-align:right" class="${profitClass(pnl)}">${pnl !== null && pnl !== undefined ? (pnl >= 0 ? '+' : '') + fmtMoney(pnl) : '—'}</td>
         <td style="text-align:right" class="${profitClass(post)}" title="${postTitle}">${postTxt}</td>
-        <td>${(p.closed_at || '').slice(0, 10) || '—'}</td>
-        <td><span class="pos-type-tag pos-type-${p.position_type || '清仓'}">${p.position_type || '清仓'}</span></td>
-      </tr>`;
-  }).join('');
+        <td>${dt}</td>
+        <td>${posTag}</td>
+      </tr>`);
+    if (_isExpanded('sells', s.ts_code) && !seenCodes.has(s.ts_code)) {
+      rows.push(_renderPosDetailRow('sells', s.ts_code, 10));
+      seenCodes.add(s.ts_code);
+    }
+  });
+  tbody.innerHTML = rows.join('');
+  _bindPosRowClicks('posSellTableBody', 'sells');
 }
 
 // ── 子 tab 切换 ──
@@ -3387,9 +3943,32 @@ document.querySelectorAll('.pos-subtab').forEach(btn => {
       document.getElementById('posSellSummary').style.display = '';
       document.getElementById('posSellTableBox').style.display = '';
       loadSellPositions();
+    } else if (target === 'reconcile') {
+      document.getElementById('posReconcileSummary').style.display = '';
+      document.getElementById('posReconcileBox').style.display = '';
+      loadReconcileLog();
     }
   });
 });
+
+// 判断是否交易日: tradingDates 是从后端拉的有数据日期集
+function isTradingDay() {
+  if (!tradingDates || tradingDates.size === 0) return true;  // 没数据时按"是"算 (保守)
+  const d = new Date();
+  const y = String(d.getFullYear());
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return tradingDates.has(y + m + dd);
+}
+// 判断是否 A 股交易时段: 9:30-11:30, 13:00-15:00 (周一至周五)
+function isTradingTime() {
+  const d = new Date();
+  const day = d.getDay();
+  if (day === 0 || day === 6) return false;  // 周末
+  const m = d.getHours() * 60 + d.getMinutes();
+  // 9:30=570, 11:30=690, 13:00=780, 15:00=900
+  return (m >= 570 && m <= 690) || (m >= 780 && m <= 900);
+}
 
 // 切换/离开持仓 tab 时的定时器管理
 function startPosAutoRefresh() {
@@ -3398,6 +3977,8 @@ function startPosAutoRefresh() {
   const sec = parseInt(sel.value, 10);
   if (sec > 0) {
     posAutoTimer = setInterval(() => {
+      // 非交易日 / 非交易时段: 不刷新 (省后端)
+      if (!isTradingDay() || !isTradingTime()) return;
       loadPositions({ silent: true });
       // 每 5 次刷新顺便拉一次买入/卖出 (没必要每 1s 都查)
       if (Math.random() < 0.2) {
@@ -3603,9 +4184,16 @@ async function confirmImportTrades(filename, columnMap, forceTradeIds = [], file
     }
     if (d2.errors && d2.errors.length > 0) console.warn('apply errors:', d2.errors);
     if (d2.warnings && d2.warnings.length > 0) console.warn('apply warnings:', d2.warnings);
+    // 显示对账修复提示
+    if (d2.reconcile && d2.reconcile.drifts_fixed > 0) {
+      const fixMsg = ` (对账修复 ${d2.reconcile.drifts_fixed} 处, 涉及 ${d2.reconcile.ts_codes.length} 只股票)`;
+      statusEl.textContent += fixMsg;
+      console.info('reconcile fixed:', d2.reconcile);
+    }
     await loadPositions({ silent: true });
     await loadBuyPositions();
     await loadSellPositions();
+    await loadReconcileLog();  // 刷新对账日志角标
     await refreshTradesPending();
   } catch (e) {
     statusEl.textContent = '导入失败: ' + e.message;
@@ -3628,6 +4216,11 @@ async function refreshTradesPending() {
         if (d2.applied_count > 0) {
           await loadPositions({ silent: true });
         }
+        if (d2.reconcile && d2.reconcile.drifts_fixed > 0) {
+          document.getElementById('posImportStatus').textContent +=
+            ` (对账修复 ${d2.reconcile.drifts_fixed} 处)`;
+        }
+        await loadReconcileLog();
         await refreshTradesPending();
         document.getElementById('posImportStatus').textContent =
           `已应用 ${d2.applied_count} 笔` + (d2.error_count > 0 ? `, 失败 ${d2.error_count}` : '');

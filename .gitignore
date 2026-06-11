@@ -6,6 +6,9 @@
 backend/uploads/
 **/uploads/
 
+# 韭研公社凭据 (cookie / 账号密码, 严禁入库)
+backend/.jiuye_*
+
 # 测试/临时文件
 backend/Untitled
 backend/test_img.jpg

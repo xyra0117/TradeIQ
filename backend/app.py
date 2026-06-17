@@ -21,6 +21,26 @@ import requests as _requests
 _ocr_jobs = {}
 from flask_cors import CORS
 import tushare as ts
+import akshare as ak
+# 模块加载时清掉所有代理环境变量, 避免 AKShare/requests 走系统代理
+for _k in ('HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy', 'ALL_PROXY', 'all_proxy'):
+    os.environ.pop(_k, None)
+# 强制 no_proxy=*, 即便系统配置了代理也绕过
+os.environ['NO_PROXY'] = '*'
+os.environ['no_proxy'] = '*'
+del _k
+
+# Monkey-patch requests 默认 Session 的 trust_env, 避免 AKShare/requests 走代理
+try:
+    import requests as _req_mod
+    _orig_session_init = _req_mod.Session.__init__
+    def _patched_session_init(self, *a, **kw):
+        _orig_session_init(self, *a, **kw)
+        self.trust_env = False
+        self.proxies = {}
+    _req_mod.Session.__init__ = _patched_session_init
+except Exception:
+    pass
 
 app = Flask(__name__)
 CORS(app)
@@ -29,6 +49,10 @@ CORS(app)
 DB_PATH = os.path.join(os.path.dirname(__file__), 'market_data.db')
 TUSHARE_TOKEN = '1905eff139f559e9caa61c7363ac18e6217a33032e9e434812db1e34'
 INTERVALS = [('5日', 5), ('10日', 10), ('20日', 20)]  # 涨幅榜区间 (名称, 天数)
+
+# 主力净流入数据源
+AKSHARE_TIMEOUT = 15                                  # 单次 AKShare 调用超时
+PUSH2_BASE = 'https://push2.eastmoney.com/api/qt/clist/get'  # 东方财富 push2 全市场接口
 
 # 中信证券 A股 手续费 (用户 2026-06-04 确认: 万1.0 低佣)
 FEE_CONFIG = {
@@ -256,6 +280,82 @@ def init_db():
     )''')
     c.execute('CREATE INDEX IF NOT EXISTS idx_reconcile_log_created ON position_reconcile_log(id DESC)')
     c.execute('CREATE INDEX IF NOT EXISTS idx_reconcile_log_tscode ON position_reconcile_log(ts_code)')
+
+    # 主力净流入 (fund_flow) - 数据源: akshare / 东方财富 push2
+    c.execute('''CREATE TABLE IF NOT EXISTS fund_flow (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        trade_date TEXT NOT NULL,
+        ts_code TEXT NOT NULL,
+        code TEXT NOT NULL,
+        name TEXT,
+        close REAL,
+        change_pct REAL,
+        main_net_inflow REAL NOT NULL,
+        main_net_pct REAL,
+        super_net REAL, super_pct REAL,
+        big_net REAL, big_pct REAL,
+        mid_net REAL, mid_pct REAL,
+        small_net REAL, small_pct REAL,
+        source TEXT DEFAULT 'akshare',
+        updated_at TEXT DEFAULT (datetime('now','localtime')),
+        UNIQUE(trade_date, ts_code)
+    )''')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_fund_flow_date        ON fund_flow(trade_date)')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_fund_flow_date_inflow ON fund_flow(trade_date, main_net_inflow DESC)')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_fund_flow_ts_code     ON fund_flow(ts_code, trade_date DESC)')
+    # 兼容早期版本: 同花顺全市场同步曾把万元字段按亿元放大。
+    c.execute("""UPDATE fund_flow
+        SET main_net_inflow = main_net_inflow / 10000.0,
+            main_net_pct = CASE
+                WHEN main_net_pct IS NOT NULL AND ABS(main_net_pct) > 1000
+                THEN main_net_pct / 10000.0
+                ELSE main_net_pct
+            END
+        WHERE source='akshare-10jqka'
+          AND (ABS(main_net_inflow) > 100000000000 OR ABS(COALESCE(main_net_pct, 0)) > 1000)
+    """)
+
+    # 选股推荐缓存表 (按 均线+资金流.md 文档重新设计)
+    c.execute('''CREATE TABLE IF NOT EXISTS stock_picks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        trade_date TEXT NOT NULL,
+        ts_code TEXT NOT NULL,
+        name TEXT,
+        close REAL,
+        change_pct REAL,
+        -- 均线 (4 条)
+        ma5 REAL, ma10 REAL, ma20 REAL, ma30 REAL,
+        ma5_slope REAL, ma10_slope REAL, ma20_slope REAL, ma30_slope REAL,
+        -- 主力资金流 (5 个时间维度)
+        main_net_today REAL,  -- 当日
+        main_net_3d REAL,     -- 3 日累计 (5 日线对应)
+        main_net_5d REAL,     -- 5 日累计 (10 日线对应)
+        main_net_10d REAL,    -- 10 日累计 (20 日线对应)
+        main_net_20d REAL,    -- 20 日累计 (30 日线对应)
+        main_net_pct_today REAL,  -- 当日主力净流入占比 %
+        -- 5 档资金流 (当日)
+        super_net REAL, big_net REAL, mid_net REAL, small_net REAL,
+        super_pct REAL, big_pct REAL, mid_pct REAL, small_pct REAL,
+        -- 评分
+        score REAL,
+        signal_type TEXT,        -- 'buy' / 'sell' / 'hold'
+        flow_days_available INTEGER,  -- 当前 fund_flow 表可用天数
+        reasons_json TEXT,
+        created_at TEXT DEFAULT (datetime('now','localtime')),
+        UNIQUE(trade_date, ts_code)
+    )''')
+    # 兼容旧表: 给已有表加列 (如果不存在)
+    _add_col_if_missing(c, 'stock_picks', 'ma20', 'REAL')
+    for col in ['ma5_slope', 'ma10_slope', 'ma20_slope', 'ma30_slope']:
+        _add_col_if_missing(c, 'stock_picks', col, 'REAL')
+    for col in ['main_net_today', 'main_net_3d', 'main_net_5d', 'main_net_10d', 'main_net_20d', 'main_net_pct_today']:
+        _add_col_if_missing(c, 'stock_picks', col, 'REAL')
+    for col in ['super_net', 'big_net', 'mid_net', 'small_net', 'super_pct', 'big_pct', 'mid_pct', 'small_pct']:
+        _add_col_if_missing(c, 'stock_picks', col, 'REAL')
+    _add_col_if_missing(c, 'stock_picks', 'signal_type', 'TEXT')
+    _add_col_if_missing(c, 'stock_picks', 'flow_days_available', 'INTEGER')
+    _add_col_if_missing(c, 'stock_picks', 'reasons_json', 'TEXT')  # 旧表可能叫 reasons, 加这个保险
+    c.execute('CREATE INDEX IF NOT EXISTS idx_stock_picks_date ON stock_picks(trade_date, score DESC)')
 
     conn.commit()
     conn.close()
@@ -2579,6 +2679,27 @@ def get_positions():
             # 仓位类型标签: 减仓优先判定, 否则用 DB hint / fallback
             p['position_type'] = _classify_position_type(p)
 
+    # 主力净流入聚合 (近 5/20 个交易日, 一次查询避免 N+1)
+    if positions:
+        ts_codes = list(set(p['ts_code'] for p in positions))
+        placeholders = ','.join('?' * len(ts_codes))
+        conn_flow = sqlite3.connect(DB_PATH, timeout=30)
+        flow_rows = conn_flow.execute(f"""
+            SELECT ts_code, trade_date, main_net_inflow
+            FROM fund_flow
+            WHERE ts_code IN ({placeholders})
+              AND trade_date >= date('now', '-' || '20 days', 'localtime')
+            ORDER BY ts_code, trade_date DESC
+        """, ts_codes).fetchall()
+        conn_flow.close()
+        flow_by_code = {}
+        for r in flow_rows:
+            flow_by_code.setdefault(r[0], []).append(r[2] or 0)
+        for p in positions:
+            vals = flow_by_code.get(p['ts_code'], [])
+            p['main_net_5d'] = round(sum(vals[:5]), 2) if vals else None
+            p['main_net_20d'] = round(sum(vals[:20]), 2) if vals else None
+
     total_mv = sum((p.get('market_value') or 0) for p in positions)
     total_cost = sum((p.get('cost_value') or 0) for p in positions)
     total_cost_with_fees = sum((p.get('cost_with_fees') or 0) for p in positions)
@@ -4304,6 +4425,1719 @@ def get_positions_quote():
     if not codes:
         return jsonify({})
     return jsonify(fetch_sina_quotes(codes))
+
+
+@app.route('/api/picks/quote', methods=['GET'])
+def api_picks_quote():
+    """选股推荐专用 quote 端点: 返回实时价 + 用实时价替换昨日 close 重算的 MA5/10/20/30.
+
+    输入: ?codes=000001.SZ,600000.SH (逗号分隔, 最多 200 个)
+    输出: {ts_code: {price, prev_close, change_pct, ma5, ma10, ma20, ma30}}
+    """
+    import statistics
+    codes_param = request.args.get('codes', '')
+    codes = [c.strip() for c in codes_param.split(',') if c.strip()][:200]
+    if not codes:
+        return jsonify({})
+
+    # 1. 拉新浪实时价
+    quotes = fetch_sina_quotes(codes)
+    if not quotes:
+        return jsonify({})
+
+    # 2. 对每只股票: 从 stock_daily 拉最近 30 日 close, 替换最后一天为实时价, 重算 MA
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    result = {}
+    for ts_code, q in quotes.items():
+        if not q or q.get('price') is None:
+            continue
+        rows = conn.execute("""
+            SELECT trade_date, close FROM stock_daily
+            WHERE ts_code = ? ORDER BY trade_date DESC LIMIT 31
+        """, (ts_code,)).fetchall()
+        # 取最近 30 日 close 序列 (旧→新)
+        closes = [r[1] for r in rows[1:31] if r[1] is not None]  # 跳过最新那条 (因为要替换)
+        closes = list(reversed(closes))[-30:]  # 保留最近 30 个
+        if not closes:
+            continue
+        # 用今日实时价替换最后一位
+        closes.append(float(q['price']))
+        # 算 MA
+        def _ma(arr, n):
+            return sum(arr[-n:]) / n if len(arr) >= n else None
+        result[ts_code] = {
+            'price': float(q['price']),
+            'prev_close': float(q['prev_close']) if q.get('prev_close') else None,
+            'change_pct': float(q['change_pct']) if q.get('change_pct') is not None else None,
+            'ma5': _ma(closes, 5),
+            'ma10': _ma(closes, 10),
+            'ma20': _ma(closes, 20),
+            'ma30': _ma(closes, 30),
+            'name': q.get('name', ''),
+            'time': q.get('time', ''),
+        }
+    conn.close()
+    return jsonify(result)
+
+
+# ============ 主力净流入 (capital-flow, AKShare + 东方财富 push2) ============
+
+
+def _ak_call(fn, *args, retries=2, **kwargs):
+    """AKShare 调用包装: 失败重试, 指数退避. 代理在模块加载时已清, 此处不再处理."""
+    last = None
+    for i in range(retries + 1):
+        try:
+            return fn(*args, **kwargs)
+        except Exception as e:
+            last = e
+            print(f'[akshare] retry {i+1}/{retries}: {type(e).__name__}: {e}', flush=True)
+            time.sleep(min(2 ** i, 5))
+    raise last
+
+
+def _ak_fund_flow_renamed(df):
+    """AKShare 中文列名 → 英文 DB 列名."""
+    rename = {
+        '日期': 'trade_date', '收盘价': 'close', '涨跌幅': 'change_pct',
+        '主力净流入-净额': 'main_net_inflow', '主力净流入-净占比': 'main_net_pct',
+        '超大单净流入-净额': 'super_net', '超大单净流入-净占比': 'super_pct',
+        '大单净流入-净额': 'big_net', '大单净流入-净占比': 'big_pct',
+        '中单净流入-净额': 'mid_net', '中单净流入-净占比': 'mid_pct',
+        '小单净流入-净额': 'small_net', '小单净流入-净占比': 'small_pct',
+    }
+    return df.rename(columns=rename)
+
+
+def _save_fund_flow_df(df, source='akshare'):
+    """DataFrame → fund_flow 表 DELETE+INSERT upsert. 返回写入条数. 不自动补 code/ts_code (由调用方补)."""
+    import math
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    cur = conn.cursor()
+    count = 0
+    for _, r in df.iterrows():
+        td = str(r.get('trade_date', '')).replace('-', '')[:8]
+        if len(td) != 8:
+            continue
+        code = str(r.get('code', '')).strip() or str(r.get('ts_code', '')).split('.')[0]
+        if not code or len(code) != 6:
+            continue
+        ts_code = r.get('ts_code') if r.get('ts_code') and '.' in str(r.get('ts_code')) else (
+            f'{code}.SH' if code.startswith(('6', '9')) else f'{code}.SZ'
+        )
+        def _f(v):
+            try:
+                x = float(v)
+                return 0.0 if math.isnan(x) else x
+            except (ValueError, TypeError):
+                return None
+        cur.execute('DELETE FROM fund_flow WHERE ts_code=? AND trade_date=?', (ts_code, td))
+        cur.execute('''INSERT INTO fund_flow
+            (trade_date, ts_code, code, name, close, change_pct,
+             main_net_inflow, main_net_pct,
+             super_net, super_pct, big_net, big_pct,
+             mid_net, mid_pct, small_net, small_pct, source)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+            (td, ts_code, code, r.get('name', ''),
+             _f(r.get('close')), _f(r.get('change_pct')),
+             _f(r.get('main_net_inflow')) or 0.0, _f(r.get('main_net_pct')),
+             _f(r.get('super_net')), _f(r.get('super_pct')),
+             _f(r.get('big_net')), _f(r.get('big_pct')),
+             _f(r.get('mid_net')), _f(r.get('mid_pct')),
+             _f(r.get('small_net')), _f(r.get('small_pct')),
+             source))
+        count += 1
+    conn.commit()
+    conn.close()
+    return count
+
+
+def _eastmoney_fflow(code, days=120):
+    """东方财富个股资金流日线. code 6 位数字. 返回 DataFrame(列名与 fund_flow 表一致) 或 None.
+    无 6 个月窗口限制, 历史通常 1+ 年. 失败返回 None, 调用方继续走 AKShare 兜底.
+    已知问题: 本机 IP 会被东财短时限流 (HTTP 200 + Empty reply), 间歇性 200/失败, AKShare 同源也受影响.
+    """
+    if not code or len(code) != 6 or not code.isdigit():
+        return None
+    secid = ('1.' if code.startswith(('6', '9')) else '0.') + code
+    fields2 = 'f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f63,f64'
+    url = ('https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get'
+           f'?secid={secid}&fields1=f1,f2,f3,f4&fields2={fields2}'
+           '&klt=101&fqt=0&beg=0&end=20500101')
+    # 短时连发会被东财反爬掐, 指数退避重试 3 次
+    klines, name = [], ''
+    for attempt in range(3):
+        try:
+            r = _requests.get(url, headers={
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+                'Referer': 'https://quote.eastmoney.com/',
+                'Accept': '*/*',
+            }, timeout=8)
+            d = r.json()
+            klines = (d.get('data') or {}).get('klines') or []
+            name = (d.get('data') or {}).get('name') or ''
+            if klines:
+                break
+        except Exception as e:
+            print(f'[eastmoney fflow] {code} attempt {attempt+1}/3 failed: {e}', flush=True)
+        time.sleep(min(2 ** attempt, 4))  # 1s, 2s, 4s
+    if not klines:
+        return None
+    rows = []
+    for line in klines[-days:]:  # 取最近 N 天
+        parts = line.split(',')
+        if len(parts) < 14:
+            continue
+        try:
+            rows.append({
+                'trade_date': parts[0].replace('-', ''),  # YYYYMMDD
+                'code': code,
+                'ts_code': f'{code}.SH' if code.startswith(('6', '9')) else f'{code}.SZ',
+                'name': name,
+                'close': float(parts[13]) if parts[13] else None,    # f64
+                'change_pct': float(parts[12]) if parts[12] else None,  # f63
+                'main_net_inflow': float(parts[1]),  # f52
+                'main_net_pct': float(parts[6]),     # f57
+                'super_net': float(parts[5]),        # f56
+                'super_pct': float(parts[10]),       # f61
+                'big_net': float(parts[4]),          # f55
+                'big_pct': float(parts[9]),          # f60
+                'mid_net': float(parts[3]),          # f54
+                'mid_pct': float(parts[8]),          # f59
+                'small_net': float(parts[2]),        # f53
+                'small_pct': float(parts[7]),        # f58
+            })
+        except (ValueError, IndexError):
+            continue
+    return pd.DataFrame(rows) if rows else None
+
+
+
+
+def _akshare_topn(date, n=200):
+    """AKShare 拉指定日期全市场主力净额 top n. 返回 DataFrame 或 None.
+    注意: AKShare stock_individual_fund_flow_rank 只能拉"今天", 不能指定历史日期.
+    历史日期会返回 None, 调用方走东财兜底.
+    """
+    from datetime import datetime as _dt
+    today = _dt.now().strftime('%Y%m%d')
+    if str(date) != today:
+        return None  # AKShare 不支持历史日期
+    try:
+        df = _ak_call(ak.stock_individual_fund_flow_rank, indicator='今日')
+    except Exception as e:
+        print(f'[akshare topn] {date} failed: {e}', flush=True)
+        return None
+    if df is None or len(df) == 0:
+        return None
+    # AKShare 列名 → fund_flow 表列名 (复用 _ak_fund_flow_renamed 但只取今天)
+    df = _ak_fund_flow_renamed(df)
+    if 'name' not in df.columns:
+        df['name'] = ''
+    if 'ts_code' not in df.columns:
+        df['ts_code'] = df.get('code', '').apply(
+            lambda c: f'{c}.SH' if str(c).startswith(('6','9')) else f'{c}.SZ')
+    if 'code' not in df.columns:
+        df['code'] = df['ts_code'].str.split('.').str[0]
+    # 按主力净额排序取 top n
+    df = df.sort_values('main_net_inflow', ascending=False).head(n).reset_index(drop=True)
+    df['trade_date'] = str(date)
+    return df
+
+
+
+
+
+
+@app.route('/api/flow/latest-date', methods=['GET'])
+def api_flow_latest_date():
+    conn = sqlite3.connect(DB_PATH)
+    row = conn.execute("SELECT MAX(trade_date) AS d, COUNT(*) AS c, COUNT(DISTINCT ts_code) AS stocks FROM fund_flow").fetchone()
+    conn.close()
+    return jsonify({
+        'latest_date': row[0] or '',
+        'rows': row[1] or 0,
+        'stocks': row[2] or 0,
+    })
+
+
+@app.route('/api/flow/market', methods=['GET'])
+def api_flow_market():
+    """全市场: 取某日 (或最近 N 天) 每只股票的主力气净额. 支持 ?date=YYYYMMDD 过滤.
+    默认 source=eastmoney-push2 (Skill 抓取的数据). 传 source=all 看全部来源.
+    """
+    days = min(max(int(request.args.get('days', 1)), 1), 200)
+    sort = request.args.get('sort', 'main_net_inflow')
+    order = 'desc' if request.args.get('order', 'desc').lower() == 'desc' else 'asc'
+    market = request.args.get('market', 'all').lower()
+    search = request.args.get('search', '').strip()
+    limit = min(int(request.args.get('limit', 200)), 10000)
+    date = request.args.get('date', '').strip()  # 指定日期 (YYYYMMDD)
+    source = request.args.get('source', 'eastmoney-push2').strip()  # 默认只显示 Skill 抓的数据
+
+    sort_whitelist = {'main_net_inflow', 'main_net_pct', 'change_pct', 'close'}
+    if sort not in sort_whitelist:
+        sort = 'main_net_inflow'
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    if date:
+        # 指定日期: 取该日所有 ts_code
+        if source == 'all':
+            rows = conn.execute("""
+                SELECT trade_date, ts_code, code, name, close, change_pct,
+                       main_net_inflow, main_net_pct,
+                       super_net, big_net, mid_net, small_net, source
+                FROM fund_flow
+                WHERE trade_date = ?
+            """, (date,)).fetchall()
+        else:
+            rows = conn.execute("""
+                SELECT trade_date, ts_code, code, name, close, change_pct,
+                       main_net_inflow, main_net_pct,
+                       super_net, big_net, mid_net, small_net, source
+                FROM fund_flow
+                WHERE trade_date = ? AND source = ?
+            """, (date, source)).fetchall()
+    else:
+        # 无日期: 取最近 N 天每个 ts_code 的最新一行
+        if source == 'all':
+            rows = conn.execute("""
+                SELECT f.trade_date, f.ts_code, f.code, f.name, f.close, f.change_pct,
+                       f.main_net_inflow, f.main_net_pct,
+                       f.super_net, f.big_net, f.mid_net, f.small_net, f.source
+                FROM fund_flow f
+                INNER JOIN (
+                    SELECT ts_code, MAX(trade_date) AS max_date
+                    FROM fund_flow
+                    WHERE trade_date >= date('now', '-' || ? || ' days', 'localtime')
+                    GROUP BY ts_code
+                ) m ON f.ts_code = m.ts_code AND f.trade_date = m.max_date
+            """, (days,)).fetchall()
+        else:
+            rows = conn.execute("""
+                SELECT f.trade_date, f.ts_code, f.code, f.name, f.close, f.change_pct,
+                       f.main_net_inflow, f.main_net_pct,
+                       f.super_net, f.big_net, f.mid_net, f.small_net, f.source
+                FROM fund_flow f
+                INNER JOIN (
+                    SELECT ts_code, MAX(trade_date) AS max_date
+                    FROM fund_flow
+                    WHERE trade_date >= date('now', '-' || ? || ' days', 'localtime')
+                      AND source = ?
+                    GROUP BY ts_code
+                ) m ON f.ts_code = m.ts_code AND f.trade_date = m.max_date
+            """, (days, source)).fetchall()
+    conn.close()
+
+    # market 过滤 (按 code 前缀)
+    if market == 'sh':
+        rows = [r for r in rows if r['code'].startswith(('6', '9'))]
+    elif market == 'sz':
+        rows = [r for r in rows if r['code'].startswith(('0', '2', '3'))]
+    elif market == 'cy':
+        rows = [r for r in rows if r['code'].startswith('3')]
+    elif market == 'kcb':
+        rows = [r for r in rows if r['code'].startswith('688')]
+
+    # search 模糊
+    if search:
+        s = search.lower()
+        rows = [r for r in rows if s in r['name'].lower() or s in r['code']]
+
+    # 排序
+    rows.sort(key=lambda r: (r[sort] or 0) if sort in r.keys() else 0, reverse=(order == 'desc'))
+
+    out = [dict(r) for r in rows[:limit]]
+    return jsonify({
+        'count': len(out),
+        'total_matched': len(rows),
+        'days': days,
+        'date': date,
+        'sort': sort,
+        'order': order,
+        'rows': out,
+    })
+
+
+@app.route('/api/flow/holdings', methods=['GET'])
+def api_flow_holdings():
+    """当前持仓的主力净: 跨 positions 表 JOIN fund_flow."""
+    days = min(max(int(request.args.get('days', 60)), 1), 200)
+    sort = request.args.get('sort', 'main_net_inflow')
+    order = 'desc' if request.args.get('order', 'desc').lower() == 'desc' else 'asc'
+    sort_whitelist = {'main_net_inflow', 'main_net_pct', 'sum_main_net', 'inflow_days', 'consecutive_inflow', 'change_pct'}
+    if sort not in sort_whitelist:
+        sort = 'main_net_inflow'
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    open_rows = conn.execute(
+        "SELECT ts_code FROM positions WHERE closed_at IS NULL"
+    ).fetchall()
+    if not open_rows:
+        conn.close()
+        return jsonify({'count': 0, 'days': days, 'sort': sort, 'order': order, 'holdings': []})
+
+    open_codes = [r['ts_code'] for r in open_rows]
+    placeholders = ','.join('?' * len(open_codes))
+    rows = conn.execute(f"""
+        SELECT trade_date, ts_code, code, name, close, change_pct,
+               main_net_inflow, main_net_pct,
+               super_net, big_net, mid_net, small_net
+        FROM fund_flow
+        WHERE ts_code IN ({placeholders})
+          AND trade_date >= date('now', '-' || ? || ' days', 'localtime')
+        ORDER BY ts_code, trade_date DESC
+    """, (*open_codes, days)).fetchall()
+    conn.close()
+
+    # 聚合: 每个 ts_code 取最新一日 + 算 sum/inflow_days/consecutive
+    by_code = {}
+    for r in rows:
+        ts_code = r['ts_code']
+        if ts_code not in by_code:
+            by_code[ts_code] = {
+                'ts_code': ts_code,
+                'code': r['code'],
+                'name': r['name'],
+                'close': r['close'],
+                'change_pct': r['change_pct'],
+                'main_net_inflow': r['main_net_inflow'],
+                'main_net_pct': r['main_net_pct'],
+                'sum_main_net': 0.0,
+                'inflow_days': 0,
+                'consecutive_inflow': 0,
+                'super_net': r['super_net'],
+                'big_net': r['big_net'],
+                'mid_net': r['mid_net'],
+                'small_net': r['small_net'],
+                '_daily': [],  # 内部: 用于算连续
+            }
+        d = by_code[ts_code]
+        d['sum_main_net'] += r['main_net_inflow'] or 0
+        if r['main_net_inflow'] and r['main_net_inflow'] > 0:
+            d['inflow_days'] += 1
+        d['_daily'].append((r['trade_date'], r['main_net_inflow'] or 0))
+
+    # 算连续净流入 (按日期降序, 最先遇到正数累加, 遇到 0 或负数停)
+    for d in by_code.values():
+        consec = 0
+        for td, v in d['_daily']:
+            if v > 0:
+                consec += 1
+            else:
+                break
+        d['consecutive_inflow'] = consec
+        del d['_daily']
+
+    out = list(by_code.values())
+    out.sort(key=lambda x: x.get(sort) or 0, reverse=(order == 'desc'))
+    return jsonify({'count': len(out), 'days': days, 'sort': sort, 'order': order, 'holdings': out})
+
+
+@app.route('/api/flow/single', methods=['GET'])
+def api_flow_single():
+    """个股详情: 从 DB 读, 不够则用 AKShare 补, 返回 daily + periods + summary."""
+    ts_code = request.args.get('ts_code', '').strip()
+    if not ts_code or '.' not in ts_code:
+        return jsonify({'status': 'error', 'message': 'invalid ts_code (格式: 600519.SH)'}), 400
+    days = min(max(int(request.args.get('days', 60)), 1), 200)
+    code = ts_code.split('.')[0]
+
+    # 1) 读 DB
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute("""
+        SELECT trade_date, close, change_pct, main_net_inflow, main_net_pct,
+               super_net, super_pct, big_net, big_pct,
+               mid_net, mid_pct, small_net, small_pct, name
+        FROM fund_flow
+        WHERE ts_code=? AND trade_date >= date('now', '-' || ? || ' days', 'localtime')
+        ORDER BY trade_date DESC
+    """, (ts_code, days)).fetchall()
+    conn.close()
+
+    # 2) DB 数据少于请求天数一半 → Tushare 优先 → AKShare → 东财兜底
+    if len(rows) < days // 2 or len(rows) == 0:
+        from datetime import datetime as _dt, timedelta as _td
+        end_d = _dt.now()
+        start_d = end_d - _td(days=int(days * 1.6))  # 多取一些以防非交易日
+        start_str = start_d.strftime('%Y%m%d')
+        end_str = end_d.strftime('%Y%m%d')
+        filled = False
+        # Tushare 优先 (稳定 + 历史 1+ 年 + 单次 1 API)
+        try:
+            import tushare as _ts
+            pro = _ts.pro_api()
+            df = pro.moneyflow(ts_code=ts_code, start_date=start_str, end_date=end_str)
+            if df is not None and not df.empty:
+                # 补 name 字段
+                try:
+                    basic = pro.stock_basic(list_status='L', fields='ts_code,name')
+                    name_map = dict(zip(basic['ts_code'], basic['name']))
+                except Exception:
+                    name_map = {}
+                df['name'] = df['ts_code'].map(name_map).fillna('')
+                # Tushare 千元 → 元, 转成 fund_flow 列
+                df['main_net_inflow'] = df['net_mf_amount'] * 1000
+                df['super_net'] = (df['buy_elg_amount'] - df['sell_elg_amount']) * 1000
+                df['big_net']   = (df['buy_lg_amount']  - df['sell_lg_amount'])  * 1000
+                df['mid_net']   = (df['buy_md_amount']  - df['sell_md_amount'])  * 1000
+                df['small_net'] = (df['buy_sm_amount']  - df['sell_sm_amount'])  * 1000
+                df['code'] = code
+                df['ts_code'] = ts_code
+                df['trade_date'] = df['trade_date'].astype(str)
+                df_out = df[['trade_date','ts_code','code','name','main_net_inflow','super_net','big_net','mid_net','small_net']].copy()
+                df_out['close'] = None
+                df_out['change_pct'] = None
+                df_out['main_net_pct'] = None
+                df_out['super_pct'] = None
+                df_out['big_pct'] = None
+                df_out['mid_pct'] = None
+                df_out['small_pct'] = None
+                _save_fund_flow_df(df_out, source='tushare')
+                filled = True
+                print(f'[flow/single] {ts_code} Tushare 补 {len(df_out)} 条', flush=True)
+        except Exception as e:
+            print(f'[flow/single] {ts_code} Tushare 失败: {e}', flush=True)
+        # Tushare 失败 → AKShare 兜底
+        if not filled:
+            market = 'sh' if ts_code.endswith('.SH') else 'sz'
+            try:
+                df = _ak_call(ak.stock_individual_fund_flow, stock=code, market=market)
+                df = _ak_fund_flow_renamed(df)
+                if 'ts_code' not in df.columns:
+                    df['ts_code'] = ts_code
+                if 'code' not in df.columns:
+                    df['code'] = code
+                _save_fund_flow_df(df, source='akshare')
+                filled = True
+                print(f'[flow/single] {ts_code} AKShare 兜底 {len(df)} 条', flush=True)
+            except Exception as e:
+                print(f'[flow/single] {ts_code} AKShare 兜底失败: {e}', flush=True)
+        # AKShare 失败 → 东方财富兜底
+        if not filled:
+            df = _eastmoney_fflow(code, days=days)
+            if df is not None and not df.empty:
+                _save_fund_flow_df(df, source='eastmoney')
+                filled = True
+                print(f'[flow/single] {ts_code} 东方财富补 {len(df)} 条', flush=True)
+            else:
+                return jsonify({'status': 'error', 'message': f'Tushare+AKShare+东财 全部失败', 'ts_code': ts_code}), 500
+        # 重读
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute("""
+            SELECT trade_date, close, change_pct, main_net_inflow, main_net_pct,
+                   super_net, super_pct, big_net, big_pct,
+                   mid_net, mid_pct, small_net, small_pct, name
+            FROM fund_flow
+            WHERE ts_code=? AND trade_date >= date('now', '-' || ? || ' days', 'localtime')
+            ORDER BY trade_date DESC
+        """, (ts_code, days)).fetchall()
+        conn.close()
+
+    if not rows:
+        return jsonify({'status': 'error', 'message': 'no data', 'ts_code': ts_code}), 404
+
+    # 3) 算 periods (3/5/10/20/30/60/120 日累计, rows 是 DESC)
+    daily_list = [{'trade_date': r['trade_date'], 'close': r['close'], 'change_pct': r['change_pct'],
+                   'main_net_inflow': r['main_net_inflow'] or 0, 'main_net_pct': r['main_net_pct'],
+                   'super_net': r['super_net'] or 0, 'big_net': r['big_net'] or 0,
+                   'mid_net': r['mid_net'] or 0, 'small_net': r['small_net'] or 0} for r in rows]
+    periods = {}
+    for p in [3, 5, 10, 20, 30, 60, 120]:
+        v = sum(d['main_net_inflow'] for d in daily_list[:p])
+        periods[p] = v
+
+    # 4) summary (4 张卡) - 取最新一日
+    last = daily_list[0]
+    sum_main = sum(d['main_net_inflow'] for d in daily_list)
+    days_pos = sum(1 for d in daily_list if d['main_net_inflow'] > 0)
+    summary = {
+        'latest_main_net': last['main_net_inflow'],
+        'latest_main_pct': last['main_net_pct'],
+        'latest_date': last['trade_date'],
+        'latest_change_pct': last['change_pct'],
+        'sum_main_net': sum_main,
+        'days_pos': days_pos,
+        'days_total': len(daily_list),
+    }
+
+    # 4.5) 查 stock_basic / positions 拿 name (AKShare 不返回 name 字段)
+    name = ''
+    conn2 = sqlite3.connect(DB_PATH)
+    row = conn2.execute("SELECT name FROM stock_basic WHERE ts_code=? LIMIT 1", (ts_code,)).fetchone()
+    if row and row[0]:
+        name = row[0]
+    else:
+        row = conn2.execute("SELECT name FROM positions WHERE ts_code=? LIMIT 1", (ts_code,)).fetchone()
+        if row and row[0]:
+            name = row[0]
+    conn2.close()
+
+    # 5) 历史窗口不足提示 (东财历史通常 1+ 年, 缺失一般是新股/长期停牌)
+    note = None
+    if len(daily_list) < days:
+        note = f'历史数据不足, 实际返回 {len(daily_list)} 个交易日 (请求 {days})'
+
+    return jsonify({
+        'status': 'success',
+        'ts_code': ts_code,
+        'code': code,
+        'name': name,
+        'summary': summary,
+        'daily': daily_list,
+        'periods': periods,
+        'window_limit_note': note,
+    })
+
+
+# 主力净流入同步状态 (今日 JSONP + 历史 Tushare, 一次 ~5289 行)
+_AKSYNC_STATE = {
+    'running': False, 'started_at': None, 'finished_at': None,
+    'total': 0, 'done': 0, 'success': 0, 'failed': 0,
+    'errors': [], 'current_code': '', 'elapsed_sec': 0,
+    'source': 'eastmoney-push2-jsonp', 'target_date': '',
+}
+
+
+def _parse_amount(s, numeric_unit='yuan'):
+    """'5.38亿' / '9948.48万' / '20.01%' / 139.53 / 139.53 → 元
+    numeric_unit 用于 AKShare/read_html 已经把单位文本剥掉的数字:
+    - yuan: 数字本身就是元
+    - wan: 数字本身是万元
+    - yi: 数字本身是亿元
+    - 涨跌幅/换手率带 '%' → 返回 % 数值
+    """
+    if s is None or s == '' or (isinstance(s, float) and (s != s)):
+        return None
+    if isinstance(s, (int, float)):
+        multipliers = {'yuan': 1, 'wan': 1e4, 'yi': 1e8}
+        return float(s) * multipliers.get(numeric_unit, 1)
+    s = str(s).replace(',', '').strip()
+    if s.endswith('亿'):
+        try: return float(s[:-1]) * 1e8
+        except: return None
+    if s.endswith('万'):
+        try: return float(s[:-1]) * 1e4
+        except: return None
+    if s.endswith('%'):
+        try: return float(s[:-1])
+        except: return None
+    try: return float(s)
+    except: return None
+
+
+def _parse_pct(s):
+    """'5.65%' / '5.65' / None → 5.65 (浮点). 无单位转换, % 数值本身."""
+    if s is None or s == '' or (isinstance(s, float) and (s != s)):
+        return None
+    if isinstance(s, (int, float)):
+        return float(s)
+    s = str(s).replace(',', '').strip()
+    if s.endswith('%'):
+        s = s[:-1]
+    try: return float(s)
+    except: return None
+
+
+def _ak_individual_to_db_rows(df, today):
+    """ak.stock_fund_flow_individual() DataFrame → (rows_for_fund_flow, list of dicts)
+    5189 行全市场, 字段: 序号/股票代码/股票简称/最新价/涨跌幅/换手率/流入资金/流出资金/净额/成交额
+    注: 同花顺口径"净额" = 流入 - 流出 (总资金净流入, 非主力), 我们存为 main_net_inflow.
+    单位: stock_fund_flow_individual 的金额字段是字符串 "5.38亿" / "9948.48万", _parse_amount 自动换算成元.
+    """
+    out = []
+    for _, r in df.iterrows():
+        try:
+            code_int = int(r['股票代码'])
+        except (ValueError, TypeError, KeyError):
+            continue
+        code = f'{code_int:06d}'
+        ts_code = f'{code}.SH' if code.startswith(('6', '9')) else f'{code}.SZ'
+
+        close = r.get('最新价')
+        change_pct = _parse_pct(r.get('涨跌幅'))
+        turnover = _parse_pct(r.get('换手率'))
+        inflow = _parse_amount(r.get('流入资金'), numeric_unit='wan') or 0
+        outflow = _parse_amount(r.get('流出资金'), numeric_unit='wan') or 0
+        net = _parse_amount(r.get('净额'), numeric_unit='wan') or 0
+        turnover_amt = _parse_amount(r.get('成交额'), numeric_unit='yi') or 0
+
+        main_pct = (net / turnover_amt * 100) if turnover_amt else None
+        out.append({
+            'trade_date': today,
+            'ts_code': ts_code,
+            'code': code,
+            'name': r.get('股票简称', ''),
+            'close': close,
+            'change_pct': change_pct,
+            'main_net_inflow': net,
+            'main_net_pct': main_pct,
+            'super_net': None, 'super_pct': None,
+            'big_net': None, 'big_pct': None,
+            'mid_net': None, 'mid_pct': None,
+            'small_net': None, 'small_pct': None,
+            'source': 'akshare-10jqka',
+            '_turnover_pct': turnover,
+            '_turnover_amt': turnover_amt,
+            '_inflow': inflow,
+            '_outflow': outflow,
+        })
+    return out
+
+
+def _save_individual_rows(rows):
+    """rows → fund_flow 表 (DELETE+INSERT). 返回成功/失败数."""
+    import math
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    cur = conn.cursor()
+    succ = 0
+    for r in rows:
+        try:
+            cur.execute('DELETE FROM fund_flow WHERE ts_code=? AND trade_date=?',
+                         (r['ts_code'], r['trade_date']))
+            def _f(v):
+                if v is None: return None
+                try:
+                    x = float(v)
+                    return None if math.isnan(x) else x
+                except (ValueError, TypeError):
+                    return None
+            cur.execute('''INSERT INTO fund_flow
+                (trade_date, ts_code, code, name, close, change_pct,
+                 main_net_inflow, main_net_pct,
+                 super_net, super_pct, big_net, big_pct,
+                 mid_net, mid_pct, small_net, small_pct, source)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+                (r['trade_date'], r['ts_code'], r['code'], r['name'],
+                 _f(r['close']), _f(r['change_pct']),
+                 _f(r['main_net_inflow']) or 0.0, _f(r['main_net_pct']),
+                 _f(r['super_net']), _f(r['super_pct']),
+                 _f(r['big_net']), _f(r['big_pct']),
+                 _f(r['mid_net']), _f(r['mid_pct']),
+                 _f(r['small_net']), _f(r['small_pct']),
+                 r['source']))
+            succ += 1
+        except Exception as e:
+            print(f'[sync] insert {r.get("ts_code")} fail: {e}', flush=True)
+    conn.commit()
+    conn.close()
+    return succ
+
+
+def _save_em_fund_flow_rows(rows, today, source='eastmoney-push2'):
+    """把 detail.html JSONP 拿到的 rows (raw f-code dict) 写入 fund_flow 表.
+    detail.html 字段 → fund_flow 表列名映射:
+      f12 code, f14 name, f2 close, f3 change_pct,
+      f62 main_net_inflow, f184 main_net_pct,
+      f66 super_net, f69 super_pct,
+      f72 big_net, f75 big_pct,
+      f78 mid_net, f81 mid_pct,
+      f84 small_net, f87 small_pct
+    Returns: 写入条数.
+    """
+    import math
+    def _f(v):
+        if v is None or v == '-' or v == '':
+            return None
+        try:
+            x = float(v)
+            return 0.0 if math.isnan(x) else x
+        except (ValueError, TypeError):
+            return None
+
+    def _to_ts_code(code: str) -> str:
+        code = str(code).strip()
+        if not code or len(code) != 6:
+            return f'{code}.SH' if code else ''
+        return f'{code}.SH' if code.startswith(('6', '9')) else f'{code}.SZ'
+
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    cur = conn.cursor()
+    count = 0
+    for r in rows:
+        code = str(r.get('f12', '')).strip()
+        if not code or len(code) != 6:
+            continue
+        ts_code = _to_ts_code(code)
+        name = r.get('f14', '')
+        close = _f(r.get('f2'))
+        change_pct = _f(r.get('f3'))
+        main_net_inflow = _f(r.get('f62')) or 0.0
+        main_net_pct = _f(r.get('f184'))
+        super_net = _f(r.get('f66'))
+        super_pct = _f(r.get('f69'))
+        big_net = _f(r.get('f72'))
+        big_pct = _f(r.get('f75'))
+        mid_net = _f(r.get('f78'))
+        mid_pct = _f(r.get('f81'))
+        small_net = _f(r.get('f84'))
+        small_pct = _f(r.get('f87'))
+
+        cur.execute('DELETE FROM fund_flow WHERE ts_code=? AND trade_date=?', (ts_code, today))
+        cur.execute('''INSERT INTO fund_flow
+            (trade_date, ts_code, code, name, close, change_pct,
+             main_net_inflow, main_net_pct,
+             super_net, super_pct, big_net, big_pct,
+             mid_net, mid_pct, small_net, small_pct, source)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+            (today, ts_code, code, name, close, change_pct,
+             main_net_inflow, main_net_pct,
+             super_net, super_pct, big_net, big_pct,
+             mid_net, mid_pct, small_net, small_pct, source))
+        count += 1
+    conn.commit()
+    conn.close()
+    return count
+
+
+def _em_sync_market_bg():
+    """后台线程: 抓取今日主力净流入 (JSONP + 东财 detail.html).
+    数据写入 fund_flow 表, trade_date = 今天. 每天点一次同步即积累一天历史.
+    历史日期查询通过前端日历切换 (只是查 DB, 不重新抓).
+    """
+    import time as _t
+    import sys as _sys
+    _sys.path.insert(0, os.path.dirname(__file__))
+    from fetch_fund_flow_today import fetch_today_market
+
+    t0 = _t.time()
+    today = datetime.now().strftime('%Y%m%d')
+
+    _AKSYNC_STATE.update({
+        'running': True, 'started_at': datetime.now().isoformat(),
+        'finished_at': None, 'total': 0, 'done': 0,
+        'success': 0, 'failed': 0, 'errors': [],
+        'current_code': f'准备同步 {today}...',
+        'elapsed_sec': 0, 'source': 'eastmoney-push2',
+        'target_date': today,
+    })
+    print(f'[em-sync] 开始: 同步 {today}', flush=True)
+
+    def _cb(stage, **kw):
+        if stage == 'total':
+            _AKSYNC_STATE['total'] = kw.get('total', 0)
+            _AKSYNC_STATE['current_code'] = f'总 {kw["total"]} 只, 开始翻页...'
+        elif stage == 'page':
+            pn = kw.get('pn', 0)
+            total_pages = kw.get('total_pages', 0)
+            rows_count = kw.get('rows_count', 0)
+            _AKSYNC_STATE['done'] = rows_count
+            _AKSYNC_STATE['failed'] = len(kw.get('failed', []))
+            _AKSYNC_STATE['current_code'] = f'pn={pn}/{total_pages} 累计 {rows_count} 行'
+        elif stage == 'done':
+            _AKSYNC_STATE['done'] = kw.get('rows', 0)
+            _AKSYNC_STATE['failed'] = len(kw.get('failed', []))
+            _AKSYNC_STATE['current_code'] = (
+                f'抓取完成 {kw["rows"]}/{kw["total"]} 行'
+                + (f' (失败 {len(kw["failed"])} 页)' if kw.get('failed') else '')
+            )
+        elif stage == 'error':
+            _AKSYNC_STATE['errors'].append(('eastmoney-push2', kw.get('message', '')))
+
+    try:
+        rows, total, failed = fetch_today_market(progress_callback=_cb, headless=False, verbose=True)
+    except Exception as e:
+        err_msg = f'{type(e).__name__}: {str(e)[:200]}'
+        _AKSYNC_STATE['errors'].append(('eastmoney-push2', err_msg))
+        _AKSYNC_STATE['failed'] = 1
+        _AKSYNC_STATE['running'] = False
+        _AKSYNC_STATE['finished_at'] = datetime.now().isoformat()
+        _AKSYNC_STATE['elapsed_sec'] = round(_t.time() - t0, 1)
+        print(f'[em-sync] 异常: {err_msg}', flush=True)
+        return
+
+    if not rows:
+        _AKSYNC_STATE['failed'] = 1
+        if not _AKSYNC_STATE['errors']:
+            _AKSYNC_STATE['errors'].append(('eastmoney-push2', '抓取结果为空'))
+    else:
+        try:
+            _AKSYNC_STATE['current_code'] = f'写入 DB {len(rows)} 行 ({today})...'
+            inserted = _save_em_fund_flow_rows(rows, today, source='eastmoney-push2')
+            _AKSYNC_STATE['success'] = inserted
+            _AKSYNC_STATE['current_code'] = f'✅ {today} 已写入 {inserted} 行'
+            print(f'[em-sync] ✅ {today} 写入 {inserted} 行', flush=True)
+        except Exception as e:
+            err_msg = f'写入 DB: {type(e).__name__}: {str(e)[:200]}'
+            _AKSYNC_STATE['errors'].append(('db.write', err_msg))
+            _AKSYNC_STATE['failed'] = 1
+            print(f'[em-sync] 写 DB 失败: {err_msg}', flush=True)
+
+    _AKSYNC_STATE['elapsed_sec'] = round(_t.time() - t0, 1)
+    _AKSYNC_STATE['running'] = False
+    _AKSYNC_STATE['finished_at'] = datetime.now().isoformat()
+    print(f'[em-sync] 完成: {today} success={_AKSYNC_STATE["success"]} elapsed={_AKSYNC_STATE["elapsed_sec"]}s', flush=True)
+
+
+
+
+@app.route('/api/flow/dates', methods=['GET'])
+def api_flow_dates():
+    """返回 fund_flow 表里有数据的 distinct trade_date 列表 (倒序).
+    默认 source=eastmoney-push2. 用于前端日历控件的上一日/下一日导航.
+    """
+    source = request.args.get('source', 'eastmoney-push2').strip()
+    conn = sqlite3.connect(DB_PATH)
+    if source == 'all':
+        dates = [r[0] for r in conn.execute(
+            "SELECT DISTINCT trade_date FROM fund_flow ORDER BY trade_date DESC"
+        ).fetchall()]
+    else:
+        dates = [r[0] for r in conn.execute(
+            "SELECT DISTINCT trade_date FROM fund_flow WHERE source=? ORDER BY trade_date DESC",
+            (source,)
+        ).fetchall()]
+    conn.close()
+    return jsonify({'dates': dates, 'count': len(dates), 'source': source})
+
+
+@app.route('/api/flow/sync-market', methods=['POST'])
+def api_flow_sync_market():
+    """启动后台抓取今日主力净流入 (JSONP). 立即返回 'started'.
+    每天点一次同步, trade_date 自动标记今天, 写入 fund_flow 表.
+    历史日期切换查询只读 DB, 不需要再抓.
+    """
+    if _AKSYNC_STATE['running']:
+        return jsonify({'status': 'already_running', 'state': _AKSYNC_STATE})
+    import threading as _th
+    t = _th.Thread(target=_em_sync_market_bg, daemon=True)
+    t.start()
+    return jsonify({'status': 'started', 'state': _AKSYNC_STATE})
+
+
+@app.route('/api/flow/sync-status', methods=['GET'])
+def api_flow_sync_status():
+    """查询 AKShare 全市场拉取状态. 前端 setInterval 轮询."""
+    return jsonify(_AKSYNC_STATE)
+
+
+@app.route('/api/flow/industry', methods=['GET'])
+def api_flow_industry():
+    """行业资金流 (ak.stock_fund_flow_industry). 90 个行业. 缓存 5 分钟."""
+    symbol = request.args.get('symbol', '即时')
+    try:
+        df = _ak_call(ak.stock_fund_flow_industry, symbol=symbol)
+        rows = []
+        for _, r in df.iterrows():
+            rows.append({
+                'name': r.get('行业', ''),
+                'index': r.get('行业指数'),
+                'change_pct': r.get('行业-涨跌幅'),
+                'inflow': _parse_amount(r.get('流入资金'), numeric_unit='yi') or 0,
+                'outflow': _parse_amount(r.get('流出资金'), numeric_unit='yi') or 0,
+                'net': _parse_amount(r.get('净额'), numeric_unit='yi') or 0,
+                'company_count': r.get('公司家数'),
+                'leading_stock': r.get('领涨股', ''),
+                'leading_change_pct': r.get('领涨股-涨跌幅'),
+                'leading_price': r.get('当前价'),
+            })
+        rows.sort(key=lambda x: (x.get('net') or 0), reverse=True)
+        return jsonify({
+            'status': 'success',
+            'count': len(rows),
+            'symbol': symbol,
+            'rows': rows,
+            'source': 'akshare-10jqka / 东方财富',
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)[:200]}), 500
+
+
+@app.route('/api/flow/concept', methods=['GET'])
+def api_flow_concept():
+    """概念资金流 (ak.stock_fund_flow_concept). 385 个概念."""
+    symbol = request.args.get('symbol', '即时')
+    try:
+        df = _ak_call(ak.stock_fund_flow_concept, symbol=symbol)
+        rows = []
+        for _, r in df.iterrows():
+            rows.append({
+                'name': r.get('行业', ''),
+                'index': r.get('行业指数'),
+                'change_pct': r.get('行业-涨跌幅'),
+                'inflow': _parse_amount(r.get('流入资金'), numeric_unit='yi') or 0,
+                'outflow': _parse_amount(r.get('流出资金'), numeric_unit='yi') or 0,
+                'net': _parse_amount(r.get('净额'), numeric_unit='yi') or 0,
+                'company_count': r.get('公司家数'),
+                'leading_stock': r.get('领涨股', ''),
+                'leading_change_pct': r.get('领涨股-涨跌幅'),
+                'leading_price': r.get('当前价'),
+            })
+        rows.sort(key=lambda x: (x.get('net') or 0), reverse=True)
+        return jsonify({
+            'status': 'success',
+            'count': len(rows),
+            'symbol': symbol,
+            'rows': rows,
+            'source': 'akshare-10jqka / 东方财富',
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)[:200]}), 500
+
+
+@app.route('/api/flow/big-deal', methods=['GET'])
+def api_flow_big_deal():
+    """大宗交易 (ak.stock_fund_flow_big_deal). 5000 条."""
+    try:
+        df = _ak_call(ak.stock_fund_flow_big_deal)
+        rows = []
+        for _, r in df.iterrows():
+            row = {}
+            for c in df.columns:
+                v = r.get(c)
+                if isinstance(v, str) and any(unit in v for unit in ['亿', '万']):
+                    row[c] = _parse_amount(v, numeric_unit='yi')  # 元
+                elif isinstance(v, str) and '%' in v:
+                    row[c] = _parse_pct(v)
+                else:
+                    row[c] = v
+            rows.append(row)
+        return jsonify({
+            'status': 'success',
+            'count': len(rows),
+            'rows': rows,
+            'source': 'akshare-10jqka / 东方财富',
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)[:200]}), 500
+
+
+@app.route('/api/flow/sync-holdings', methods=['POST'])
+def api_flow_sync_holdings():
+    """对每个 open 持仓调 AKShare 拉历史, 写入 fund_flow."""
+    try:
+        body = request.get_json(silent=True) or {}
+    except Exception:
+        body = {}
+    days = min(int(body.get('days', 120)), 200)
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    holdings = conn.execute(
+        "SELECT ts_code, SUBSTR(ts_code, 1, 6) AS code, name FROM positions WHERE closed_at IS NULL"
+    ).fetchall()
+    conn.close()
+
+    if not holdings:
+        return jsonify({'status': 'no_holdings', 'stocks': [], 'elapsed_sec': 0})
+
+    t0 = time.time()
+    results = []
+    for h in holdings:
+        market = 'sh' if h['ts_code'].endswith('.SH') else 'sz'
+        try:
+            df = _ak_call(ak.stock_individual_fund_flow, stock=h['code'], market=market)
+            df = _ak_fund_flow_renamed(df)
+            if 'ts_code' not in df.columns:
+                df['ts_code'] = h['ts_code']
+            if 'code' not in df.columns:
+                df['code'] = h['code']
+            cnt = _save_fund_flow_df(df, source='akshare')
+            results.append({'code': h['code'], 'name': h['name'], 'fetched': cnt, 'status': 'success'})
+        except Exception as e:
+            results.append({'code': h['code'], 'name': h['name'], 'fetched': 0, 'status': str(e)})
+        time.sleep(0.3)  # 防限速
+
+    elapsed = round(time.time() - t0, 1)
+    return jsonify({'status': 'success', 'stocks': results, 'elapsed_sec': elapsed})
+
+
+# ============ 选股推荐 ============
+
+def _add_col_if_missing(c, table, col, ctype):
+    """如果表里没有这个列就加上 (兼容旧版表)"""
+    cols = [r[1] for r in c.execute(f"PRAGMA table_info({table})").fetchall()]
+    if col not in cols:
+        c.execute(f"ALTER TABLE {table} ADD COLUMN {col} {ctype}")
+
+
+def _calc_ma(closes, period):
+    """计算移动平均线"""
+    if len(closes) < period:
+        return None
+    return sum(closes[-period:]) / period
+
+
+def _calc_ma_slope(closes, period):
+    """计算均线斜率 (近 period 天的斜率, 度数). > 0 上升, < 0 下降"""
+    if len(closes) < period + 1:
+        return None
+    # 用首尾两点求斜率 (deg) = atan2(dy, dx) * 180/pi
+    import math
+    y1 = sum(closes[:period]) / period
+    y2 = sum(closes[-period:]) / period
+    slope_rad = math.atan2(y2 - y1, period - 1)
+    return slope_rad * 180 / math.pi
+
+
+def _fund_flow_window(ts_code, end_date, window):
+    """拉 ts_code 在 end_date 之前 window 个交易日的主资金净额列表 (新→旧).
+    返回 main_net_inflow 列表; 长度 < window 表示数据不足.
+    """
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    rows = conn.execute("""
+        SELECT main_net_inflow FROM fund_flow
+        WHERE ts_code = ? AND trade_date <= ?
+        ORDER BY trade_date DESC LIMIT ?
+    """, (ts_code, end_date, window)).fetchall()
+    conn.close()
+    return [r[0] for r in rows]
+
+
+def _flow_consecutive_sign(ts_code, end_date, n, want_positive=True):
+    """最近 n 日全部主力净流入(>0) 或 净流出(<0). 数据不足返回 False."""
+    flows = _fund_flow_window(ts_code, end_date, n)
+    if len(flows) < n:
+        return False
+    return all(v > 0 for v in flows) if want_positive else all(v < 0 for v in flows)
+
+
+def _flow_turn(ts_code, end_date, n, want_positive):
+    """最近 n 日由反向转正向 (want_positive=True) 或 反之.
+    例如 n=3: 前 2 日 <= 0, 最近 1 日 > 0 (want_positive=True).
+    """
+    flows = _fund_flow_window(ts_code, end_date, n)
+    if len(flows) < n:
+        return False
+    opposite = (lambda v: v <= 0) if want_positive else (lambda v: v >= 0)
+    return all(opposite(v) for v in flows[:-1]) and (flows[-1] > 0 if want_positive else flows[-1] < 0)
+
+
+def _is_new_high(closes, lookback=60):
+    """创 N 日新高 (收盘价 >= 过去 lookback 日内的最高收盘价)"""
+    if len(closes) < lookback + 1:
+        return False
+    return closes[-1] >= max(closes[-lookback:-1])
+
+
+def _is_breakout_confirmed(closes, lookback=20):
+    """真突破: 最近 3 日收盘都站上 N 日高点 + 当前 > 高点"""
+    if len(closes) < lookback + 4:
+        return False, None
+    recent_high = max(closes[-lookback:-3])  # 突破前的高点
+    if closes[-1] <= recent_high:
+        return False, None
+    # 最近 3 日收盘都在高点之上
+    if all(c > recent_high for c in closes[-3:]):
+        return True, recent_high
+    return False, None
+
+
+def _volume_ratio(closes_or_vols, idx=-1, lookback=5):
+    """当前量/过去 N 日均量的比值"""
+    if len(closes_or_vols) < abs(idx) + lookback:
+        return None
+    recent = closes_or_vols[idx]
+    past = closes_or_vols[idx - lookback: idx]
+    avg = sum(past) / len(past) if past else 0
+    return recent / avg if avg > 0 else None
+
+
+def _flow_days_available(end_date):
+    """fund_flow 表在 end_date 及之前有多少天的数据"""
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    row = conn.execute("""
+        SELECT COUNT(DISTINCT trade_date) FROM fund_flow
+        WHERE trade_date <= ?
+    """, (end_date,)).fetchone()
+    conn.close()
+    return row[0] if row else 0
+
+
+def _compute_picks(trade_date=None):
+    """按《均线 + 资金流》文档计算选股推荐.
+
+    双维度评分:
+      1) 均线: MA5/10/20/30 + 斜率 + 多头排列 + 金叉死叉
+      2) 资金流: 当日主力净流入 + 3/5/10/20 日累计主力净流入 + 5 档占比
+
+    数据不足时降级: 缺几天的累计就跳过哪个维度, 不强行估算.
+    """
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+
+    # 确定计算日期
+    if not trade_date:
+        row = conn.execute('SELECT MAX(trade_date) as d FROM stock_daily').fetchone()
+        if not row or not row['d']:
+            conn.close()
+            return []
+        trade_date = row['d']
+
+    # 拉最近 35 天日线数据 (够算 MA30 + 斜率 + 各种窗口)
+    dates_30 = [r[0] for r in conn.execute("""
+        SELECT DISTINCT trade_date FROM stock_daily
+        WHERE trade_date <= ? ORDER BY trade_date DESC LIMIT 35
+    """, (trade_date,)).fetchall()]
+    if trade_date not in dates_30:
+        conn.close()
+        return []
+
+    # fund_flow 可用天数 (决定哪些累计资金流维度能算)
+    flow_dates = [r[0] for r in conn.execute(
+        'SELECT DISTINCT trade_date FROM fund_flow WHERE trade_date <= ? ORDER BY trade_date DESC',
+        (trade_date,)
+    ).fetchall()]
+    flow_days = len(flow_dates)
+    # 各个窗口能不能算
+    can_3d = flow_days >= 3
+    can_5d = flow_days >= 5
+    can_10d = flow_days >= 10
+    can_20d = flow_days >= 20
+
+    # 拉所有股票日线
+    placeholders = ','.join(['?' for _ in dates_30])
+    rows = conn.execute(f"""
+        SELECT ts_code, name, trade_date, close, change, volume
+        FROM stock_daily
+        WHERE trade_date IN ({placeholders})
+        ORDER BY ts_code, trade_date DESC
+    """, dates_30).fetchall()
+
+    # 按股票分组
+    stock_data = defaultdict(list)
+    for r in rows:
+        stock_data[r['ts_code']].append({
+            'date': r['trade_date'],
+            'close': r['close'],
+            'change': r['change'],
+            'volume': r['volume'],
+            'name': r['name']
+        })
+
+    picks = []
+    for ts_code, data_list in stock_data.items():
+        if len(data_list) < 30:
+            continue
+        data_list.sort(key=lambda x: x['date'], reverse=True)
+
+        latest = data_list[0]
+        if not latest['close'] or latest['close'] <= 0:
+            continue
+        if not latest['volume'] or latest['volume'] == 0:
+            continue
+        if latest['name'] and ('*ST' in latest['name'] or 'ST' in latest['name']):
+            continue
+
+        # ===== 均线 =====
+        closes = [d['close'] for d in reversed(data_list)]
+        ma5 = _calc_ma(closes, 5)
+        ma10 = _calc_ma(closes, 10)
+        ma20 = _calc_ma(closes, 20)
+        ma30 = _calc_ma(closes, 30)
+        if not all([ma5, ma10, ma20, ma30]):
+            continue
+
+        ma5_slope = _calc_ma_slope(closes, 5)
+        ma10_slope = _calc_ma_slope(closes, 10)
+        ma20_slope = _calc_ma_slope(closes, 20)
+        ma30_slope = _calc_ma_slope(closes, 30)
+
+        # ===== 资金流 (多窗口累计) =====
+        # 取各窗口的主资金净额列表 (新→旧), 然后求和 (注意: 只用 <= trade_date 的数据)
+        flows = {}
+        if can_3d:
+            flows['3d'] = sum(_fund_flow_window(ts_code, trade_date, 3))
+        if can_5d:
+            flows['5d'] = sum(_fund_flow_window(ts_code, trade_date, 5))
+        if can_10d:
+            flows['10d'] = sum(_fund_flow_window(ts_code, trade_date, 10))
+        if can_20d:
+            flows['20d'] = sum(_fund_flow_window(ts_code, trade_date, 20))
+        # 当日资金流详情
+        today_flow = _fund_flow_window(ts_code, trade_date, 1)
+        main_net_today = today_flow[0] if today_flow else None
+        # 当日 5 档 + 占比 (来自 fund_flow 当日行)
+        flow_today_row = conn.execute("""
+            SELECT main_net_pct, super_net, super_pct, big_net, big_pct,
+                   mid_net, mid_pct, small_net, small_pct
+            FROM fund_flow WHERE ts_code = ? AND trade_date = ?
+        """, (ts_code, trade_date)).fetchone()
+        main_net_pct_today = flow_today_row['main_net_pct'] if flow_today_row else None
+        super_net = flow_today_row['super_net'] if flow_today_row else None
+        super_pct = flow_today_row['super_pct'] if flow_today_row else None
+        big_net = flow_today_row['big_net'] if flow_today_row else None
+        big_pct = flow_today_row['big_pct'] if flow_today_row else None
+        mid_net = flow_today_row['mid_pct'] if flow_today_row else None
+        mid_pct = flow_today_row['mid_pct'] if flow_today_row else None
+        small_net = flow_today_row['small_net'] if flow_today_row else None
+        small_pct = flow_today_row['small_pct'] if flow_today_row else None
+
+        # 涨跌幅
+        change_pct = 0
+        if len(data_list) >= 2:
+            prev_close = data_list[1]['close']
+            if prev_close and prev_close > 0:
+                change_pct = (latest['close'] - prev_close) / prev_close * 100
+
+        # ===== 评分 (按《均线+资金流.md》文档) =====
+        score = 0
+        reasons = []
+        buy_signals = 0
+        sell_signals = 0
+
+        # ---------- 章节三: 均线信号 ----------
+        # 多头排列 (MA5 > MA10 > MA20 > MA30) +30
+        if ma5 > ma10 > ma20 > ma30:
+            score += 30
+            reasons.append('多头排列 MA5>MA10>MA20>MA30')
+        elif ma5 > ma10 > ma20:
+            score += 18
+            reasons.append('短中期多头排列 (MA5>MA10>MA20)')
+        # 空头排列
+        if ma5 < ma10 < ma20 < ma30:
+            score -= 20
+            reasons.append('空头排列 MA5<MA10<MA20<MA30')
+            sell_signals += 1
+
+        # 价格在均线之上
+        if latest['close'] > ma5: score += 5; reasons.append('站上MA5')
+        if latest['close'] > ma10: score += 5; reasons.append('站上MA10')
+        if latest['close'] > ma20: score += 5; reasons.append('站上MA20')
+        if latest['close'] > ma30: score += 5; reasons.append('站上MA30')
+
+        # MA5 陡峭向上 (斜率 > 45° 文档要求) +8
+        if ma5_slope is not None and ma5_slope > 45:
+            score += 8
+            reasons.append(f'MA5陡峭向上 ({ma5_slope:.1f}°>45°)')
+        elif ma5_slope is not None and ma5_slope > 30:
+            score += 3
+            reasons.append(f'MA5向上 ({ma5_slope:.1f}°)')
+
+        # ---------- 章节三: 金叉死叉 (文档表) ----------
+        prev_ma5 = sum(closes[-6:-1]) / 5
+        prev_ma10 = sum(closes[-11:-1]) / 10
+        prev_ma30 = sum(closes[-31:-1]) / 30
+
+        # 5日上穿10日 +15 (验证: 当日主力净流入占比>3%)
+        if prev_ma5 <= prev_ma10 and ma5 > ma10:
+            if main_net_pct_today is not None and main_net_pct_today > 3:
+                score += 15; reasons.append('5日金叉10日 ★ 主力净流入占比>3%'); buy_signals += 1
+            else:
+                score += 8; reasons.append('5日金叉10日 (资金流未验证)')
+
+        # 10日上穿30日 +20 (验证: 30日拐头 + 10日累计>5000万)
+        if prev_ma10 <= prev_ma30 and ma10 > ma30:
+            if ma30_slope is not None and ma30_slope > 0 and can_10d and flows.get('10d', 0) > 50000000:
+                score += 20; reasons.append('10日金叉30日 ★★★ (30日拐头+10日资金>5000万)'); buy_signals += 1
+            elif can_10d:
+                score += 10; reasons.append('10日金叉30日 (资金验证待 N≥10天数据)')
+
+        # 10日下穿30日 (死叉) -30 (验证: 30日累计主力净流入由正转负)
+        if prev_ma10 >= prev_ma30 and ma10 < ma30:
+            if can_20d and flows.get('20d', 0) < 0:
+                score -= 30; reasons.append('20日死叉30日 ★★★ (20日资金<0,无条件清仓)'); sell_signals += 1
+            elif can_20d:
+                score -= 18; reasons.append('20日死叉30日 (资金验证待 N≥20天数据)')
+            else:
+                score -= 10; reasons.append('20日死叉30日 (资金数据待积累)')
+
+        # ---------- 章节七: 黄金组合 (4 个) ----------
+        # 黄金 1: 股价突破 20 日线 + 20 日线拐头向上 + 连续 3 日主力净流入
+        if (latest['close'] > ma20 and ma20_slope is not None and ma20_slope > 0
+            and can_3d and _flow_consecutive_sign(ts_code, trade_date, 3, want_positive=True)):
+            score += 25
+            reasons.append('黄金1: 突破20日线+连续3日资金流入 ★★★')
+            buy_signals += 1
+        elif latest['close'] > ma20 and ma20_slope is not None and ma20_slope > 0:
+            reasons.append('黄金1部分: 突破20日线+拐头向上 (需 N≥3天连续资金数据)')
+
+        # 黄金 2: 强势股回踩 10 日线 + 缩量止跌 + 当日主力资金由流出转流入
+        # 判定: close 在 ma10 附近 (回踩), 当日由负转正
+        near_ma10 = abs(latest['close'] - ma10) / ma10 < 0.02  # ±2%
+        if near_ma10 and can_3d and _flow_turn(ts_code, trade_date, 3, want_positive=True):
+            score += 20
+            reasons.append('黄金2: 回踩MA10+资金流出转流入 ★★')
+            buy_signals += 1
+        elif near_ma10:
+            reasons.append('黄金2部分: 回踩MA10 (资金由流出转流入需 N≥3天数据)')
+
+        # 黄金 3: 10 日上穿 30 日线 + 30 日线拐头向上 + 10 日主力净流入为正
+        # (跟前面 10日金叉30日 + 资金验证 重复, 这里升级为 ★★★ 信号)
+        if (prev_ma10 <= prev_ma30 and ma10 > ma30
+            and ma30_slope is not None and ma30_slope > 0
+            and can_10d and flows.get('10d', 0) > 0):
+            # 已计入上面的金叉信号, 这里不重复加分
+            reasons.append('黄金3: 10日金叉30日+30日拐头+10日资金>0 ★★★')
+
+        # 黄金 4: 股价跌破 5 日线但 10 日线支撑有效 + 主力资金逆势流入
+        # 判定: close 跌破 ma5 但仍在 ma10 上方 + 当日资金 > 0
+        if (latest['close'] < ma5 and latest['close'] > ma10
+            and main_net_today is not None and main_net_today > 0):
+            score += 15
+            reasons.append('黄金4: 跌破MA5但MA10支撑+主力逆势流入 ★★ (洗盘结束)')
+            buy_signals += 1
+
+        # ---------- 章节七: 死亡组合 (4 个) ----------
+        # 死亡 1: 跌破 10 日线 + 5 日资金由正转负
+        if latest['close'] < ma10 and can_5d and _flow_turn(ts_code, trade_date, 3, want_positive=False):
+            score -= 25
+            reasons.append('死亡1: 跌破MA10+5日资金由正转负 ★★★ (无条件离场)')
+            sell_signals += 1
+        elif latest['close'] < ma10:
+            reasons.append('死亡1部分: 跌破MA10 (资金由正转负需 N≥5天数据)')
+
+        # 死亡 2: 20 日下穿 30 日线 + 20 日资金由正转负 (跟 10日下穿30日死叉合并处理)
+        # 单独标记
+        if (prev_ma10 >= prev_ma30 and ma10 < ma30
+            and can_20d and flows.get('20d', 0) < 0):
+            reasons.append('死亡2: 20日死叉30日+20日资金<0 ★★★')
+
+        # 死亡 3: 股价创新高但主力资金连续 3 日净流出
+        if (change_pct > 0 and _is_new_high(closes, 60)
+            and can_3d and _flow_consecutive_sign(ts_code, trade_date, 3, want_positive=False)):
+            score -= 20
+            reasons.append('死亡3: 创新高+连续3日主力净流出 ★★★ (顶背离)')
+            sell_signals += 1
+        elif _is_new_high(closes, 60):
+            reasons.append('死亡3部分: 创新高 (连续3日流出需 N≥3天数据)')
+
+        # 死亡 4: 多头排列但 20 日/30 日资金开始流出
+        if (ma5 > ma10 > ma20 > ma30  # 多头排列
+            and can_10d and can_20d
+            and flows.get('10d', 0) < 0 and flows.get('20d', 0) < 0):
+            score -= 15
+            reasons.append('死亡4: 多头排列但10日/20日资金均流出 ★★ (趋势即将反转)')
+            sell_signals += 1
+        elif ma5 > ma10 > ma20 > ma30:
+            if not can_20d:
+                reasons.append('死亡4待验证: 多头排列 (20日资金验证需 N≥20天数据)')
+
+        # ---------- 章节六: 真假突破识别 ----------
+        # 真突破: 站稳 3 日 + 量 > 50% + 主力净流入占比 > 15%
+        is_breakout, brk_level = _is_breakout_confirmed(closes, 20)
+        if is_breakout and main_net_pct_today is not None and main_net_pct_today > 15:
+            score += 20
+            reasons.append(f'真突破确认: 站稳3日+主力净流入占比{main_net_pct_today:.1f}% (>15%) ★★★')
+            buy_signals += 1
+        elif is_breakout:
+            reasons.append(f'突破中: 站稳3日但主力净流入占比{main_net_pct_today or "?"}% (未达15%阈值,可能是诱多)')
+
+        # ---------- 章节六: 真假洗盘识别 ----------
+        # 真洗盘: 5 日累计仍为正 (回调时主力暗中承接)
+        if latest['close'] < ma10 and can_5d and flows.get('5d', 0) > 0:
+            score += 8
+            reasons.append('真洗盘: 跌破MA10但5日累计资金仍>0 (主力承接)')
+
+        # ---------- 章节五: 葛兰碧八大法则 (8 个) ----------
+        bias = (latest['close'] - ma5) / ma5 * 100 if ma5 else 0
+        bias10 = (latest['close'] - ma10) / ma10 * 100 if ma10 else 0
+        bias20 = (latest['close'] - ma20) / ma20 * 100 if ma20 else 0
+        bias30 = (latest['close'] - ma30) / ma30 * 100 if ma30 else 0
+
+        # 1. 突破买入 (中期趋势启动): 突破 MA20/MA30 + 量放大 + 资金>1亿
+        volumes = [d['volume'] for d in reversed(data_list)]
+        vol_ratio = _volume_ratio(volumes) if len(volumes) >= 6 else None
+        if (latest['close'] > ma20 and prev_ma5 <= prev_ma10 and ma5 > ma10
+            and vol_ratio is not None and vol_ratio > 1.5
+            and main_net_today is not None and main_net_today > 1e8):
+            score += 18
+            reasons.append(f'葛兰碧突破买入: 突破MA20+量>50%+主力>1亿 ★★')
+            buy_signals += 1
+
+        # 2. 回踩不破买入: 回踩 MA10/MA20 不破 + 资金流入
+        if ((abs(bias10) < 3 and latest['close'] > ma10)
+            and main_net_today is not None and main_net_today > 0):
+            score += 12
+            reasons.append(f'葛兰碧回踩不破: 回踩MA10不破+资金流入 ★')
+            buy_signals += 1
+
+        # 3. 假跌破买入 (主力洗盘): 跌破但快速收回 + 缩量 + 实际资金流入
+        # 判定: 盘中破 MA5/MA10 但当前 close 在均线上方 + 当日资金>0
+        if (latest['close'] < ma5 * 1.005 and latest['close'] > ma5 * 0.99
+            and main_net_today is not None and main_net_today > 0):
+            reasons.append('葛兰碧假跌破: 触及MA5后收回+资金流入 (洗盘结束信号) ★')
+
+        # 4. 超跌反弹: 偏离 MA5 15% 以上 + 当日资金开始流入
+        if bias < -15 and main_net_today is not None and main_net_today > 0:
+            score += 10
+            reasons.append(f'葛兰碧超跌反弹: 偏离MA5 {bias:.1f}%+资金流入 ★')
+            buy_signals += 1
+
+        # 5. 跌破卖出: 跌破 MA20/MA30 + 资金流出
+        if ((latest['close'] < ma20 or latest['close'] < ma30)
+            and main_net_today is not None and main_net_today < 0):
+            score -= 15
+            reasons.append(f'葛兰碧跌破卖出: 跌破MA20/MA30+资金流出 ★★')
+            sell_signals += 1
+
+        # 6. 反弹不过卖出: 反弹至 MA10/MA20 受阻 + 资金流出
+        # 判定: 距离 MA10/MA20 较近 (反弹到位) + 资金流出
+        if ((abs(bias10) < 2 or abs(bias20) < 2)
+            and latest['close'] < ma10
+            and main_net_today is not None and main_net_today < 0):
+            score -= 10
+            reasons.append(f'葛兰碧反弹不过: 反弹至MA10/MA20受阻+资金流出 ★')
+            sell_signals += 1
+
+        # 7. 假突破卖出 (诱多): 突破 MA 但主力净流入占比 < 5% (散户主导)
+        if is_breakout and main_net_pct_today is not None and main_net_pct_today < 5:
+            score -= 15
+            reasons.append(f'葛兰碧假突破: 突破但主力净流入占比仅{main_net_pct_today:.1f}% (诱多嫌疑) ★★')
+            sell_signals += 1
+
+        # 8. 超涨卖出: 偏离 MA5 15% 以上 + 当日资金开始流出
+        if bias > 15 and main_net_today is not None and main_net_today < 0:
+            score -= 10
+            reasons.append(f'葛兰碧超涨: 偏离MA5 {bias:.1f}%+资金流出 ★')
+            sell_signals += 1
+
+        # ---------- 章节六: 真假突破 - 假突破识别 ----------
+        # 假突破特征: 突破时放量但随后快速萎缩 + 主力净流入占比低
+        # 简化判定: 突破但当日主力占比 < 5% → 标记假突破嫌疑
+        if is_breakout and main_net_pct_today is not None and main_net_pct_today < 5:
+            # 已在 葛兰碧假突破 里加过分, 这里补充"次日确认"逻辑位
+            reasons.append(f'真假突破: 突破但资金占比{main_net_pct_today:.1f}% < 5% (散户主导,警惕诱多)')
+
+        # ---------- 章节六: 真假洗盘 - 真出货识别 ----------
+        # 真出货特征: 跌破均线 + 5 日累计资金流出 + 上涨时缩量
+        if (latest['close'] < ma10 and can_5d and flows.get('5d', 0) < 0
+            and vol_ratio is not None and vol_ratio < 1):
+            score -= 15
+            reasons.append('真出货: 跌破MA10+5日累计资金流出+上涨缩量 ★★')
+            sell_signals += 1
+
+        # ---------- 章节二/三: 资金流累计信号 ----------
+        # 当日主力净流入占比>3% (短线启动)
+        if main_net_pct_today is not None and main_net_pct_today > 3:
+            score += 15
+            reasons.append(f'当日主力净流入占比 {main_net_pct_today:.1f}% (>3% 启动信号)')
+            buy_signals += 1
+
+        # 当日主力净流出占比>2% (短线走弱)
+        if main_net_pct_today is not None and main_net_pct_today < -2:
+            score -= 15
+            reasons.append(f'当日主力净流出占比 {main_net_pct_today:.1f}% (短线走弱)')
+            sell_signals += 1
+
+        # 5 日累计主力净流入 (10 日线对应)
+        if can_5d:
+            v = flows['5d']
+            if v > 0:
+                score += 10
+                reasons.append(f'5日累计主力净流入 {v/1e8:.2f}亿 (波段健康)')
+            else:
+                score -= 10
+                reasons.append(f'5日累计主力净流出 {v/1e8:.2f}亿 (波段走坏)')
+                sell_signals += 1
+        else:
+            reasons.append(f'5日累计资金: 待 N≥5天数据 (当前 {flow_days}天)')
+
+        # 10 日累计主力净流入 (20 日线对应)
+        if can_10d:
+            v = flows['10d']
+            if v > 0:
+                score += 12
+                reasons.append(f'10日累计主力净流入 {v/1e8:.2f}亿 (中期强势)')
+            else:
+                score -= 12
+                reasons.append(f'10日累计主力净流出 {v/1e8:.2f}亿 (中期转弱)')
+                sell_signals += 1
+        else:
+            reasons.append(f'10日累计资金: 待 N≥10天数据 (当前 {flow_days}天)')
+
+        # 20 日累计主力净流入 (30 日线对应)
+        if can_20d:
+            v = flows['20d']
+            if v > 0:
+                score += 15
+                reasons.append(f'20日累计主力净流入 {v/1e8:.2f}亿 (机构加仓)')
+            else:
+                score -= 15
+                reasons.append(f'20日累计主力净流出 {v/1e8:.2f}亿 (机构离场)')
+                sell_signals += 1
+        else:
+            reasons.append(f'20日累计资金: 待 N≥20天数据 (当前 {flow_days}天)')
+
+        # ---------- 量价信号 ----------
+        if 0 < change_pct <= 5:
+            score += 5; reasons.append(f'温和上涨 {change_pct:.2f}%')
+        elif 5 < change_pct <= 9.5:
+            score += 3; reasons.append(f'强势上涨 {change_pct:.2f}%')
+
+        # ---------- 信号类型 ----------
+        if sell_signals > buy_signals:
+            signal_type = 'sell'
+        elif buy_signals > 0 and score > 0:
+            signal_type = 'buy'
+        else:
+            signal_type = 'hold'
+
+        # ---------- 评分<0 也保留 (含死亡组合) ----------
+        picks.append({
+            'ts_code': ts_code,
+            'name': latest['name'] or ts_code.split('.')[0],
+            'close': latest['close'],
+            'change_pct': round(change_pct, 2),
+            'ma5': round(ma5, 2), 'ma10': round(ma10, 2),
+            'ma20': round(ma20, 2), 'ma30': round(ma30, 2),
+            'ma5_slope': round(ma5_slope, 1) if ma5_slope is not None else None,
+            'ma10_slope': round(ma10_slope, 1) if ma10_slope is not None else None,
+            'ma20_slope': round(ma20_slope, 1) if ma20_slope is not None else None,
+            'ma30_slope': round(ma30_slope, 1) if ma30_slope is not None else None,
+            'main_net_today': main_net_today,
+            'main_net_pct_today': main_net_pct_today,
+            'main_net_3d': flows.get('3d'),
+            'main_net_5d': flows.get('5d'),
+            'main_net_10d': flows.get('10d'),
+            'main_net_20d': flows.get('20d'),
+            'super_net': super_net, 'super_pct': super_pct,
+            'big_net': big_net, 'big_pct': big_pct,
+            'mid_net': mid_net, 'mid_pct': mid_pct,
+            'small_net': small_net, 'small_pct': small_pct,
+            'score': round(score, 1),
+            'signal_type': signal_type,
+            'flow_days_available': flow_days,
+            'reasons': reasons,
+        })
+
+    conn.close()
+
+    # 按评分绝对值降序 (推荐排序按 score 降序, 卖出信号靠后)
+    picks.sort(key=lambda x: x['score'], reverse=True)
+    return picks[:50]  # 返回 top 50, buy/sell 都包含
+
+
+@app.route('/api/picks/sync', methods=['POST'])
+def api_picks_sync():
+    """触发选股推荐计算。支持 ?date=YYYYMMDD 指定日期。"""
+    try:
+        req_date = request.json.get('date', '') if request.is_json else ''
+        picks = _compute_picks(req_date or None)
+
+        if not picks:
+            return jsonify({'status': 'success', 'message': '无推荐股票', 'count': 0})
+
+        # 保存到数据库
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+
+        if req_date:
+            trade_date = req_date
+        else:
+            latest_row = c.execute('SELECT MAX(trade_date) FROM stock_daily').fetchone()
+            trade_date = latest_row[0] if latest_row and latest_row[0] else datetime.now().strftime('%Y%m%d')
+
+        # 清除旧数据
+        c.execute('DELETE FROM stock_picks WHERE trade_date = ?', (trade_date,))
+
+        # 插入新数据 (按文档字段集)
+        for p in picks:
+            c.execute('''INSERT OR REPLACE INTO stock_picks
+                (trade_date, ts_code, name, close, change_pct,
+                 ma5, ma10, ma20, ma30,
+                 ma5_slope, ma10_slope, ma20_slope, ma30_slope,
+                 main_net_today, main_net_pct_today,
+                 main_net_3d, main_net_5d, main_net_10d, main_net_20d,
+                 super_net, super_pct, big_net, big_pct,
+                 mid_net, mid_pct, small_net, small_pct,
+                 score, signal_type, flow_days_available, reasons_json)
+                VALUES (?,?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?,?,?)''',
+                (trade_date, p['ts_code'], p['name'], p['close'], p['change_pct'],
+                 p['ma5'], p['ma10'], p['ma20'], p['ma30'],
+                 p['ma5_slope'], p['ma10_slope'], p['ma20_slope'], p['ma30_slope'],
+                 p['main_net_today'], p['main_net_pct_today'],
+                 p['main_net_3d'], p['main_net_5d'], p['main_net_10d'], p['main_net_20d'],
+                 p['super_net'], p['super_pct'], p['big_net'], p['big_pct'],
+                 p['mid_net'], p['mid_pct'], p['small_net'], p['small_pct'],
+                 p['score'], p['signal_type'], p['flow_days_available'],
+                 json.dumps(p['reasons'], ensure_ascii=False)))
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            'status': 'success',
+            'count': len(picks),
+            'date': trade_date
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)})
+
+
+@app.route('/api/picks', methods=['GET'])
+def api_picks():
+    """获取选股推荐列表"""
+    limit = min(int(request.args.get('limit', 30)), 100)
+    date = request.args.get('date', '').strip()
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+
+    if date:
+        rows = conn.execute(
+            'SELECT * FROM stock_picks WHERE trade_date = ? ORDER BY score DESC LIMIT ?',
+            (date, limit)
+        ).fetchall()
+    else:
+        # 获取最新日期
+        latest = conn.execute('SELECT MAX(trade_date) as d FROM stock_picks').fetchone()
+        if latest and latest['d']:
+            rows = conn.execute(
+                'SELECT * FROM stock_picks WHERE trade_date = ? ORDER BY score DESC LIMIT ?',
+                (latest['d'], limit)
+            ).fetchall()
+        else:
+            rows = []
+
+    conn.close()
+
+    picks = []
+    for r in rows:
+        # 兼容 reasons / reasons_json 列名
+        raw_reasons = r['reasons'] if 'reasons' in r.keys() else (r['reasons_json'] if 'reasons_json' in r.keys() else '')
+        try:
+            reasons = json.loads(raw_reasons) if raw_reasons else []
+        except Exception:
+            reasons = []
+
+        def _f(v):
+            return v if v is not None else None
+
+        picks.append({
+            'ts_code': r['ts_code'],
+            'name': r['name'],
+            'close': r['close'],
+            'change_pct': r['change_pct'],
+            # 均线
+            'ma5': _f(r['ma5']) if 'ma5' in r.keys() else None,
+            'ma10': _f(r['ma10']) if 'ma10' in r.keys() else None,
+            'ma20': _f(r['ma20']) if 'ma20' in r.keys() else None,
+            'ma30': _f(r['ma30']) if 'ma30' in r.keys() else None,
+            'ma5_slope': _f(r['ma5_slope']) if 'ma5_slope' in r.keys() else None,
+            'ma10_slope': _f(r['ma10_slope']) if 'ma10_slope' in r.keys() else None,
+            'ma20_slope': _f(r['ma20_slope']) if 'ma20_slope' in r.keys() else None,
+            'ma30_slope': _f(r['ma30_slope']) if 'ma30_slope' in r.keys() else None,
+            # 资金流
+            'main_net_today': _f(r['main_net_today']) if 'main_net_today' in r.keys() else None,
+            'main_net_pct_today': _f(r['main_net_pct_today']) if 'main_net_pct_today' in r.keys() else None,
+            'main_net_3d': _f(r['main_net_3d']) if 'main_net_3d' in r.keys() else None,
+            'main_net_5d': _f(r['main_net_5d']) if 'main_net_5d' in r.keys() else None,
+            'main_net_10d': _f(r['main_net_10d']) if 'main_net_10d' in r.keys() else None,
+            'main_net_20d': _f(r['main_net_20d']) if 'main_net_20d' in r.keys() else None,
+            'super_net': _f(r['super_net']) if 'super_net' in r.keys() else None,
+            'super_pct': _f(r['super_pct']) if 'super_pct' in r.keys() else None,
+            'big_net': _f(r['big_net']) if 'big_net' in r.keys() else None,
+            'big_pct': _f(r['big_pct']) if 'big_pct' in r.keys() else None,
+            'mid_net': _f(r['mid_net']) if 'mid_net' in r.keys() else None,
+            'mid_pct': _f(r['mid_pct']) if 'mid_pct' in r.keys() else None,
+            'small_net': _f(r['small_net']) if 'small_net' in r.keys() else None,
+            'small_pct': _f(r['small_pct']) if 'small_pct' in r.keys() else None,
+            'score': r['score'],
+            'signal_type': r['signal_type'] if 'signal_type' in r.keys() else 'hold',
+            'flow_days_available': r['flow_days_available'] if 'flow_days_available' in r.keys() else 0,
+            'reasons': reasons,
+        })
+
+    return jsonify({
+        'picks': picks,
+        'date': rows[0]['trade_date'] if rows else '',
+        'count': len(picks)
+    })
 
 
 if __name__ == '__main__':

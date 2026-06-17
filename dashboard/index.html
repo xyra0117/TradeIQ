@@ -747,6 +747,10 @@
   }
   .pos-stat-unit { font-size: 11px; color: var(--text-muted); font-weight: 400; }
 
+  .pos-detail-fundflow { padding: 12px 16px 4px; border-top: 1px solid var(--border); }
+  .pos-detail-fundflow-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .pos-detail-fundflow-tip { color: var(--text-muted); font-size: 12px; font-family: 'JetBrains Mono', monospace; }
+
   .pos-detail-table-wrap { overflow-x: auto; }
   .pos-detail-table { width: 100%; border-collapse: collapse; font-size: 12px; }
   .pos-detail-table th, .pos-detail-table td {
@@ -839,6 +843,17 @@
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
   ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+  /* 主力净流入 tab */
+  .flow-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .flow-stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 12px 14px; }
+  .flow-stat-label { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
+  .flow-stat-value { font-size: 20px; font-weight: 600; font-family: 'JetBrains Mono', monospace; }
+  .flow-stat-sub { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+  .flow-empty { padding: 60px 20px; text-align: center; color: var(--text-muted); }
+  .flow-empty-icon { font-size: 36px; margin-bottom: 8px; opacity: 0.4; }
+  .flow-empty-text { font-size: 13px; }
+  .flow-chart-box { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 12px; margin-bottom: 14px; }
 </style>
 </head>
 <body>
@@ -860,7 +875,9 @@
       <button class="tab-btn active" data-tab="index">核心指数</button>
       <button class="tab-btn" data-tab="leaderboard">阶段涨幅榜单</button>
       <button class="tab-btn" data-tab="limitup">涨停拆解明细</button>
+      <button class="tab-btn" data-tab="flow">主力净流入</button>
       <button class="tab-btn" data-tab="positions">持仓</button>
+      <button class="tab-btn" data-tab="picks">选股推荐</button>
     </div>
     <div class="tab-date-controls" id="tabDateControls">
       <!-- 核心指数 -->
@@ -906,13 +923,27 @@
         <input type="text" id="luDate" class="date-picker" placeholder="选择日期">
         <span class="all-date-toggle active" id="luAllToggle">全部日期</span>
       </div>
-      <!-- 持仓 -->
+      <!-- 主力净流入 -->
+      <div class="tab-dc" data-tab="flow">
+        <div class="sync-left">
+          <div class="sync-progress-wrap" id="flowProgressWrap" style="display:none">
+            <div class="sync-progress-label" id="flowProgressLabel">准备同步…</div>
+            <div class="sync-progress-bar"><div class="sync-progress-fill" id="flowProgressFill"></div></div>
+          </div>
+          <button class="date-sync-btn" id="flowSyncBtn">同步数据</button>
+          <div class="date-nav-btns">
+            <button class="date-nav-btn" id="flowPrevBtn" title="上一日">‹</button>
+            <button class="date-nav-btn" id="flowNextBtn" title="下一日">›</button>
+          </div>
+        </div>
+        <input type="text" id="flowDate" class="date-picker" placeholder="选择日期">
+        <span class="all-date-toggle active" id="flowAllToggle">全部日期</span>
+      </div>
       <div class="tab-dc" data-tab="positions">
         <div class="sync-left">
           <span id="posLastUpdate" style="font-size:11px;color:var(--text-muted);font-family:'JetBrains Mono',monospace">未刷新</span>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
-          <button class="date-sync-btn" id="posRefreshBtn" style="background:var(--accent-cyan);color:#111">刷新行情</button>
           <span class="filter-label" style="margin:0 4px 0 8px">自动</span>
           <select class="filter-select" id="posAutoInterval" style="width:auto">
             <option value="0">关闭</option>
@@ -922,6 +953,21 @@
             <option value="300">5分钟</option>
           </select>
         </div>
+      </div>
+      <div class="tab-dc" data-tab="picks">
+        <div class="sync-left">
+          <div class="sync-progress-wrap" id="picksProgressWrap">
+            <div class="sync-progress-label" id="picksProgressLabel">准备计算…</div>
+            <div class="sync-progress-bar"><div class="sync-progress-fill" id="picksProgressFill"></div></div>
+          </div>
+          <button class="date-sync-btn" id="picksSyncBtn">同步数据</button>
+          <div class="date-nav-btns">
+            <button class="date-nav-btn" id="picksPrevBtn" title="上一日">‹</button>
+            <button class="date-nav-btn" id="picksNextBtn" title="下一日">›</button>
+          </div>
+        </div>
+        <input type="text" id="picksDate" class="date-picker" placeholder="选择日期">
+        <span class="all-date-toggle active" id="picksAllToggle">全部日期</span>
       </div>
     </div>
   </div>
@@ -990,7 +1036,60 @@
     </div>
   </div>
 
-  <!-- Tab 4: 持仓 -->
+  <!-- Tab 5: 主力净流入 (Skill 抓取的全市场数据) -->
+  <div class="tab-panel" id="panel-flow">
+    <!-- 过滤器 -->
+    <div class="filters">
+      <div class="filter-group">
+        <span class="filter-label">市场</span>
+        <select class="filter-select" id="flowMktMarket">
+          <option value="all">全部</option>
+          <option value="sh">沪市</option>
+          <option value="sz">深市</option>
+          <option value="cy">创业板</option>
+          <option value="kcb">科创板</option>
+        </select>
+      </div>
+      <div class="filter-group" style="flex:1">
+        <input type="text" class="date-picker" id="flowMktSearch" placeholder="🔍 搜索 代码/名称" style="width:240px">
+      </div>
+      <div class="filter-group" style="text-align:right;color:var(--text-muted);font-size:11px;font-family:'JetBrains Mono',monospace" id="flowMktInfo">—</div>
+    </div>
+
+    <!-- 表格 -->
+    <div class="table-box" style="max-height:65vh;overflow:auto">
+      <table id="flowMktTable">
+        <thead>
+          <tr>
+            <th style="width:50px;position:sticky;top:0;background:var(--bg-card)">#</th>
+            <th style="position:sticky;top:0;background:var(--bg-card)">代码</th>
+            <th style="position:sticky;top:0;background:var(--bg-card)">名称</th>
+            <th style="text-align:right;position:sticky;top:0;background:var(--bg-card)" class="sortable" data-sort="close">最新价 <span class="sort-arrow"></span></th>
+            <th style="text-align:right;position:sticky;top:0;background:var(--bg-card)" class="sortable" data-sort="change_pct">涨跌幅 <span class="sort-arrow"></span></th>
+            <th style="text-align:right;position:sticky;top:0;background:var(--bg-card)" class="sortable" data-sort="main_net_inflow">主力净流入 <span class="sort-arrow"></span></th>
+            <th style="text-align:right;position:sticky;top:0;background:var(--bg-card)" class="sortable" data-sort="main_net_pct">净占比 <span class="sort-arrow"></span></th>
+            <th style="text-align:right;position:sticky;top:0;background:var(--bg-card)" class="sortable" data-sort="super_net">超大单 <span class="sort-arrow"></span></th>
+            <th style="text-align:right;position:sticky;top:0;background:var(--bg-card)" class="sortable" data-sort="big_net">大单 <span class="sort-arrow"></span></th>
+            <th style="text-align:right;position:sticky;top:0;background:var(--bg-card)" class="sortable" data-sort="mid_net">中单 <span class="sort-arrow"></span></th>
+            <th style="text-align:right;position:sticky;top:0;background:var(--bg-card)" class="sortable" data-sort="small_net">小单 <span class="sort-arrow"></span></th>
+            <th style="position:sticky;top:0;background:var(--bg-card)">板块</th>
+          </tr>
+        </thead>
+        <tbody id="flowMktTbody">
+          <tr><td colspan="12" class="loading">加载中…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 空状态：没数据时引导用户同步 -->
+    <div class="flow-empty" id="flowMktEmpty" style="display:none">
+      <div class="flow-empty-icon">📊</div>
+      <div class="flow-empty-text">还没有主力净流入数据</div>
+      <div class="flow-empty-text" style="font-size:11px;margin-top:8px">点上方"🔄 同步今日数据"按钮，等 1-2 分钟抓取完成</div>
+    </div>
+  </div>
+
+  <!-- Tab 6: 持仓 -->
   <div class="tab-panel" id="panel-positions">
     <div class="filters">
       <div class="filter-group">
@@ -1103,12 +1202,14 @@
             <th style="text-align:right" class="sortable" data-sort="market_value">持仓市值 <span class="sort-arrow"></span></th>
             <th style="text-align:right" class="sortable" data-sort="profit">浮动盈亏 <span class="sort-arrow"></span></th>
             <th style="text-align:right" class="sortable" data-sort="profit_pct">盈亏比 <span class="sort-arrow"></span></th>
+            <th style="text-align:right" class="sortable" data-sort="main_net_5d">5日主力 <span class="sort-arrow"></span></th>
+            <th style="text-align:right" class="sortable" data-sort="main_net_20d">20日主力 <span class="sort-arrow"></span></th>
             <th class="sortable" data-sort="last_trade_date">交易日期 <span class="sort-arrow"></span></th>
             <th>操作</th>
           </tr>
         </thead>
         <tbody id="posTableBody">
-          <tr><td colspan="13" style="text-align:center;color:var(--text-muted);padding:40px 0">暂无持仓, 请导入 CSV/Excel 或手动添加</td></tr>
+          <tr><td colspan="15" style="text-align:center;color:var(--text-muted);padding:40px 0">暂无持仓, 请导入 CSV/Excel 或手动添加</td></tr>
         </tbody>
       </table>
     </div>
@@ -1197,6 +1298,49 @@
           </tbody>
         </table>
       </div>
+    </div>
+  </div>
+
+  <!-- Tab 7: 选股推荐 -->
+  <div class="tab-panel" id="panel-picks">
+    <div class="filters">
+      <div class="filter-group" style="flex:1;text-align:right;color:var(--text-muted);font-size:11px;font-family:'JetBrains Mono',monospace">
+        <span id="picksInfo">—</span>
+      </div>
+    </div>
+    <div class="table-box" style="max-height:65vh;overflow:auto">
+      <!-- 资金流数据状态提示 (文档要求多窗口累计, 但需要数据积累) -->
+      <div id="picksFlowStatus" style="padding:8px 12px;background:rgba(255,200,0,0.06);border-bottom:1px solid var(--border);font-size:12px;color:var(--text-secondary);font-family:'JetBrains Mono',monospace;display:flex;justify-content:space-between;align-items:center">
+        <div>
+          资金流数据: <span id="picksFlowDays">—</span> 天 ·
+          <span style="color:var(--text-muted)">需 ≥3 天算 3 日累计, ≥5 天算 5/10 日累计, ≥20 天算 20 日累计</span>
+        </div>
+        <div id="picksLastQuote" style="color:var(--text-secondary);font-size:11px">未刷新</div>
+      </div>
+      <table id="posPicksTable">
+        <thead>
+          <tr>
+            <th style="width:40px;text-align:center;color:var(--text-muted)">排名</th>
+            <th>代码</th>
+            <th>名称</th>
+            <th style="text-align:right" class="sortable" data-sort="score">评分<span class="sort-arrow"></span></th>
+            <th style="text-align:right" class="sortable" data-sort="change_pct">涨幅%<span class="sort-arrow"></span></th>
+            <th style="text-align:right">现价</th>
+            <th style="text-align:right" class="sortable" data-sort="ma5">MA5<span class="sort-arrow"></span></th>
+            <th style="text-align:right" class="sortable" data-sort="ma10">MA10<span class="sort-arrow"></span></th>
+            <th style="text-align:right" class="sortable" data-sort="ma20">MA20<span class="sort-arrow"></span></th>
+            <th style="text-align:right" class="sortable" data-sort="ma30">MA30<span class="sort-arrow"></span></th>
+            <th style="text-align:right">信号</th>
+            <th style="text-align:right" class="sortable" data-sort="main_net_today">当日主力<span class="sort-arrow"></span></th>
+            <th style="text-align:right">5 日累计</th>
+            <th style="text-align:right">10 日累计</th>
+            <th style="text-align:right">20 日累计</th>
+          </tr>
+        </thead>
+        <tbody id="picksTableBody">
+          <tr><td colspan="15" style="text-align:center;color:var(--text-muted);padding:40px 0">暂无推荐, 请点击"同步今日"运行选股</td></tr>
+        </tbody>
+      </table>
     </div>
   </div>
 </div>
@@ -1307,7 +1451,7 @@ let indexData = [], lbData = [], overviewData = [];
 let idxCharts = {};
 let lbCharts = {};
 
-const TAB_HANDLERS = { index: renderIndex, leaderboard: renderLB, limitup: renderLimitup, positions: renderPositions };
+const TAB_HANDLERS = { index: renderIndex, leaderboard: renderLB, limitup: renderLimitup, flow: renderFlow, positions: renderPositions, picks: loadPicks };
 const STREAK_FILTERS = { streak: v => v.streak !== '首板', first: v => v.streak === '首板' };
 
 // ── Tab switching ──
@@ -1331,8 +1475,8 @@ let stockDataDates = new Set();  // 本地数据库有股票日线数据的日�
 let lastSelectedDate = '';  // 保留用户选择的日期
 
 // ── Tab 独立状态 ──
-let idxAllMode = true, lbAllMode = false, luAllMode = true;
-let idxSelDate = '', lbSelDate = '', luSelDate = '';
+let idxAllMode = true, lbAllMode = false, luAllMode = true, picksAllMode = true;
+let idxSelDate = '', lbSelDate = '', luSelDate = '', picksSelDate = '';
 let lbDataCache = new Map();  // { date: [...] } 按日期缓存涨幅榜数据
 let freqData = null;  // 上榜频次统计数据
 let freqSelRange = '1个月';  // 当前选中的时间区间 Tab
@@ -1398,7 +1542,17 @@ async function loadData(selectedDate) {
       }
     } catch(e) { console.warn('limitup/latest-date API failed:', e); }
 
-    // 三组独立的"需不需要自动同步今日"判断
+    // 主力净流入最新日期（用于判断是否需要自动同步）
+    let flowLatestDate = '';
+    try {
+      const rFlowDate = await fetch('/api/flow/latest-date');
+      if (rFlowDate.ok) {
+        const d = await rFlowDate.json();
+        flowLatestDate = d.latest_date || '';
+      }
+    } catch(e) { console.warn('flow/latest-date API failed:', e); }
+
+    // 四组独立的"需不需要自动同步今日"判断
     const now = new Date();
     const todayStr = String(now.getFullYear()) + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0');
     const isTradeDay = tradingDates.has(todayStr);
@@ -1406,9 +1560,10 @@ async function loadData(selectedDate) {
     const needSyncIndex = isTradeDay && after5pm && latestActualDate < todayStr;
     const needSyncLu    = isTradeDay && after5pm && luLatestDate    < todayStr;
     const needSyncLb    = isTradeDay && after5pm && lbLatestDate    < todayStr;
+    const needSyncFlow  = isTradeDay && after5pm && flowLatestDate  < todayStr;
 
-    if (needSyncIndex || needSyncLu || needSyncLb) {
-      console.log('[auto-sync]', { todayStr, needSyncIndex, needSyncLu, needSyncLb, latestActualDate, luLatestDate, lbLatestDate });
+    if (needSyncIndex || needSyncLu || needSyncLb || needSyncFlow) {
+      console.log('[auto-sync]', { todayStr, needSyncIndex, needSyncLu, needSyncLb, needSyncFlow, latestActualDate, luLatestDate, lbLatestDate, flowLatestDate });
     }
 
     const todayWithDash = `${todayStr.slice(0,4)}-${todayStr.slice(4,6)}-${todayStr.slice(6,8)}`;
@@ -1517,6 +1672,21 @@ async function loadData(selectedDate) {
       }
     }
 
+    // 4) 同步今日主力净流入 (fire-and-forget, 约 1-2 分钟)
+    if (needSyncFlow) {
+      console.log('[auto-sync] 同步今日主力净流入...');
+      fetch('/api/flow/sync-market', { method: 'POST' })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data && (data.status === 'started' || data.status === 'already_running')) {
+            console.log('[auto-sync] 主力净流入已触发, 状态:', data.status, '~1-2分钟');
+          } else {
+            console.warn('[auto-sync] 主力净流入触发失败:', data);
+          }
+        })
+        .catch(e => console.warn('[auto-sync] 主力净流入 fetch 失败:', e));
+    }
+
     // 找有数据的最新日期（用于初始加载）
     const validDates = [...new Set(indexData.map(d => d.date))].sort().reverse();
     // 用户切换日期时信任选择，fallback 到最新日期仅在自动加载时
@@ -1562,13 +1732,13 @@ function initTabDatePickers() {
   const minDate = sortedDates[0];
   const maxDate = sortedDates[sortedDates.length - 1];
 
-  ['idxDate', 'lbDate', 'luDate'].forEach(pickerId => {
+  ['idxDate', 'lbDate', 'luDate', 'flowDate', 'picksDate'].forEach(pickerId => {
     if (window.fpInstances[pickerId]) {
       window.fpInstances[pickerId].destroy();
       window.fpInstances[pickerId] = null;
     }
     const instance = flatpickr('#' + pickerId, {
-      dateFormat: 'Y年m月d日',
+      dateFormat: 'Y-m-d',
       altFormat: 'Y年m月d日',
       defaultDate: null,
       minDate: formatDateForInput(minDate),
@@ -1638,6 +1808,11 @@ function initTabDatePickers() {
     });
     window.fpInstances[pickerId] = instance;
   });
+
+  if (_flowSelDate && window.fpInstances['flowDate']) {
+    const [y, m, d] = [_flowSelDate.slice(0,4), _flowSelDate.slice(4,6), _flowSelDate.slice(6,8)];
+    window.fpInstances['flowDate'].setDate(`${y}-${m}-${d}`, true);
+  }
 }
 
 function formatDateForInput(dateStr) {
@@ -1891,6 +2066,7 @@ function setupTabDatePickers() {
       fp?.setDate(formatDateForInput(targetDate), true);
       idxToggle.classList.remove('active');
     }
+    if (typeof updateIdxNav === 'function') updateIdxNav(idxSelDate);
     renderIndex();
   });
   document.getElementById('idxDate').addEventListener('change', async (e) => {
@@ -1899,14 +2075,16 @@ function setupTabDatePickers() {
       idxAllMode = true;
       idxSelDate = '';
       idxToggle.classList.add('active');
+      if (typeof updateIdxNav === 'function') updateIdxNav('');
       renderIndex();
       return;
     }
-    const selDate = picker.value.replace(/[年月日]/g, '');
+    const selDate = picker.value.replace(/[^\d]/g, '');
     if (!tradingDates.has(selDate)) return;
     idxAllMode = false;
     idxSelDate = selDate;
     idxToggle.classList.remove('active');
+    if (typeof updateIdxNav === 'function') updateIdxNav(selDate);
     const hasIdx = indexData.some(d => d.date === selDate);
     const hasOv = overviewData.some(d => d.date === selDate);
     if (!hasIdx || !hasOv) {
@@ -1967,6 +2145,7 @@ function setupTabDatePickers() {
       const rFreq = await fetch(`/api/frequency?date=${targetDate}`);
       if (rFreq.ok) freqData = await rFreq.json();
     }
+    if (typeof updateLbNav === 'function') updateLbNav(lbSelDate);
     renderLB();
   });
   document.getElementById('lbDate').addEventListener('change', async () => {
@@ -1975,14 +2154,16 @@ function setupTabDatePickers() {
       lbAllMode = true;
       lbSelDate = '';
       lbToggle.classList.add('active');
+      if (typeof updateLbNav === 'function') updateLbNav('');
       renderLB();
       return;
     }
-    const selDate = picker.value.replace(/[年月日]/g, '');
+    const selDate = picker.value.replace(/[^\d]/g, '');
     if (!tradingDates.has(selDate)) return;
     lbAllMode = false;
     lbSelDate = selDate;
     lbToggle.classList.remove('active');
+    if (typeof updateLbNav === 'function') updateLbNav(selDate);
 
     // 检查缓存
     const cachedKey = selDate + '_5日';
@@ -2134,6 +2315,7 @@ function setupTabDatePickers() {
       fp?.setDate(formatDateForInput(targetDate), true);
       luToggle.classList.remove('active');
     }
+    if (typeof updateLuNav === 'function') updateLuNav(luSelDate);
     renderLimitup();
   });
   document.getElementById('luDate').addEventListener('change', async () => {
@@ -2142,15 +2324,26 @@ function setupTabDatePickers() {
       luAllMode = true;
       luSelDate = '';
       luToggle.classList.add('active');
+      if (typeof updateLuNav === 'function') updateLuNav('');
       renderLimitup();
       return;
     }
-    const selDate = picker.value.replace(/[年月日]/g, '');
+    const selDate = picker.value.replace(/[^\d]/g, '');
     if (!tradingDates.has(selDate)) return;
     luAllMode = false;
     luSelDate = selDate;
     luToggle.classList.remove('active');
+    if (typeof updateLuNav === 'function') updateLuNav(selDate);
     renderLimitup();
+
+    // 自动同步：如果没有该日期的涨停数据，且不是最新交易日，自动拉取
+    const hasData = limitupData.some(d => d.date === selDate);
+    const sortedDates = [...tradingDates].sort().reverse();
+    const latestTradingDate = sortedDates[0];
+    if (!hasData && selDate !== latestTradingDate) {
+      const dateDash = selDate.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3');
+      fetchAndParseLu(dateDash);
+    }
   });
 
   // 同步按钮
@@ -2324,9 +2517,108 @@ function setupTabDatePickers() {
   updateFloatNavState();
 
   // 监听所有日期选择器变化，同步更新悬浮按钮
-  ['idxDate', 'lbDate', 'luDate'].forEach(id => {
+  ['idxDate', 'lbDate', 'luDate', 'picksDate'].forEach(id => {
     document.getElementById(id)?.addEventListener('change', () => setTimeout(updateFloatNavState, 100));
   });
+
+  // Tab 6: 选股推荐
+  const picksToggle = document.getElementById('picksAllToggle');
+  picksToggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const fp = window.fpInstances['picksDate'];
+    if (fp?.isOpen) fp.close();
+    picksAllMode = !picksAllMode;
+    if (picksAllMode) {
+      picksSelDate = '';
+      fp?.clear();
+      picksToggle.classList.add('active');
+    } else {
+      const sorted = [...tradingDates].sort().reverse();
+      const targetDate = sorted[0];
+      picksSelDate = targetDate;
+      fp?.setDate(formatDateForInput(targetDate), true);
+      picksToggle.classList.remove('active');
+    }
+    loadPicks();
+    _updatePicksNavButtons();
+  });
+  document.getElementById('picksDate').addEventListener('change', async () => {
+    const picker = document.getElementById('picksDate');
+    if (!picker.value) {
+      picksAllMode = true;
+      picksSelDate = '';
+      picksToggle.classList.add('active');
+      loadPicks();
+      _updatePicksNavButtons();
+      return;
+    }
+    const selDate = picker.value.replace(/[^\d]/g, '');
+    if (!tradingDates.has(selDate)) return;
+    picksAllMode = false;
+    picksSelDate = selDate;
+    picksToggle.classList.remove('active');
+    loadPicks();
+    _updatePicksNavButtons();
+  });
+
+  // 上一日 / 下一日 (倒序列表 + 语义化 delta, 跟主力净流入一致)
+  function _picksShiftDate(delta) {
+    const sortedDesc = [...tradingDates].sort().reverse();  // [最新..最旧]
+    if (!sortedDesc.length) {
+      showToast('⚠️ 没有可用日期数据');
+      return;
+    }
+    let idx;
+    if (picksSelDate) {
+      idx = sortedDesc.indexOf(picksSelDate);
+      if (idx === -1) idx = 0;
+    } else {
+      idx = 0;
+    }
+    const newIdx = idx - delta;  // delta=+1=下一日(更新), delta=-1=上一日(更旧)
+    if (newIdx < 0 || newIdx >= sortedDesc.length) {
+      showToast(newIdx < 0 ? '⚠️ 已经是最近的日期' : '⚠️ 已经是最早的日期');
+      return;
+    }
+    picksSelDate = sortedDesc[newIdx];
+    picksAllMode = false;
+    picksToggle.classList.remove('active');
+    if (fpInstances['picksDate']) fpInstances['picksDate'].setDate(formatDateForInput(picksSelDate), true);
+    loadPicks();
+    _updatePicksNavButtons();
+  }
+  document.getElementById('picksPrevBtn').addEventListener('click', () => _picksShiftDate(-1));
+  document.getElementById('picksNextBtn').addEventListener('click', () => _picksShiftDate(+1));
+
+  // 选股推荐上一日/下一日按钮的禁用状态
+  function _updatePicksNavButtons() {
+    const prevBtn = document.getElementById('picksPrevBtn');
+    const nextBtn = document.getElementById('picksNextBtn');
+    if (!prevBtn || !nextBtn) return;
+    const sortedDesc = [...tradingDates].sort().reverse();
+    let atOldest = false, atNewest = false;
+    if (sortedDesc.length === 0) {
+      atOldest = atNewest = true;
+    } else if (!picksSelDate) {
+      atNewest = true;  // 默认 "全部日期" 模式 = 在最新位置
+    } else {
+      const idx = sortedDesc.indexOf(picksSelDate);
+      if (idx === -1) {
+        atOldest = atNewest = true;
+      } else {
+        atNewest = idx === 0;
+        atOldest = idx === sortedDesc.length - 1;
+      }
+    }
+    [prevBtn, nextBtn].forEach((btn, i) => {
+      const disabled = i === 0 ? atOldest : atNewest;
+      btn.disabled = disabled;
+      btn.style.opacity = disabled ? '0.4' : '1';
+      btn.style.cursor = disabled ? 'not-allowed' : 'pointer';
+    });
+  }
+  // 初始化时调一次 (默认状态)
+  _updatePicksNavButtons();
 }
 
 // ── Tab 1: 核心指数 ──
@@ -3223,6 +3515,19 @@ function profitClass(n) {
   return n >= 0 ? 'val-up' : 'val-down';
 }
 
+function fmtNet(v) {
+  // 主力净流入格式化: 元 → 万 / 亿
+  if (v === null || v === undefined) return '—';
+  const sign = v >= 0 ? '+' : '';
+  if (Math.abs(v) >= 1e8) return sign + (v / 1e8).toFixed(2) + '亿';
+  if (Math.abs(v) >= 1e4) return sign + (v / 1e4).toFixed(2) + '万';
+  return sign + v.toFixed(0);
+}
+function flowColor(v) {
+  if (v === null || v === undefined) return '';
+  return v >= 0 ? 'val-up' : 'val-down';
+}
+
 async function loadPositions({ silent = false } = {}) {
   const statusEl = document.getElementById('posImportStatus');
   if (!silent) statusEl.textContent = '刷新中...';
@@ -3325,7 +3630,7 @@ function _posClass(tableKey, code) {
 function renderPositionsTable(list) {
   const tbody = document.getElementById('posTableBody');
   if (!list || list.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;color:var(--text-muted);padding:40px 0">暂无持仓, 请导入 CSV/Excel 或手动添加</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="15" style="text-align:center;color:var(--text-muted);padding:40px 0">暂无持仓, 请导入 CSV/Excel 或手动添加</td></tr>';
     return;
   }
   const sorted = applySort(list, posSort);
@@ -3368,11 +3673,13 @@ function renderPositionsTable(list) {
         <td style="text-align:right">${mv !== null && mv !== undefined ? fmtMoney(mv) : '—'}</td>
         <td style="text-align:right;cursor:help" class="${profitClass(profit)}" title="${profitTip}">${profit !== null && profit !== undefined ? (profit >= 0 ? '+' : '') + fmtMoney(profit) : '—'}</td>
         <td style="text-align:right" class="${profitClass(pct)}">${pct !== null && pct !== undefined ? fmtPct(pct) : '—'}</td>
+        <td style="text-align:right" class="${flowColor(p.main_net_5d)}" title="近 5 个交易日主力资金净流入累计 (元)">${fmtNet(p.main_net_5d)}</td>
+        <td style="text-align:right" class="${flowColor(p.main_net_20d)}" title="近 20 个交易日主力资金净流入累计 (元)">${fmtNet(p.main_net_20d)}</td>
         <td>${_normDate(p.last_trade_date || p.buy_date) || '—'}</td>
         <td><span class="pos-type-tag pos-type-${p.position_type || '建仓'}">${p.position_type || '建仓'}</span></td>
       </tr>`);
     if (_isExpanded('positions', p.ts_code) && !seenCodes.has(p.ts_code)) {
-      rows.push(_renderPosDetailRow('positions', p.ts_code, 13));
+      rows.push(_renderPosDetailRow('positions', p.ts_code, 15));
       seenCodes.add(p.ts_code);
     }
   });
@@ -3442,6 +3749,8 @@ function _clearTradesDetailIfUnused(tsCode) {
 function _rerenderPositionRows() {
   // 重新渲染表格, 保留展开状态和缓存. 不重新拉 positions (避免闪烁 + 后端命中)
   renderPositionsTable(positionsCache);
+  // 加载展开行的资金流图 (DOM 里有 canvas 才会真正请求)
+  expandedPos.forEach(code => _loadPosFlowChart(code));
 }
 
 function _renderPosDetailRow(tableKey, tsCode, colspan) {
@@ -3528,6 +3837,7 @@ function _buildDetailFromLocalCache(tsCode) {
 
 function _renderPosDetailContent(cache) {
   const { summary, trades, summary_pos } = cache;
+  const tsCode = cache.ts_code || '';  // 用于图表 canvas id
   // 总盈亏 = 持仓浮动盈亏 (positionsCache) + 已实现盈亏 (trades summary)
   const unreal = summary_pos ? (summary_pos.profit || 0) : 0;
   const realized = summary ? (summary.realized_pnl || 0) : 0;
@@ -3566,7 +3876,15 @@ function _renderPosDetailContent(cache) {
             <div class="pos-stat"><div class="pos-stat-label">总税费</div><div class="pos-stat-value">${totalFees.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}<span class="pos-stat-unit"> 元</span></div></div>
             <div class="pos-stat" title="持仓浮动盈亏 = (现价-成本)×数量 - 卖佣 - 印花税 - 过户费"><div class="pos-stat-label">持仓浮动</div><div class="pos-stat-value ${unreal >= 0 ? 'val-up' : 'val-down'}">${unreal >= 0 ? '+' : ''}${unrealTxt}</div></div>
             <div class="pos-stat" title="FIFO 简化: 卖出净额 - 卖单对应买入成本(含买入费)"><div class="pos-stat-label">已实现盈亏</div><div class="pos-stat-value ${realized >= 0 ? 'val-up' : 'val-down'}">${realized >= 0 ? '+' : ''}${realTxt}</div></div>
-          </div>
+    </div>
+  </div>
+      <div class="pos-detail-fundflow">
+        <div class="pos-detail-fundflow-head">
+          <span class="pos-detail-label">主力净流入（近 60 日）</span>
+          <span class="pos-detail-fundflow-tip" id="posFlowTip-${tsCode}">加载中…</span>
+        </div>
+        <div class="chart-container" style="height:180px">
+          <canvas id="posFlowChart-${tsCode}"></canvas>
         </div>
       </div>
       <div class="pos-detail-table-wrap">
@@ -3663,6 +3981,69 @@ function _rerenderTable(tableKey) {
   if (tableKey === 'positions') renderPositionsTable(positionsCache);
   else if (tableKey === 'buys') renderBuyTable(buysCache);
   else if (tableKey === 'sells') renderSellTable(sellCache);
+  else if (tableKey === 'picks') renderPicksTable(picksCache);
+  // 重新展开的 detail row 加载资金流图
+  const expanded = tableKey === 'positions' ? expandedPos
+                  : tableKey === 'buys' ? expandedBuys
+                  : expandedSells;
+  expanded.forEach(code => _loadPosFlowChart(code));
+}
+
+// 持仓展开行的主力净流入 Chart.js 柱状图 (近 60 日)
+const _posFlowCharts = {};  // tsCode → Chart instance
+
+async function _loadPosFlowChart(tsCode) {
+  const tipEl = document.getElementById(`posFlowTip-${tsCode}`);
+  const canvas = document.getElementById(`posFlowChart-${tsCode}`);
+  if (!canvas) return;  // 详情行不在 DOM 中
+  try {
+    const r = await fetch(`/api/flow/single?ts_code=${encodeURIComponent(tsCode)}&days=60`);
+    if (!r.ok) throw new Error('API ' + r.status);
+    const d = await r.json();
+    if (!d.daily) throw new Error('无数据');
+    // 销毁旧实例 (避免 canvas 复用报错)
+    if (_posFlowCharts[tsCode]) { _posFlowCharts[tsCode].destroy(); }
+    const daily = [...d.daily].reverse();  // API DESC → ASC 画图
+    const labels = daily.map(x => x.trade_date.slice(4, 6) + '/' + x.trade_date.slice(6, 8));
+    const values = daily.map(x => x.main_net_inflow);
+    _posFlowCharts[tsCode] = new Chart(canvas.getContext('2d'), {
+      type: 'bar',
+      data: { labels, datasets: [{
+        data: values,
+        backgroundColor: values.map(v => v >= 0 ? 'rgba(239, 68, 68, 0.85)' : 'rgba(34, 197, 94, 0.85)'),
+        borderWidth: 0,
+      }]},
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#1a2332',
+            borderColor: '#1e2a3a',
+            titleColor: '#e2e8f0',
+            bodyColor: '#8892a4',
+            callbacks: {
+              label: (ctx) => {
+                const v = ctx.parsed.y;
+                const sign = v >= 0 ? '+' : '';
+                return sign + (v / 1e4).toFixed(1) + ' 万';
+              }
+            }
+          }
+        },
+        scales: {
+          x: { ticks: { color: '#8892a4', font: { size: 10 } }, grid: { color: 'rgba(30,42,58,0.5)' } },
+          y: { ticks: { color: '#8892a4', font: { size: 10 },
+                callback: (v) => (v / 1e4).toFixed(0) + '万' }, grid: { color: 'rgba(30,42,58,0.5)' } },
+        }
+      }
+    });
+    const sum60 = d.periods[60] || 0;
+    if (tipEl) tipEl.textContent = `累计 ${(sum60 / 1e4).toFixed(0)} 万 · 流入 ${d.summary.days_pos}/${d.summary.days_total} 天`;
+  } catch (e) {
+    if (tipEl) tipEl.textContent = '加载失败: ' + e.message;
+  }
 }
 
 async function deletePosition(id) {
@@ -3682,6 +4063,7 @@ function renderPositions() {
   loadBuyPositions();
   loadSellPositions();
   _preloadAllTradesSummary();  // 预拉所有 ts_code 的 summary (FIFO 精确), 后续展开 0 加载
+  loadPicks();                 // 拉选股推荐 (更新 subtab 角标)
   loadReconcileLog();           // 拉对账日志 (更新 subtab 角标)
   startPosAutoRefresh();
   refreshTradesPending();
@@ -3766,6 +4148,235 @@ function renderBuyTable(list) {
 }
 
 // ── 对账日志 (self-heal 事件记录) ──
+// ── 选股推荐 (基于 MA5/10/30 + 价格 + 涨跌幅) ──
+let picksCache = [];
+let _picksReqSeq = 0;  // 防止旧请求覆盖用户最新选择
+async function loadPicks() {
+  const seq = ++_picksReqSeq;
+  try {
+    let url = '/api/picks?limit=30';
+    if (picksSelDate) {
+      url += `&date=${picksSelDate}`;
+    }
+    const r = await fetch(url);
+    if (!r.ok) return;
+    const data = await r.json();
+    // 已被新请求/用户操作超越, 丢弃本次结果
+    if (seq !== _picksReqSeq) return;
+    picksCache = data.picks || [];
+    renderPicksTable(picksCache);
+    // 设置日期选择器 (不触发 change 事件, 避免和用户操作抢状态)
+    if (data.date && window.fpInstances['picksDate']) {
+      const [y, m, d] = [data.date.slice(0,4), data.date.slice(4,6), data.date.slice(6,8)];
+      window.fpInstances['picksDate'].setDate(`${y}-${m}-${d}`, false);
+      picksSelDate = data.date;
+      document.getElementById('picksAllToggle').classList.remove('active');
+    }
+    // 更新 info
+    const info = document.getElementById('picksInfo');
+    if (info) {
+      info.textContent = data.date ? `${picksCache.length} 只推荐 · ${fmtDate(data.date)}` : '暂无数据';
+    }
+    // 渲染完立即拉一次实时价 (覆盖 stock_picks 表里的昨日数据)
+    refreshPicksQuotes();
+    // 同步更新上一日/下一日按钮的禁用状态
+    if (typeof _updatePicksNavButtons === 'function') _updatePicksNavButtons();
+  } catch (e) {
+    console.warn('loadPicks failed:', e);
+  }
+}
+
+async function syncPicks() {
+  const btn = document.getElementById('picksSyncBtn');
+  const wrap = document.getElementById('picksProgressWrap');
+  const label = document.getElementById('picksProgressLabel');
+  const fill = document.getElementById('picksProgressFill');
+
+  btn.disabled = true;
+  btn.textContent = '计算中...';
+  wrap.style.display = '';
+  fill.style.width = '20%';
+  label.textContent = '正在分析股票...';
+
+  try {
+    fill.style.width = '50%';
+    label.textContent = '计算均线和评分...';
+    const body = picksSelDate ? { date: picksSelDate } : {};
+    const r = await fetch('/api/picks/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const d = await r.json();
+    if (d.status === 'success') {
+      fill.style.width = '100%';
+      label.textContent = `✅ 完成 (推荐 ${d.count} 只)`;
+      await loadPicks();
+    } else {
+      fill.style.width = '100%';
+      label.textContent = `❌ ${d.message || '失败'}`;
+      console.warn('syncPicks failed:', d.message);
+    }
+  } catch (e) {
+    fill.style.width = '100%';
+    label.textContent = '❌ 请求失败';
+    console.warn('syncPicks error:', e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '同步数据';
+    setTimeout(() => { wrap.style.display = 'none'; }, 2000);
+  }
+}
+
+function renderPicksTable(list) {
+  const tbody = document.getElementById('picksTableBody');
+  if (!list || list.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="15" style="text-align:center;color:var(--text-muted);padding:40px 0">暂无推荐, 请点击"同步今日"运行选股</td></tr>';
+    return;
+  }
+  // 顶部资金流数据状态提示
+  const flowEl = document.getElementById('picksFlowDays');
+  if (flowEl && list[0]?.flow_days_available != null) {
+    flowEl.textContent = list[0].flow_days_available;
+  }
+  const sorted = applySort(list, picksSort);
+  updateSortArrows('posPicksTable', picksSort);
+
+  // 资金流格式化: 元 → 亿元, 颜色编码
+  function _fmtFlow(v) {
+    if (v === null || v === undefined) return '<span style="color:var(--text-muted)">—</span>';
+    const yi = v / 1e8;
+    const color = yi > 0 ? 'var(--accent-red)' : yi < 0 ? 'var(--accent-green)' : 'var(--text-muted)';
+    const sign = yi > 0 ? '+' : '';
+    return `<span style="color:${color};font-weight:600">${sign}${yi.toFixed(2)}亿</span>`;
+  }
+  // 信号类型 (纯文字, 颜色编码)
+  function _fmtSignal(st) {
+    const map = {
+      'buy':  ['买入', '#4caf50'],
+      'sell': ['卖出', '#f44336'],
+      'hold': ['持有', '#888'],
+    };
+    const [label, color] = map[st] || map['hold'];
+    return `<span style="color:${color};font-weight:600">${label}</span>`;
+  }
+
+  const rows = sorted.map((p, i) => {
+    const code = p.ts_code.replace(/\.SH|\.SZ|\.BJ/, '');
+    const link = toEastMoney(p.ts_code);
+    const name = p.name || code;
+    const reasonsHtml = (p.reasons || []).map(r => {
+      const isKey = r.includes('★★★') || r.includes('金叉') || r.includes('多头排列') || r.includes('启动信号') || r.includes('加仓') || r.includes('机构加仓');
+      const cls = isKey ? 'pos-pick-reason-key' : 'pos-pick-reason';
+      const bg = isKey ? 'rgba(255,200,100,0.15)' : 'rgba(120,200,120,0.10)';
+      const color = isKey ? '#ffd28c' : '#7ac07a';
+      return `<span class="${cls}" style="padding:2px 8px;background:${bg};border-radius:4px;font-size:11px;color:${color};white-space:nowrap">${r}</span>`;
+    }).join('');
+    const flow3 = p.main_net_3d, flow5 = p.main_net_5d, flow10 = p.main_net_10d, flow20 = p.main_net_20d;
+    return `
+      <tr data-ts-code="${p.ts_code}">
+        <td style="text-align:center;color:var(--text-muted);vertical-align:middle">${i + 1}</td>
+        <td style="vertical-align:middle"><a href="${link}" target="_blank" style="color:var(--accent-blue);text-decoration:none" onclick="event.stopPropagation()">${code}</a></td>
+        <td style="vertical-align:middle;white-space:nowrap">${name}</td>
+        <td style="text-align:right;font-weight:bold;color:var(--accent-blue);vertical-align:middle">${(p.score ?? 0).toFixed(1)}</td>
+        <td class="picks-cell-change" style="text-align:right;color:${p.change_pct >= 0 ? '#ff5050' : '#4caf50'};vertical-align:middle">${p.change_pct >= 0 ? '+' : ''}${p.change_pct.toFixed(2)}%</td>
+        <td class="picks-cell-close" style="text-align:right;vertical-align:middle">${p.close?.toFixed(2) ?? '—'}</td>
+        <td style="text-align:right;vertical-align:middle">${p.ma5?.toFixed(2) ?? '—'}</td>
+        <td style="text-align:right;vertical-align:middle">${p.ma10?.toFixed(2) ?? '—'}</td>
+        <td style="text-align:right;vertical-align:middle">${p.ma20?.toFixed(2) ?? '—'}</td>
+        <td style="text-align:right;vertical-align:middle">${p.ma30?.toFixed(2) ?? '—'}</td>
+        <td style="text-align:center;vertical-align:middle">${_fmtSignal(p.signal_type || 'hold')}</td>
+        <td style="text-align:right;vertical-align:middle" title="${p.main_net_pct_today ? '主力净流入占比 ' + p.main_net_pct_today.toFixed(2) + '%' : ''}">${_fmtFlow(p.main_net_today)}</td>
+        <td style="text-align:right;vertical-align:middle">${flow3 != null ? _fmtFlow(flow3) : '<span style="color:var(--text-muted);font-size:11px">需 3+ 天</span>'}</td>
+        <td style="text-align:right;vertical-align:middle">${flow10 != null ? _fmtFlow(flow10) : '<span style="color:var(--text-muted);font-size:11px">需 10+ 天</span>'}</td>
+        <td style="text-align:right;vertical-align:middle">${flow20 != null ? _fmtFlow(flow20) : '<span style="color:var(--text-muted);font-size:11px">需 20+ 天</span>'}</td>
+      </tr>
+      <tr class="picks-reasons-row" data-ts-code="${p.ts_code}">
+        <td colspan="15" style="padding:6px 12px;background:rgba(255,255,255,0.02);border-bottom:1px solid var(--border)">
+          <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">${reasonsHtml || '<span style="color:var(--text-muted);font-size:11px">(无)</span>'}</div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+  tbody.innerHTML = rows;
+}
+
+let picksSort = { col: 'score', dir: 'desc' };
+let picksAutoTimer = null;
+
+// 选股推荐实时刷新 (跟持仓 posAutoRefresh 模式一致)
+async function refreshPicksQuotes() {
+  console.log('[picks-refresh] start, cache size:', picksCache.length);
+  if (!picksCache.length) return;
+  const codes = picksCache.map(p => p.ts_code).filter(Boolean).join(',');
+  if (!codes) return;
+  try {
+    // 用专用 picks/quote 端点: 实时价 + 用实时价替换昨日 close 重算 MA
+    const r = await fetch('/api/picks/quote?codes=' + encodeURIComponent(codes));
+    console.log('[picks-refresh] http status:', r.status);
+    if (!r.ok) return;
+    const quotes = await r.json();  // {ts_code: {price, change_pct, ma5/10/20/30, ...}}
+    console.log('[picks-refresh] got', Object.keys(quotes).length, 'quotes, first:', Object.entries(quotes)[0]);
+    const tbody = document.getElementById('picksTableBody');
+    if (!tbody) return;
+    let updated = 0;
+    let skipped = 0;
+    for (const [ts_code, q] of Object.entries(quotes)) {
+      if (!q || q.price == null) { skipped++; continue; }
+      const row = tbody.querySelector(`tr[data-ts-code="${ts_code}"]:not(.picks-reasons-row)`);
+      if (!row) { skipped++; continue; }
+      const cells = row.querySelectorAll('td');
+      if (cells.length < 15) {
+        console.warn('[picks-refresh] cells.length=', cells.length, 'ts_code=', ts_code);
+        skipped++; continue;
+      }
+      const cp = Number(q.change_pct) || 0;
+      cells[4].textContent = (cp >= 0 ? '+' : '') + cp.toFixed(2) + '%';
+      cells[4].style.color = cp >= 0 ? '#ff5050' : '#4caf50';
+      cells[5].textContent = Number(q.price).toFixed(2);
+      if (q.ma5 != null) cells[6].textContent = Number(q.ma5).toFixed(2);
+      if (q.ma10 != null) cells[7].textContent = Number(q.ma10).toFixed(2);
+      if (q.ma20 != null) cells[8].textContent = Number(q.ma20).toFixed(2);
+      if (q.ma30 != null) cells[9].textContent = Number(q.ma30).toFixed(2);
+      updated++;
+    }
+    console.log('[picks-refresh] updated=', updated, 'skipped=', skipped);
+    if (updated > 0) {
+      const upd = document.getElementById('picksLastQuote');
+      if (upd) {
+        const now = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+        upd.textContent = `行情 ${now} (${updated}只)`;
+      }
+    }
+  } catch (e) {
+    console.warn('refreshPicksQuotes failed:', e);
+  }
+}
+
+function startPicksAutoRefresh() {
+  stopPicksAutoRefresh();
+  // 频率跟随持仓 Tab 的 posAutoInterval (共用同一个选项)
+  const sel = document.getElementById('posAutoInterval');
+  if (!sel) return;
+  const sec = parseInt(sel.value, 10);
+  if (sec > 0) {
+    picksAutoTimer = setInterval(() => {
+      // 非交易日/非交易时段跳过 (省后端)
+      if (!isTradingDay() || !isTradingTime()) return;
+      refreshPicksQuotes();
+    }, sec * 1000);
+  }
+}
+
+function stopPicksAutoRefresh() {
+  if (picksAutoTimer) {
+    clearInterval(picksAutoTimer);
+    picksAutoTimer = null;
+  }
+}
+
+// 事件绑定 (频率跟随持仓, 不需要单独的事件)
+
 async function loadReconcileLog() {
   try {
     const r = await fetch('/api/positions/reconcile-log?limit=200');
@@ -3999,9 +4610,10 @@ document.getElementById('posAutoInterval').addEventListener('change', () => {
   if (document.getElementById('panel-positions').classList.contains('active')) {
     startPosAutoRefresh();
   }
-});
-document.getElementById('posRefreshBtn').addEventListener('click', () => {
-  loadPositions({ silent: false });
+  // 频率变了, 选股推荐的 picksAutoRefresh 也要重启 (如果当前在 picks tab)
+  if (document.querySelector('.tab-btn[data-tab="picks"]')?.classList.contains('active')) {
+    startPicksAutoRefresh();
+  }
 });
 
 // ── 表头点击排序 ──
@@ -4029,15 +4641,31 @@ document.querySelectorAll('#posBuyTable th.sortable').forEach(th => {
   });
 });
 
-// 离开持仓 tab 关闭自动刷新 (避免占用接口)
+// 离开持仓/选股推荐 tab 关闭自动刷新 (避免占用接口)
 const _origTabHandler = TAB_HANDLERS;
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     if (btn.dataset.tab !== 'positions') {
       stopPosAutoRefresh();
     }
+    if (btn.dataset.tab !== 'picks') {
+      stopPicksAutoRefresh();
+    }
+    // 点选股推荐 tab → 启动 picks 实时刷新 (选股推荐是顶层 tab, 不是持仓 subtab)
+    if (btn.dataset.tab === 'picks') {
+      startPicksAutoRefresh();
+      // 立即拉一次 (不等 interval)
+      if (isTradingDay() && isTradingTime()) refreshPicksQuotes();
+    }
   });
 });
+
+// loadPicks 完成后立即拉一次实时价 (内部已调用 refreshPicksQuotes, 这里不重复)
+// const _origLoadPicks = loadPicks;
+// loadPicks = async function() {
+//   await _origLoadPicks();
+//   refreshPicksQuotes();
+// };
 
 // ── CSV/Excel 导入 ──
 document.getElementById('posImportBtn').addEventListener('click', () => {
@@ -4195,6 +4823,10 @@ async function confirmImportTrades(filename, columnMap, forceTradeIds = [], file
     await loadSellPositions();
     await loadReconcileLog();  // 刷新对账日志角标
     await refreshTradesPending();
+    // 清空个股交易详情的本地 cache, 下次点个股会自动从后端重拉最新 trades
+    // (tradesAllSummaryCache 导入完成后没失效, 会导致个股页看不到新导入的成交)
+    for (const k of Object.keys(tradesAllSummaryCache)) delete tradesAllSummaryCache[k];
+    for (const k of Object.keys(tradesDetailCache)) delete tradesDetailCache[k];
   } catch (e) {
     statusEl.textContent = '导入失败: ' + e.message;
     statusEl.style.color = 'var(--accent-red)';
@@ -4400,7 +5032,270 @@ async function submitAddPosition() {
   await loadPositions({ silent: true });
 }
 
+// ── 主力净流入 (Skill JSONP 抓取的全市场数据) ──
+
+function _flowFmtYuan(v) {
+  if (v === null || v === undefined) return '—';
+  if (Math.abs(v) >= 1e8) return (v / 1e8).toFixed(2) + '亿';
+  if (Math.abs(v) >= 1e4) return (v / 1e4).toFixed(2) + '万';
+  return v.toFixed(0);
+}
+
+function _flowColor(v) {
+  return v > 0 ? 'var(--accent-green)' : v < 0 ? 'var(--accent-red)' : 'var(--text-secondary)';
+}
+
+function _flowMktRowHtml(r, i) {
+  const c = (k) => r[k] !== null && r[k] !== undefined ? Number(r[k]).toFixed(2) : '—';
+  return `
+    <tr style="cursor:default">
+      <td style="color:var(--text-muted)">${i + 1}</td>
+      <td style="font-family:'JetBrains Mono',monospace">${r.code}</td>
+      <td>${r.name || '—'}</td>
+      <td style="text-align:right">${c('close')}</td>
+      <td style="text-align:right;color:${_flowColor(r.change_pct)}">${r.change_pct !== null ? Number(r.change_pct).toFixed(2) + '%' : '—'}</td>
+      <td style="text-align:right;color:${_flowColor(r.main_net_inflow)};font-weight:600">${_flowFmtYuan(r.main_net_inflow)}</td>
+      <td style="text-align:right;color:${_flowColor(r.main_net_pct)}">${r.main_net_pct !== null ? Number(r.main_net_pct).toFixed(2) + '%' : '—'}</td>
+      <td style="text-align:right;color:${_flowColor(r.super_net)}">${_flowFmtYuan(r.super_net)}</td>
+      <td style="text-align:right;color:${_flowColor(r.big_net)}">${_flowFmtYuan(r.big_net)}</td>
+      <td style="text-align:right;color:${_flowColor(r.mid_net)}">${_flowFmtYuan(r.mid_net)}</td>
+      <td style="text-align:right;color:${_flowColor(r.small_net)}">${_flowFmtYuan(r.small_net)}</td>
+      <td style="color:var(--text-muted);font-size:11px">${r.trade_date || ''}</td>
+    </tr>
+  `;
+}
+
+let _flowPollTimer = null;
+let _flowDates = [];  // 缓存可用日期列表
+let _flowSelDate = '';  // YYYYMMDD, 空 = "全部日期" 模式
+let _flowSort = { col: 'main_net_inflow', dir: 'desc' };  // 默认按主力净流入降序
+
+async function renderFlow() {
+  const tbody = document.getElementById('flowMktTbody');
+  const empty = document.getElementById('flowMktEmpty');
+  const info = document.getElementById('flowMktInfo');
+
+  const market = document.getElementById('flowMktMarket').value;
+  const search = document.getElementById('flowMktSearch').value.trim();
+
+  const params = new URLSearchParams({
+    sort: _flowSort.col || 'main_net_inflow',
+    order: _flowSort.dir || 'desc',
+    market, search, limit: 10000, source: 'eastmoney-push2'
+  });
+  if (_flowSelDate) params.set('date', _flowSelDate);
+
+  try {
+    const r = await fetch('/api/flow/market?' + params.toString());
+    const d = await r.json();
+    if (d.count === 0) {
+      tbody.innerHTML = '';
+      empty.style.display = '';
+      info.textContent = '0 行 · eastmoney-push2' + (_flowSelDate ? ` · ${_flowSelDate}` : '');
+      return;
+    }
+    empty.style.display = 'none';
+    tbody.innerHTML = d.rows.map((r, i) => _flowMktRowHtml(r, i)).join('');
+    const sortLabel = _flowSort.col ? `${_flowSort.col} ${_flowSort.dir === 'asc' ? '↑' : '↓'}` : '默认';
+    info.textContent = `${d.count} 行 · eastmoney-push2 · ${_flowSelDate || '最新'} · ${sortLabel}`;
+    // 更新列头箭头
+    if (typeof updateSortArrows === 'function') {
+      updateSortArrows('flowMktTable', _flowSort);
+    }
+    // 同步更新上一日/下一日按钮的禁用状态
+    _updateFlowNavButtons();
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="12" style="color:var(--accent-red);text-align:center;padding:20px">加载失败: ${err.message}</td></tr>`;
+  }
+}
+
+async function _refreshFlowDates() {
+  try {
+    const r = await fetch('/api/flow/dates?source=eastmoney-push2');
+    const d = await r.json();
+    _flowDates = d.dates || [];
+    if (_flowDates.length && !_flowSelDate) {
+      _flowSelDate = _flowDates[0];
+      const [y, m, dy] = [_flowSelDate.slice(0,4), _flowSelDate.slice(4,6), _flowSelDate.slice(6,8)];
+      if (window.fpInstances['flowDate']) {
+        window.fpInstances['flowDate'].setDate(`${y}-${m}-${dy}`, true);
+      }
+      document.getElementById('flowAllToggle').classList.remove('active');
+    }
+  } catch (err) {
+    _flowDates = [];
+  }
+}
+
+function _flowShiftDate(delta) {
+  if (!_flowDates.length) {
+    showToast('⚠️ 没有可用日期数据');
+    return;
+  }
+  // 列表是倒序 (index 0 = 最新, index N-1 = 最旧)
+  // 语义: delta=+1 = 下一日 (更新的, index 往前走)
+  //       delta=-1 = 上一日 (更旧的, index 往后走)
+  let idx;
+  if (_flowSelDate) {
+    idx = _flowDates.indexOf(_flowSelDate);
+    if (idx === -1) idx = 0;
+  } else {
+    idx = 0;
+  }
+  const newIdx = idx - delta;  // 倒序列表 + 语义化 delta, 用减法
+  if (newIdx < 0 || newIdx >= _flowDates.length) {
+    showToast(newIdx < 0 ? '⚠️ 已经是最近的日期' : '⚠️ 已经是最早的日期');
+    return;
+  }
+  _flowSelDate = _flowDates[newIdx];
+  document.getElementById('flowAllToggle').classList.remove('active');
+  if (window.fpInstances['flowDate']) {
+    const [y, m, d] = [_flowSelDate.slice(0,4), _flowSelDate.slice(4,6), _flowSelDate.slice(6,8)];
+    window.fpInstances['flowDate'].setDate(`${y}-${m}-${d}`, false);
+  }
+  renderFlow();
+  _updateFlowNavButtons();
+}
+
+// 根据当前选中日期动态启用/禁用 prev/next 按钮
+function _updateFlowNavButtons() {
+  const prevBtn = document.getElementById('flowPrevBtn');
+  const nextBtn = document.getElementById('flowNextBtn');
+  if (!prevBtn || !nextBtn) return;
+  let atOldest = false, atNewest = false;
+  if (_flowDates.length === 0) {
+    atOldest = atNewest = true;  // 没数据, 两个都置灰
+  } else if (!_flowSelDate) {
+    // 默认 "全部日期" 模式 = 隐含在最新 (idx=0), 下一日按钮置灰
+    atNewest = true;
+  } else {
+    const idx = _flowDates.indexOf(_flowSelDate);
+    if (idx === -1) {
+      atOldest = atNewest = true;  // 选中日期不在列表里 (异常)
+    } else {
+      atNewest = idx === 0;
+      atOldest = idx === _flowDates.length - 1;
+    }
+  }
+  [prevBtn, nextBtn].forEach((btn, i) => {
+    const disabled = i === 0 ? atOldest : atNewest;
+    btn.disabled = disabled;
+    btn.style.opacity = disabled ? '0.4' : '1';
+    btn.style.cursor = disabled ? 'not-allowed' : 'pointer';
+  });
+}
+
+async function _flowSync() {
+  const btn = document.getElementById('flowSyncBtn');
+  const wrap = document.getElementById('flowProgressWrap');
+  const label = document.getElementById('flowProgressLabel');
+  const fill = document.getElementById('flowProgressFill');
+
+  try {
+    const r = await fetch('/api/flow/sync-market', { method: 'POST' });
+    const d = await r.json();
+    if (d.status === 'already_running') {
+      showToast('⏳ 同步仍在进行中, 请稍候');
+    } else {
+      showToast('⏳ 已开始同步今日数据, 预计 1-2 分钟');
+    }
+  } catch (err) {
+    showToast('❌ 启动同步失败: ' + err.message);
+    return;
+  }
+
+  btn.disabled = true;
+  const origText = btn.textContent;
+  btn.textContent = '同步中...';
+  wrap.style.display = '';
+  fill.style.width = '0%';
+  label.textContent = '准备中...';
+
+  if (_flowPollTimer) clearInterval(_flowPollTimer);
+  _flowPollTimer = setInterval(async () => {
+    try {
+      const r = await fetch('/api/flow/sync-status');
+      const d = await r.json();
+      if (d.running) {
+        const pct = d.total > 0 ? Math.min(100, (d.done / d.total) * 100) : 0;
+        fill.style.width = pct + '%';
+        label.textContent = d.current_code || `pn=?/${d.total || '?'}`;
+      } else {
+        clearInterval(_flowPollTimer);
+        _flowPollTimer = null;
+        fill.style.width = '100%';
+        const ok = d.success > 0;
+        label.textContent = ok ? `✅ 完成 (${d.success}/${d.total} 行, ${d.elapsed_sec}s)` : `❌ 失败 (${d.errors.length} 错误)`;
+        btn.disabled = false;
+        btn.textContent = origText;
+        setTimeout(async () => {
+          wrap.style.display = 'none';
+          await _refreshFlowDates();
+          renderFlow();
+        }, 3000);
+      }
+    } catch (err) {}
+  }, 1000);
+}
+
+function _bindFlow() {
+  document.getElementById('flowSyncBtn').onclick = _flowSync;
+  document.getElementById('flowPrevBtn').onclick = () => _flowShiftDate(-1);
+  document.getElementById('flowNextBtn').onclick = () => _flowShiftDate(+1);
+  document.getElementById('flowAllToggle').onclick = () => {
+    _flowSelDate = '';
+    document.getElementById('flowAllToggle').classList.add('active');
+    if (window.fpInstances['flowDate']) window.fpInstances['flowDate'].clear();
+    renderFlow();
+  };
+  // 市场过滤 + 搜索框 (排序已搬到列头点击)
+  document.getElementById('flowMktMarket').onchange = renderFlow;
+  let _searchTimer = null;
+  document.getElementById('flowMktSearch').oninput = () => {
+    clearTimeout(_searchTimer);
+    _searchTimer = setTimeout(renderFlow, 300);
+  };
+  // 日期选择器 onChange
+  document.getElementById('flowDate').addEventListener('change', (e) => {
+    const v = e.target.value;  // YYYY-MM-DD
+    if (v) {
+      _flowSelDate = v.replace(/-/g, '');
+      document.getElementById('flowAllToggle').classList.remove('active');
+    }
+    renderFlow();
+  });
+  // 列头点击排序 (复用项目里的 cycleSort 模式)
+  document.querySelectorAll('#flowMktTable th.sortable').forEach(th => {
+    th.addEventListener('click', () => {
+      _flowSort = cycleSort(_flowSort, th.dataset.sort);
+      renderFlow();
+    });
+  });
+  // 初始箭头
+  if (typeof updateSortArrows === 'function') {
+    updateSortArrows('flowMktTable', _flowSort);
+  }
+}
+
+function _bindPicks() {
+  document.getElementById('picksSyncBtn').onclick = syncPicks;
+  // 列头点击排序
+  document.querySelectorAll('#posPicksTable th.sortable').forEach(th => {
+    th.addEventListener('click', () => {
+      picksSort = cycleSort(picksSort, th.dataset.sort);
+      renderPicksTable(picksCache);
+    });
+  });
+}
+
+(async () => {
+  await _refreshFlowDates();
+  renderFlow();
+})();
+
 loadData();
+_bindFlow();
+_bindPicks();
 </script>
 
 <!-- 拉取韭研弹窗 -->

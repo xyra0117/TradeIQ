@@ -104,6 +104,33 @@ def calc_sell_fees(market_value, ts_code=''):
     return commission + transfer + stamp
 
 # 初始化数据库
+def _migrate_user_picks_to_id_pk(c):
+    """user_picks 老 schema: ts_code PRIMARY KEY (去重); 新 schema: id 自增主键, ts_code 可重复.
+    检测到 schema 不匹配时自动重建表 (把已有数据搬运过去, 老主键约束去掉).
+    """
+    cur = c.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='user_picks'")
+    row = cur.fetchone()
+    if not row:
+        return
+    schema_sql = row[0]
+    # 新 schema 不需要 PRIMARY KEY 在 ts_code 上
+    if 'PRIMARY KEY' in schema_sql and 'ts_code' in schema_sql.split('PRIMARY KEY')[1].split(')')[0]:
+        print('[init_db] 迁移 user_picks: ts_code 主键 -> id 自增主键 (允许重复入库)')
+        c.execute('''CREATE TABLE IF NOT EXISTS user_picks_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts_code TEXT NOT NULL,
+            added_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            note TEXT
+        )''')
+        # 搬运数据
+        try:
+            c.execute('INSERT INTO user_picks_new (ts_code, added_at, note) SELECT ts_code, added_at, note FROM user_picks')
+        except Exception as e:
+            print(f'[init_db] 搬运失败: {e}')
+        c.execute('DROP TABLE user_picks')
+        c.execute('ALTER TABLE user_picks_new RENAME TO user_picks')
+
+
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
@@ -167,6 +194,15 @@ def init_db():
         UNIQUE(date, code, time)
     )''')
 
+    # 板块历史汇总 (按 ts_code 聚合 limitup.sector, 给 4 个 API 用)
+    c.execute('''CREATE TABLE IF NOT EXISTS stock_sector_summary (
+        ts_code TEXT PRIMARY KEY,
+        sectors_json TEXT NOT NULL,
+        total_limitups INTEGER NOT NULL,
+        last_updated TEXT NOT NULL
+    )''')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_sector_summary_updated ON stock_sector_summary(last_updated)')
+
     # 股票日线数据
     c.execute('''CREATE TABLE IF NOT EXISTS stock_daily (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -188,8 +224,21 @@ def init_db():
         name TEXT,
         listing_date TEXT,
         market TEXT,
-        status TEXT DEFAULT 'normal'
+        status TEXT DEFAULT 'normal',
+        total_share REAL,
+        float_share REAL,
+        last_share_sync TEXT
     )''')
+    # 兜底: 老库没这两列, 现场加 (CREATE IF NOT EXISTS 不会补列)
+    try:
+        c.execute('ALTER TABLE stock_basic ADD COLUMN total_share REAL')
+    except Exception: pass
+    try:
+        c.execute('ALTER TABLE stock_basic ADD COLUMN float_share REAL')
+    except Exception: pass
+    try:
+        c.execute('ALTER TABLE stock_basic ADD COLUMN last_share_sync TEXT')
+    except Exception: pass
     c.execute('CREATE INDEX IF NOT EXISTS idx_stock_basic_listing ON stock_basic(listing_date)')
 
     # 交易日历缓存
@@ -357,8 +406,172 @@ def init_db():
     _add_col_if_missing(c, 'stock_picks', 'reasons_json', 'TEXT')  # 旧表可能叫 reasons, 加这个保险
     c.execute('CREATE INDEX IF NOT EXISTS idx_stock_picks_date ON stock_picks(trade_date, score DESC)')
 
+    # 自选股 (单一分组, user 手动维护, 复用 _compute_picks 算法但不入 stock_picks 表)
+    c.execute('''CREATE TABLE IF NOT EXISTS user_picks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts_code TEXT NOT NULL,
+        added_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+        note TEXT
+    )''')
+    # 兼容老库: 如果 user_picks 还在用 ts_code 做主键, 迁移到新 schema
+    _migrate_user_picks_to_id_pk(c)
+
+    # 自选板块: 表是用户之前手工建好的 (id, name, pinned, created_at, updated_at)
+    # 沿用现有 schema, 不重建. 仅补 note 列 (旧表可能没有)
+    # CREATE TABLE IF NOT EXISTS 兜底, 防止新库没表
+    c.execute('''CREATE TABLE IF NOT EXISTS user_sectors (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        pinned INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+        UNIQUE(name COLLATE NOCASE)
+    )''')
+    _add_col_if_missing(c, 'user_sectors', 'note', 'TEXT')
+
+    # 自选板块关联的 6 只股票 (核心三杰 + 同领域优质企业)
+    # 沿用用户之前手工建的 schema (sector_id + ts_code + added_at, ON DELETE CASCADE)
+    # CREATE TABLE IF NOT EXISTS 兜底; 再补 name/role/rank 列 (旧数据为 NULL, 读时回查 stock_basic)
+    c.execute('''CREATE TABLE IF NOT EXISTS user_sector_stocks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sector_id INTEGER NOT NULL,
+        ts_code TEXT NOT NULL,
+        added_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+        UNIQUE(sector_id, ts_code),
+        FOREIGN KEY (sector_id) REFERENCES user_sectors(id) ON DELETE CASCADE
+    )''')
+    _add_col_if_missing(c, 'user_sector_stocks', 'name', 'TEXT')
+    _add_col_if_missing(c, 'user_sector_stocks', 'role', 'TEXT')     # 'core' 核心三杰 | 'peer' 同领域优质企业
+    _add_col_if_missing(c, 'user_sector_stocks', 'rank', 'INTEGER')  # 1/2/3 (在 role 内的排序)
+    c.execute('CREATE INDEX IF NOT EXISTS idx_user_sector_stocks_sector ON user_sector_stocks(sector_id)')
+
+    # ============ 阶段 0: 申万行业 / 涨停 Tushare 兜底 / 北向资金 新表 (情绪分析系统前置) ============
+
+    # 申万行业分类 (L1/L2/L3)
+    c.execute('''CREATE TABLE IF NOT EXISTS sw_industry (
+        index_code TEXT PRIMARY KEY,    -- e.g. '801010.SI'
+        industry_name TEXT NOT NULL,
+        level TEXT NOT NULL,             -- 'L1' / 'L2' / 'L3'
+        src TEXT DEFAULT 'SW',           -- 'SW' / 'CSI' / 'CITIC' 等
+        parent_code TEXT,                -- 上级行业代码
+        updated_at TEXT
+    )''')
+
+    # 申万行业成分股
+    c.execute('''CREATE TABLE IF NOT EXISTS sw_industry_member (
+        index_code TEXT NOT NULL,
+        ts_code TEXT NOT NULL,
+        in_date TEXT,
+        out_date TEXT,                   -- 剔除日期 (NULL=在)
+        is_new TEXT DEFAULT 'N',
+        PRIMARY KEY (index_code, ts_code, in_date)
+    )''')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_sw_industry_member_ts ON sw_industry_member(ts_code)')
+
+    # 申万行业日线
+    c.execute('''CREATE TABLE IF NOT EXISTS sw_industry_daily (
+        index_code TEXT NOT NULL,
+        trade_date TEXT NOT NULL,
+        close REAL, open REAL, high REAL, low REAL,
+        change_pct REAL, vol REAL, amount REAL,
+        PRIMARY KEY (index_code, trade_date)
+    )''')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_sw_industry_daily_date ON sw_industry_daily(trade_date)')
+
+    # 涨停池 (akshare stock_zt_pool_em 拉, 独立补充非研 OCR, 供情绪指数计算封板率/炸板率/连板梯队; 不替换现有 limitup 表)
+    # 注: Tushare limit_list_d 免费版无权限, 改用 akshare. 表名 akshare_zt_pool 反映数据源.
+    c.execute('''CREATE TABLE IF NOT EXISTS akshare_zt_pool (
+        trade_date TEXT NOT NULL,
+        ts_code TEXT NOT NULL,            -- e.g. '301520' (akshare 用 6 位代码, 无后缀)
+        name TEXT,
+        industry TEXT,                    -- akshare '所属行业' 字段
+        close REAL,                       -- 最新价
+        pct_chg REAL,                     -- 涨跌幅
+        amount REAL,                       -- 成交额
+        circulate_mv REAL,                -- 流通市值
+        turnover_pct REAL,                -- 换手率
+        seal_amount REAL,                 -- 封板资金
+        first_seal_time TEXT,             -- 首次封板时间
+        last_seal_time TEXT,              -- 最后封板时间
+        open_times INTEGER,               -- 炸板次数 (0=没炸过)
+        limit_stats TEXT,                  -- 涨停统计 (e.g. '1/1', '2/3')
+        streak INTEGER,                   -- 连板数
+        PRIMARY KEY (trade_date, ts_code)
+    )''')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_akshare_zt_pool_date ON akshare_zt_pool(trade_date)')
+
+    # ============ 阶段 1: 情绪分析 (sentiment_intraday + sentiment_alert) ============
+
+    # 情绪分时采样 (盘中 15 秒一采样)
+    c.execute('''CREATE TABLE IF NOT EXISTS sentiment_intraday (
+        ts TEXT PRIMARY KEY,            -- 'YYYY-MM-DD HH:MM:SS' 15 秒一采样
+        score REAL NOT NULL,            -- 0-100
+        level TEXT NOT NULL,            -- 冰点/低迷/温和/火热/亢奋 (5 档, 严格用文档名)
+        base_score REAL,                -- 基础 60%
+        capital_score REAL,             -- 资金 25%
+        sector_score REAL,              -- 板块 15%
+        -- 基础因子 (60%)
+        up_count INTEGER, down_count INTEGER, flat_count INTEGER,
+        limit_up_count INTEGER, limit_down_count INTEGER,
+        median_change_pct REAL,
+        sealed_count INTEGER, touched_count INTEGER,
+        broken_count INTEGER,
+        streak_max INTEGER, streak_count INTEGER,
+        -- 资金因子 (25%)
+        north_net REAL, total_amount REAL, main_net REAL,
+        seal_amount REAL,
+        -- 板块因子 (15%)
+        up_sector_count INTEGER, total_sector_count INTEGER,
+        leading_sector_change_pct REAL, sector_rotation INTEGER
+    )''')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_sentiment_intraday_ts ON sentiment_intraday(ts)')
+
+    # 异动预警
+    c.execute('''CREATE TABLE IF NOT EXISTS sentiment_alert (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts TEXT NOT NULL,
+        level TEXT NOT NULL,            -- 'warning' / 'urgent'
+        rule TEXT NOT NULL,             -- 触发的规则名
+        title TEXT, content TEXT,
+        pushed INTEGER DEFAULT 0        -- 是否已推送 (0/1)
+    )''')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_sentiment_alert_ts ON sentiment_alert(ts)')
+
+    # 推送配置 (alert_rules 和 feishu 读阈值用)
+    c.execute('''CREATE TABLE IF NOT EXISTS push_config (
+        key TEXT PRIMARY KEY,
+        value TEXT,
+        updated_at TEXT
+    )''')
+    # 默认配置
+    _init_default_push_config(conn)
+
+    # 北向资金 (Tushare moneyflow_hsgt)
+    c.execute('''CREATE TABLE IF NOT EXISTS hsgt_flow (
+        trade_date TEXT PRIMARY KEY,
+        hgt REAL, sgt REAL, north_money REAL, south_money REAL
+    )''')
+
+    conn.commit()
+
+    # 启用 FK 约束 (sqlite3 默认关闭, 否则 user_sector_stocks.FOREIGN KEY ... ON DELETE CASCADE 不生效)
+    conn.execute('PRAGMA foreign_keys = ON')
+    # 清理孤儿 rows (FK 之前没启用, 板块被删后 user_sector_stocks 关联行残留)
+    cur = conn.execute('''
+        DELETE FROM user_sector_stocks
+        WHERE sector_id NOT IN (SELECT id FROM user_sectors)
+    ''')
+    if cur.rowcount:
+        print(f'[init_db] 清理 {cur.rowcount} 条孤儿 user_sector_stocks')
     conn.commit()
     conn.close()
+
+    # 启动时全量重建 sector summary (几百 ms, 1929 只股)
+    try:
+        n = rebuild_sector_summary()
+        print(f'[init_db] stock_sector_summary 重建完成: {n} 只股')
+    except Exception as e:
+        print(f'[init_db] sector summary 重建失败 (非致命): {e}')
 
 
 def get_pro():
@@ -372,16 +585,44 @@ def get_pro():
 
 @app.route('/api/stock/basic/sync', methods=['POST'])
 def sync_stock_basic():
-    """批量同步股票基础信息（上市日期、市场等）"""
+    """批量同步股票基础信息（上市日期、市场、股本等）
+    股本 (total_share / float_share) 从 daily_basic 拿, 用于板块涨幅实时市值加权
+    流通股本变化慢, 同步一次可用很久; 建议每月跑一次, 或重启用
+    """
     pro = get_pro()
     try:
-        df = pro.stock_basic(exchange='', list_status='L')
+        # 1) stock_basic: 基础信息 (TuShare 这接口不返回 total_share/float_share)
+        df = pro.stock_basic(exchange='', list_status='L',
+                             fields='ts_code,name,list_date,market')
         if len(df) == 0:
             return jsonify({'status': 'no_data', 'message': 'TuShare 返回空数据'})
+
+        # 2) daily_basic: 拿最近一个交易日的股本和市值
+        # 优先今天, 今天是交易日就今天; 非交易日 fallback 到 leaderboard 最新交易日
+        shares_map = {}  # ts_code -> (total_share, float_share)
+        try:
+            trade_date = datetime.now().strftime('%Y%m%d')
+            df_db = pro.daily_basic(trade_date=trade_date,
+                                     fields='ts_code,total_share,float_share,total_mv,circ_mv')
+            if df_db is None or len(df_db) == 0:
+                # 非交易日, 退到 leaderboard 最新日期
+                lb_conn = sqlite3.connect(DB_PATH, timeout=10)
+                lb_row = lb_conn.execute("SELECT MAX(date) FROM leaderboard").fetchone()
+                lb_conn.close()
+                if lb_row and lb_row[0]:
+                    df_db = pro.daily_basic(trade_date=lb_row[0],
+                                             fields='ts_code,total_share,float_share,total_mv,circ_mv')
+            if df_db is not None:
+                for _, r in df_db.iterrows():
+                    shares_map[r['ts_code']] = (r.get('total_share'), r.get('float_share'))
+        except Exception as e:
+            print(f'[sync_stock_basic] daily_basic 拉取失败 (非致命, 后续会用 limitup.marketCap 兜底): {e}')
 
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         count = 0
+        share_filled = 0
+        today = datetime.now().strftime('%Y-%m-%d')
         for _, row in df.iterrows():
             try:
                 name = row['name'] or ''
@@ -393,18 +634,26 @@ def sync_stock_basic():
                 elif '退' in name:
                     status = 'delisting'
 
+                ts_code = row['ts_code']
+                ts, fs = shares_map.get(ts_code, (None, None))
+                has_share = fs is not None and fs > 0
                 c.execute('''INSERT OR REPLACE INTO stock_basic
-                    (ts_code, name, listing_date, market, status)
-                    VALUES (?, ?, ?, ?, ?)''',
-                    (row['ts_code'], name, row['list_date'],
-                     row['market'] or '', status))
+                    (ts_code, name, listing_date, market, status,
+                     total_share, float_share, last_share_sync)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+                    (ts_code, name, row['list_date'],
+                     row['market'] or '', status,
+                     ts, fs,
+                     today if has_share else None))
                 count += 1
+                if has_share:
+                    share_filled += 1
             except Exception as e:
                 print(f'stock_basic 写入错误 {row.get("ts_code", "unknown")}: {e}')
                 continue
         conn.commit()
         conn.close()
-        return jsonify({'status': 'success', 'count': count})
+        return jsonify({'status': 'success', 'count': count, 'shares_filled': share_filled})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)})
 
@@ -425,6 +674,23 @@ def get_stock_basic():
         rows = c.execute('SELECT * FROM stock_basic LIMIT 100').fetchall()
         conn.close()
         return jsonify([dict(r) for r in rows])
+
+
+@app.route('/api/stock-basic/<path:code>', methods=['GET'])
+def lookup_stock_basic(code):
+    """轻量查股票名: 接受 6 位 / sh600519 / 600519.SH 等格式, 返回 {ts_code, name}.
+    用于前端失焦回查, 不返回其它字段.
+    """
+    norm = _normalize_code(code)
+    if not norm:
+        return jsonify({'error': f'代码格式无效: {code!r}'}), 400
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    row = conn.execute('SELECT ts_code, name FROM stock_basic WHERE ts_code = ?', (norm,)).fetchone()
+    conn.close()
+    if not row:
+        return jsonify({'error': f'股票不存在: {norm}'}), 404
+    return jsonify({'ts_code': row['ts_code'], 'name': row['name']})
 
 
 # ============ 指数数据 ============
@@ -517,6 +783,120 @@ def sync_index_data():
     return jsonify({'status': 'success', 'date': trade_date, 'results': results})
 
 
+# ============ 板块历史汇总 (sector_history) ============
+
+
+def _attach_sector(rows, key='ts_code'):
+    """给 rows 列表每行加 sector_history 字段 (原地修改).
+    排序规则: is_latest 排第一, 其余按 count 降序.
+    rows 形如 [{ts_code|code: ..., ...}] — 4 个 API 共用."""
+    if not rows:
+        return rows
+    codes = list({r.get(key) for r in rows if r.get(key)})
+    if not codes:
+        return rows
+    placeholders = ','.join('?' * len(codes))
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    sector_rows = conn.execute(
+        f'SELECT ts_code, sectors_json FROM stock_sector_summary WHERE ts_code IN ({placeholders})',
+        codes
+    ).fetchall()
+    conn.close()
+    sector_map = {r['ts_code']: json.loads(r['sectors_json']) for r in sector_rows}
+    for r in rows:
+        code = r.get(key)
+        sectors = sector_map.get(code, [])
+        # 排序: is_latest=True 排最前, 其余 count 降序
+        sectors_sorted = sorted(sectors, key=lambda s: (not s.get('is_latest', False), -s.get('count', 0)))
+        r['sector_history'] = sectors_sorted
+    return rows
+
+
+def refresh_sector_summary_for_codes(ts_codes):
+    """增量刷新指定 ts_code 列表的 sector 汇总.
+    逻辑: GROUP BY (code, sector) → 标记 is_latest (跨 sector 取 MAX(date) 的 sector) → UPSERT.
+    对已无 limitup 记录的 ts_code, 删掉 summary 行."""
+    if not ts_codes:
+        return 0
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    placeholders = ','.join('?' * len(ts_codes))
+    rows = conn.execute(
+        f"""SELECT code AS ts_code, sector, MAX(date) AS latest_date, COUNT(*) AS cnt
+            FROM limitup
+            WHERE code IN ({placeholders}) AND sector IS NOT NULL AND sector != ''
+            GROUP BY code, sector""",
+        ts_codes
+    ).fetchall()
+    grouped = {}
+    for r in rows:
+        grouped.setdefault(r['ts_code'], []).append({
+            'sector': r['sector'],
+            'count': r['cnt'],
+            'latest_date': r['latest_date'],
+        })
+    now_iso = datetime.now().isoformat(timespec='seconds')
+    for code, sectors in grouped.items():
+        max_date = max(s['latest_date'] for s in sectors)
+        for s in sectors:
+            s['is_latest'] = (s['latest_date'] == max_date)
+        conn.execute(
+            'INSERT OR REPLACE INTO stock_sector_summary (ts_code, sectors_json, total_limitups, last_updated) VALUES (?, ?, ?, ?)',
+            (code, json.dumps(sectors, ensure_ascii=False), sum(s['count'] for s in sectors), now_iso)
+        )
+    # 已无涨停记录的股 → 删 summary 行 (避免显示过期数据)
+    to_delete = [c for c in ts_codes if c not in grouped]
+    if to_delete:
+        del_placeholders = ','.join('?' * len(to_delete))
+        conn.execute(f'DELETE FROM stock_sector_summary WHERE ts_code IN ({del_placeholders})', to_delete)
+    conn.commit()
+    conn.close()
+    return len(grouped)
+
+
+def _init_default_push_config(conn):
+    """默认推送配置 (alert_rules / feishu 读阈值用). 已存在的不覆盖."""
+    defaults = {
+        # 开关
+        'enabled': 'true',
+        # 7 类预警阈值
+        'limitup_50_enabled': 'true',
+        'limitup_100_enabled': 'true',
+        'limitdown_threshold': '20',
+        'broken_rate_threshold': '0.5',
+        'north_money_threshold_yi': '50',
+        'streak_high_threshold': '5',
+        'streak_break_threshold': '8',
+        # 免打扰
+        'do_not_disturb_start': '12:00',
+        'do_not_disturb_end': '13:00',
+        # 关注题材
+        'watched_sectors': '[]',
+        # 飞书 Webhook
+        'feishu_webhook_url': '',
+        'feishu_webhook_secret': '',
+    }
+    now_ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    for k, v in defaults.items():
+        existing = conn.execute("SELECT 1 FROM push_config WHERE key=?", (k,)).fetchone()
+        if not existing:
+            conn.execute(
+                "INSERT INTO push_config (key, value, updated_at) VALUES (?, ?, ?)",
+                (k, v, now_ts))
+    conn.commit()
+
+
+def rebuild_sector_summary():
+    """全量重建 stock_sector_summary (供应用启动时调用)."""
+    conn = sqlite3.connect(DB_PATH)
+    codes = [r[0] for r in conn.execute(
+        'SELECT DISTINCT code FROM limitup WHERE code IS NOT NULL'
+    ).fetchall()]
+    conn.close()
+    return refresh_sector_summary_for_codes(codes)
+
+
 # ============ 涨幅榜单 ============
 
 
@@ -533,6 +913,7 @@ def _attach_close(rows):
     codes = list({r.get('code') for r in rows if r.get('code')})
     if not codes:
         conn.close()
+        _attach_sector(rows, key='code')  # 顺便补 sector_history (空 data 时也补, 给前端统一字段)
         return jsonify(rows)
     placeholders = ','.join('?' for _ in codes)
     # 每只股票取 trade_date 最大的那行
@@ -551,6 +932,7 @@ def _attach_close(rows):
         else:
             r['close'] = None
             r['close_date'] = None
+    _attach_sector(rows, key='code')
     return jsonify(rows)
 
 
@@ -1183,22 +1565,51 @@ def get_limitup():
     if limit > 50000:
         limit = 50000
 
-    query = 'SELECT * FROM limitup WHERE 1=1'
+    # LEFT JOIN stock_daily 取当日涨跌幅.
+    # limitup.code 是 6 位数字 (无后缀), stock_daily.ts_code 是 000012.SZ (带后缀),
+    # 用 CASE 按首位判断市场拼接后缀匹配. 6/5/9 → sh, 0/2/3 → sz, 4/8 → bj.
+    query = '''SELECT l.*, sd.change AS change_pct
+               FROM limitup l
+               LEFT JOIN stock_daily sd ON sd.ts_code = (
+                   l.code || CASE
+                       WHEN l.code LIKE '6%' OR l.code LIKE '5%' OR l.code LIKE '9%' THEN '.SH'
+                       WHEN l.code LIKE '4%' OR l.code LIKE '8%' THEN '.BJ'
+                       ELSE '.SZ'
+                   END
+               ) AND sd.trade_date = l.date
+               WHERE 1=1'''
     params = []
 
     if date:
-        query += ' AND date=?'
+        query += ' AND l.date=?'
         params.append(date)
     if sector != 'all':
-        query += ' AND sector=?'
+        query += ' AND l.sector=?'
         params.append(sector)
 
-    query += ' ORDER BY date DESC LIMIT ?'
+    query += ' ORDER BY l.date DESC LIMIT ?'
     params.append(limit)
 
     rows = c.execute(query, params).fetchall()
     conn.close()
-    return jsonify([dict(r) for r in rows])
+    items = [dict(r) for r in rows]
+
+    # with_quote=1 时, 调 sina 实时行情覆盖 change_pct (盘中最新价)
+    # 仅在数据量 <= 200 时启用, 避免 sina 单次请求过大
+    if request.args.get('with_quote') == '1' and 0 < len(items) <= 200:
+        codes = list({r.get('code') for r in items if r.get('code')})
+        if codes:
+            try:
+                quotes = fetch_sina_quotes(codes)
+                for item in items:
+                    q = quotes.get(item.get('code'))
+                    if q:
+                        item['change_pct'] = q['change_pct']  # 用盘中实时价覆盖
+                        item['quote_time'] = q.get('time', '')
+            except Exception as e:
+                print(f'[limitup] sina 实时拉取失败 (降级 stock_daily): {e}')
+
+    return jsonify(items)
 
 
 @app.route('/api/limitup', methods=['DELETE'])
@@ -1207,13 +1618,26 @@ def delete_limitup():
     date = request.args.get('date')
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
+    # 删前先抓受影响的 ts_code, 删完用于刷新 sector summary
     if date:
+        affected = [r[0] for r in c.execute(
+            'SELECT DISTINCT code FROM limitup WHERE date = ? AND code IS NOT NULL', (date,)
+        ).fetchall()]
         c.execute('DELETE FROM limitup WHERE date=?', (date,))
     else:
+        affected = [r[0] for r in c.execute(
+            'SELECT DISTINCT code FROM limitup WHERE code IS NOT NULL'
+        ).fetchall()]
         c.execute('DELETE FROM limitup')
     conn.commit()
     cnt = c.rowcount
     conn.close()
+    # 刷新 sector summary (可能清掉已无涨停记录的股的 summary)
+    if affected:
+        try:
+            refresh_sector_summary_for_codes(affected)
+        except Exception as _e:
+            print(f'[delete_limitup] sector summary 刷新失败 (非致命): {_e}')
     return jsonify({'status': 'ok', 'deleted': cnt})
 
 
@@ -1315,11 +1739,12 @@ def run_ocr_job(filepath, job_id, trade_date):
         return stocks
 
     def _try_ocr_image(sp, prompt, max_attempts=2, timeout=240, attempt_label=''):
-        """单图调 mmx 最多 max_attempts 次（瞬时错误重试）。返回 (data, err, last_stdout, last_stderr)。
+        """单图调 mmx 最多 max_attempts 次（瞬时错误重试）。返回 (data, err, last_stdout, last_stderr, attempts_used)。
         attempt_label 用来给落盘的 stdout 文件名加前缀，避免重名覆盖。
         timeout 默认 240s（切片用）；原图阶段可传 60s，因为原图如果 hang 住多半会一直 hang。"""
         data, err = [], ''
         last_out, last_err = '', ''
+        attempts_used = 0
         for attempt in range(max_attempts):
             try:
                 r = subprocess.run(
@@ -1344,24 +1769,41 @@ def run_ocr_job(filepath, job_id, trade_date):
             last_out, last_err = r.stdout, r.stderr
             if r.returncode == 0 and r.stdout.strip():
                 data, err = _parse_mmx_content(r.stdout)
+                attempts_used = attempt + 1
                 if data:
-                    return data, '', last_out, last_err
+                    return data, '', last_out, last_err, attempts_used
             err = (r.stderr or 'empty stdout')[:200]
+            attempts_used = attempt + 1
             time.sleep(2)
-        return [], err, last_out, last_err
+        return [], err, last_out, last_err, attempts_used
 
     def _slice_image_into(filepath):
-        """按高度切成长图切片，返回 (slice_paths, meta_dict)。图小时只切 1 块。"""
+        """按高度切成长图切片, 返回 (slice_paths, meta_dict). 图小时只切 1 块.
+        切块规则 (user 2026-06-22 拍板):
+          H ≤ 6000           → 1 块 (整张直送)
+          6000 <  H <  7000  → 2 块
+          7000 ≤ H <  9000  → 3 块
+          9000 ≤ H < 12000  → 4 块
+          12000 ≤ H < 16000 → 5 块
+          H ≥ 16000         → 5 块 cap (防止长图越切越多)
+        """
         from PIL import Image as _Image
         img = _Image.open(filepath)
         W, H = img.size
-        TARGET_H = 1900
-        OVERLAP = 400  # 大 overlap 让切口附近股票尽量同时出现在两片，配合跨切片传播双保险
-        if H <= TARGET_H + 500:
+        OVERLAP = 400  # 大 overlap 让切口附近股票尽量同时出现在两片, 配合跨切片传播双保险
+        if H <= 6000:
             N = 1
+        elif H < 7000:
+            N = 2
+        elif H < 9000:
+            N = 3
+        elif H < 12000:
+            N = 4
+        else:  # 12000 ≤ H < 16000 或 H ≥ 16000
+            N = 5
+        if N == 1:
             slice_h = H
         else:
-            N = max(2, (H + TARGET_H - 1) // TARGET_H)
             slice_h = (H + (N - 1) * OVERLAP) // N
         slice_paths = []
         for i in range(N):
@@ -1449,7 +1891,7 @@ def run_ocr_job(filepath, job_id, trade_date):
         # 原图可能触发上游 token 上限 (system error 或 hang)，所以给足 5min timeout
         # 2 次都失败才走切图兜底（切图每片 1.3MB 必然能拿 7 字段全数据）
         _save('ocr_full', phase='A', max_attempts=2, timeout=300)
-        full_data, full_err, full_out, full_errstr = _try_ocr_image(
+        full_data, full_err, full_out, full_errstr, full_attempts = _try_ocr_image(
             filepath, prompt, max_attempts=2, timeout=300, attempt_label='full.')
         results_for_merge = []
         date_image = filepath  # 默认日期识别用原图
@@ -1473,7 +1915,7 @@ def run_ocr_job(filepath, job_id, trade_date):
             def _ocr_slice(idx, sp):
                 with progress_lock:
                     _save('ocr_slicing', done=progress['done'], total=N, current=idx)
-                d, e, o, estr = _try_ocr_image(sp, prompt, max_attempts=2,
+                d, e, o, estr, slice_attempts = _try_ocr_image(sp, prompt, max_attempts=2,
                                                 attempt_label=f'slice{idx}.')
                 with progress_lock:
                     progress['done'] += 1
@@ -1645,22 +2087,63 @@ def run_ocr_job(filepath, job_id, trade_date):
                     pass
         conn.commit()
         conn.close()
+        # 刷新涉及的 ts_code 的 sector summary (用本日期所有 code, 包括刚被 DELETE 替换的)
+        try:
+            _sum_conn = sqlite3.connect(DB_PATH)
+            _sum_codes = [r[0] for r in _sum_conn.execute(
+                'SELECT DISTINCT code FROM limitup WHERE date = ? AND code IS NOT NULL',
+                (parsed_date,)
+            ).fetchall()]
+            _sum_conn.close()
+            if _sum_codes:
+                refresh_sector_summary_for_codes(_sum_codes)
+        except Exception as _e:
+            print(f'[run_ocr_job] sector summary 刷新失败 (非致命): {_e}')
+        # 计算图片尺寸 + 切片信息 (前端进度条显示 "1920x1800 整张直送 1 次成功" / "4 块每块 ~1900px")
+        from PIL import Image as _PILImage
+        _w, _h = _PILImage.open(filepath).size
         result = {
             'status': 'done', 'stage': 'done', 'count': cnt, 'date': parsed_date,
             'boards': list(boards_map.keys()), 'streak_count': len(streak_stocks),
             'image_path': filepath, 'job_id': job_id,
+            'image_size': f'{_w}x{_h}',
+            'slices': slice_paths,
+            'attempts': full_attempts if parsed_data is not None else len(results_by_idx),
+            'mode': 'full' if parsed_data is not None else f'sliced_{N}',
         }
         if cnt == 0:
             result['parse_error'] = parse_error
             result['raw_stdout'] = raw_stdout
             result['mmx_stderr'] = mmx_stderr
         _save_result(result)
+        # OCR 成功, 5 分钟后删临时图片 (让前端有时间加载预览, status=error 不删保留重试)
+        _schedule_ocr_image_cleanup(filepath, delay_sec=0)
     except Exception as e:
         _save_result({'status': 'error', 'stage': 'error', 'error': str(e), 'job_id': job_id})
 
 
 def _ocr_status_path(job_id):
     return os.path.join(os.path.dirname(__file__), 'uploads', f'_ocr_{job_id}.json')
+
+
+def _schedule_ocr_image_cleanup(filepath, delay_sec=0):
+    """OCR 成功后立即删临时图片 (delay_sec=0). 前端 OCR modal 只显示识别结果不显示原图, 没并发读风险.
+    status=error 时不删 (保留供重试). 启动一个 daemon 线程等 N 秒后 os.remove.
+    """
+    if not filepath or not os.path.exists(filepath):
+        return
+    import threading as _th
+    def _del():
+        import time as _t
+        if delay_sec > 0:
+            _t.sleep(delay_sec)
+        try:
+            if os.path.exists(filepath):
+                os.remove(filepath)
+                print(f'[ocr-cleanup] 已删 {os.path.basename(filepath)} (job 跑完 +{delay_sec}s)', flush=True)
+        except Exception as e:
+            print(f'[ocr-cleanup] 删 {filepath} 失败: {e}', flush=True)
+    _th.Thread(target=_del, daemon=True).start()
 
 
 def _save_result(result):
@@ -1844,25 +2327,73 @@ def fetch_jiuye_diagram(date_str, job_id=None):
                 raise RuntimeError(f'打开页面失败: {e}')
             await page.wait_for_timeout(2000)
             # diagram-url 仅在"涨停简图" tab 激活时前端 JS 才会调，需点击该 tab
+            # 2026-06 起韭研 SPA 重渲染后单凭 text= 容易点不中，加多策略 + 失败必喊，
+            # 否则 fail silent 12s 后误报"无数据/cookie 失效"误导排查
+            tab_clicked = False
+            # 策略1: aria-controls 包含 diagram（element-plus 标准属性，最稳）
             try:
-                await page.locator('text=涨停简图').first.click(timeout=5000)
-            except Exception:
-                # 找不到时尝试 Vue store 强切
-                await page.evaluate("""() => {
-                    const app = document.querySelector('#app');
-                    if (!app || !app.__vue__) return 'no vue';
-                    const walk = (n) => {
-                        if (n.activeName !== undefined) { n.activeName = 'diagram'; return true; }
-                        if (n.$children) for (const c of n.$children) if (walk(c)) return true;
-                        return false;
-                    };
-                    return walk(app.__vue__) ? 'toggled' : 'no activeName';
-                }""")
-            # 等 diagram-url 响应（最久 12 秒）
-            for _ in range(24):
+                await page.locator('[role="tab"][aria-controls*="diagram"]').first.click(timeout=5000)
+                tab_clicked = True
+                print(f'[jiuye] tab 点中 (策略1: aria-controls=diagram)', flush=True)
+            except Exception as e:
+                print(f'[jiuye] tab 策略1 失败: {type(e).__name__}: {e}', flush=True)
+            # 策略2: 文字匹配（fallback，兼容老版本 DOM）
+            if not tab_clicked:
+                try:
+                    await page.locator('text=涨停简图').first.click(timeout=5000)
+                    tab_clicked = True
+                    print(f'[jiuye] tab 点中 (策略2: text=涨停简图)', flush=True)
+                except Exception as e:
+                    print(f'[jiuye] tab 策略2 失败: {type(e).__name__}: {e}', flush=True)
+            # 策略3: 尝试 Vue store 强切（Vue 2 兼容，Vue 3 大概率 no vue，但留着不亏）
+            if not tab_clicked:
+                try:
+                    vue_result = await page.evaluate("""() => {
+                        const app = document.querySelector('#app');
+                        if (!app || !app.__vue__) return 'no vue';
+                        const walk = (n) => {
+                            if (n.activeName !== undefined) { n.activeName = 'diagram'; return true; }
+                            if (n.$children) for (const c of n.$children) if (walk(c)) return true;
+                            return false;
+                        };
+                        return walk(app.__vue__) ? 'toggled' : 'no activeName';
+                    }""")
+                    print(f'[jiuye] tab 策略3 (Vue store) 返回: {vue_result}', flush=True)
+                except Exception as e:
+                    print(f'[jiuye] tab 策略3 失败: {type(e).__name__}: {e}', flush=True)
+            # 全部失败时：把页面所有 tab 元素 dump 出来，下次失败能直接看到 DOM 长啥样
+            if not tab_clicked:
+                try:
+                    tabs_dump = await page.evaluate("""() => {
+                        return Array.from(document.querySelectorAll('[role="tab"], .el-tabs__item')).map(t => ({
+                            tag: t.tagName,
+                            text: (t.textContent || '').trim().slice(0, 30),
+                            aria: t.getAttribute('aria-controls') || '',
+                            cls: t.className || ''
+                        }));
+                    }""")
+                    print(f'[jiuye] tab 三策略全失败, 页面所有 tab 元素: {tabs_dump}', flush=True)
+                except Exception as e:
+                    print(f'[jiuye] tab dump 也失败: {type(e).__name__}: {e}', flush=True)
+            # 等 diagram-url 响应（最久 25 秒，比原来 12s 翻倍，给 SPA 懒加载时间）
+            for _ in range(50):
                 if img_url_holder['url'] or img_url_holder['err']:
                     break
                 await page.wait_for_timeout(500)
+            # 兜底：25 秒还没响应, 重试点一次 tab 再等 8 秒（应对首次点击未生效）
+            if not img_url_holder['url'] and not img_url_holder['err']:
+                print('[jiuye] 25s 内未捕获响应, 重试点击 tab...', flush=True)
+                try:
+                    await page.locator('[role="tab"][aria-controls*="diagram"]').first.click(timeout=3000)
+                except Exception:
+                    try:
+                        await page.locator('text=涨停简图').first.click(timeout=3000)
+                    except Exception as e:
+                        print(f'[jiuye] tab 重试点击也失败: {type(e).__name__}: {e}', flush=True)
+                for _ in range(16):
+                    if img_url_holder['url'] or img_url_holder['err']:
+                        break
+                    await page.wait_for_timeout(500)
             # B. 拉完后把 context 当前的 cookies 全部回写文件，覆盖文件里旧的同名 cookie。
             #    这样下次运行时 acw_tc/cdn_sec_tc 和（若有）刷新过的 SESSION 都用新的。
             try:
@@ -2003,11 +2534,21 @@ def get_parse_status(job_id):
 
 @app.route('/')
 def index():
-    return send_from_directory(os.path.join(os.path.dirname(__file__), '..'), 'dashboard/index.html')
+    resp = send_from_directory(os.path.join(os.path.dirname(__file__), '..'), 'dashboard/index.html')
+    # 强制浏览器每次重拉, 避免开发时缓存老 HTML 导致列错位/字段缺失
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
+    resp.headers['Pragma'] = 'no-cache'
+    resp.headers['Expires'] = '0'
+    return resp
 
 @app.route('/dashboard/<path:filename>')
 def dashboard_static(filename):
-    return send_from_directory(os.path.join(os.path.dirname(__file__), '..', 'dashboard'), filename)
+    resp = send_from_directory(os.path.join(os.path.dirname(__file__), '..', 'dashboard'), filename)
+    if filename.endswith('.html'):
+        resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
+        resp.headers['Pragma'] = 'no-cache'
+        resp.headers['Expires'] = '0'
+    return resp
 
 # ============ 健康检查 ============
 
@@ -2699,6 +3240,9 @@ def get_positions():
             vals = flow_by_code.get(p['ts_code'], [])
             p['main_net_5d'] = round(sum(vals[:5]), 2) if vals else None
             p['main_net_20d'] = round(sum(vals[:20]), 2) if vals else None
+
+    # 板块历史 (每只股的历史涨停板块)
+    _attach_sector(positions, key='ts_code')
 
     total_mv = sum((p.get('market_value') or 0) for p in positions)
     total_cost = sum((p.get('cost_value') or 0) for p in positions)
@@ -3976,7 +4520,9 @@ def _reconcile_position(c, ts_code, triggered_by_trade_id=None, triggered_by_tra
 
     # 0) 找当前活跃窗口起点
     # 优先: 该 ts_code 最新 closed_at (来自已关仓位) → 用 > 排除 closing trade
-    # 回退: active position 的最早 buy_date → 用 >= 包含第一笔 buy
+    # 回退: trades 表里最早的 buy 日期 → 用 >= 包含第一笔 buy
+    # 注意: 不能用 positions.buy_date, 因为 _apply_one_trade 把它存成"最新"日期,
+    #       MIN(buy_date) 等于 MAX(buy_date), cutoff 会丢失前面的 trade.
     latest_close = c.execute(
         '''SELECT MAX(closed_at) FROM positions WHERE ts_code=? AND closed_at IS NOT NULL''',
         (ts_code,)).fetchone()
@@ -3986,11 +4532,12 @@ def _reconcile_position(c, ts_code, triggered_by_trade_id=None, triggered_by_tra
         cutoff_date = latest_close[0][:10]
         use_inclusive = False  # 严格 >, 排除 closing trade
     else:
-        active_buy = c.execute(
-            '''SELECT MIN(buy_date) FROM positions WHERE ts_code=? AND closed_at IS NULL AND buy_date IS NOT NULL AND length(buy_date)>0''',
+        first_trade = c.execute(
+            '''SELECT MIN(trade_date) FROM trades
+               WHERE ts_code=? AND applied=1 AND direction='buy' ''',
             (ts_code,)).fetchone()
-        if active_buy and active_buy[0]:
-            cutoff_date = active_buy[0]
+        if first_trade and first_trade[0]:
+            cutoff_date = first_trade[0]
             use_inclusive = True  # >= 包含第一笔 buy
 
     # 1) 拉 cutoff 之后所有 applied=1 的 trades (按时间序). 排除 dividend/tax/bonus/transfer
@@ -4298,6 +4845,36 @@ def clear_reconcile_log():
     return jsonify({'status': 'success', 'deleted': deleted})
 
 
+@app.route('/api/positions/reconcile-all', methods=['POST'])
+def reconcile_all_positions():
+    """对所有有 trade 的 ts_code 跑一次 reconcile, 修复 drift (cost_price / shares / original_shares 等)
+    用于一次性修复历史数据, 比如 position.buy_date cutoff bug 导致的 shares 丢失."""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    ts_codes = [r[0] for r in c.execute(
+        "SELECT DISTINCT ts_code FROM trades WHERE applied=1 AND direction IN ('buy','sell')"
+    ).fetchall()]
+    total_drift = 0
+    fixed_ts = []
+    for ts in ts_codes:
+        try:
+            n = _reconcile_position(c, ts)
+            if n > 0:
+                total_drift += n
+                fixed_ts.append(ts)
+        except Exception as e:
+            print(f'[reconcile-all] {ts} 失败: {e}')
+    conn.commit()
+    conn.close()
+    return jsonify({
+        'status': 'success',
+        'total': len(ts_codes),
+        'fixed': len(fixed_ts),
+        'drift_count': total_drift,
+        'fixed_ts_codes': fixed_ts,
+    })
+
+
 @app.route('/api/trades/rollback', methods=['POST'])
 def rollback_trades():
     """撤销 apply: 把指定 trades 的 applied 改回 0 (position 状态不会自动还原!)"""
@@ -4331,12 +4908,27 @@ def clear_trades():
 # ============ 新浪实时行情转发 ============
 
 def _sina_code_for_ts(ts_code):
-    """600519.SH -> sh600519, 000001.SZ -> sz000001"""
-    if not ts_code or '.' not in ts_code:
+    """600519.SH -> sh600519, 000001.SZ -> sz000001, 605069 (无后缀) -> 自动判断 (6/5/9 → sh, 0/2/3 → sz, 4/8 → bj)"""
+    if not ts_code:
         return None
-    code, market = ts_code.lower().split('.')
-    prefix = {'sh': 'sh', 'sz': 'sz', 'bj': 'bj'}.get(market, '')
-    return f'{prefix}{code}'
+    s = str(ts_code).strip().lower()
+    if '.' in s:
+        # 已带后缀, 按 .SH/.SZ/.BJ 拆
+        code, market = s.split('.', 1)
+        prefix = {'sh': 'sh', 'sz': 'sz', 'bj': 'bj'}.get(market, '')
+        if not prefix:
+            return None
+        return f'{prefix}{code}'
+    # 无后缀, 按 6 位数字首位判断市场
+    if not s.isdigit() or len(s) != 6:
+        return None
+    if s.startswith(('6', '5', '9')):
+        return f'sh{s}'  # 6/5/9 开头 → 沪
+    if s.startswith(('0', '2', '3')):
+        return f'sz{s}'  # 0/2/3 开头 → 深
+    if s.startswith(('4', '8')):
+        return f'bj{s}'  # 4/8 开头 → 北交所
+    return None
 
 
 def _ts_code_for_sina(sina_code):
@@ -4353,68 +4945,112 @@ def _ts_code_for_sina(sina_code):
     return None
 
 
-def fetch_sina_quotes(ts_codes):
+_QUOTE_CACHE = {}  # ts_code -> {'price', 'prev_close', 'change_pct', 'name', 'time', '_ts': fetch_time}
+_QUOTE_CACHE_TTL = 3  # 默认 3s TTL, 跟 posAutoInterval 联动时按前端 ?interval= 算 (max 2, min 30)
+_QUOTE_CACHE_HITS = 0
+_QUOTE_CACHE_MISSES = 0
+
+
+def fetch_sina_quotes(ts_codes, cache_ttl=None):
     """通过新浪财经 hq.sinajs.cn 拉一批代码的实时行情
 
     返回 {ts_code: {price, prev_close, change_pct, name, time}}
+    全局缓存: 同一只股 cache_ttl 秒内多次请求复用, 避免持仓/选股/板块/涨停拆解等 tab 重复拉 sina.
+    cache_ttl: 调用方传 (通常从 ?interval= 算), None 用 _QUOTE_CACHE_TTL 默认值.
     """
+    import time as _t
+    now = _t.time()
+    ttl = cache_ttl if cache_ttl is not None else _QUOTE_CACHE_TTL
+
+    # 1) 拆 sina_code + 查缓存 (按 ts_code 复用)
     sina_codes = []
-    code_map = {}
+    code_map = {}  # sina_code -> ts_code
+    cached = {}    # 直接从缓存返
     for tc in ts_codes:
         sc = _sina_code_for_ts(tc)
-        if sc:
+        if not sc:
+            continue
+        # 缓存命中?
+        entry = _QUOTE_CACHE.get(tc)
+        if entry and now - entry['_ts'] < ttl:
+            global _QUOTE_CACHE_HITS
+            _QUOTE_CACHE_HITS += 1
+            cached[tc] = {k: v for k, v in entry.items() if k != '_ts'}  # 不返 _ts
+        else:
             sina_codes.append(sc)
             code_map[sc] = tc
-    if not sina_codes:
-        return {}
+            global _QUOTE_CACHE_MISSES
+            _QUOTE_CACHE_MISSES += 1
 
-    url = f'https://hq.sinajs.cn/list={",".join(sina_codes)}'
-    headers = {
-        'Referer': 'https://finance.sina.com.cn',
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-    }
+    if not sina_codes:
+        return cached
+
+    # 2) 缓存 miss 的才发 sina (分批 50 避免 URL 字符超限)
     result = {}
+    BATCH = 50
+    for i in range(0, len(sina_codes), BATCH):
+        batch = sina_codes[i:i + BATCH]
+        url = f'https://hq.sinajs.cn/list={",".join(batch)}'
+        headers = {
+            'Referer': 'https://finance.sina.com.cn',
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        }
+        try:
+            r = _requests.get(url, headers=headers, timeout=5)
+            if r.status_code != 200:
+                print(f'sina 返回 {r.status_code}')
+                continue
+            for line in r.text.strip().split('\n'):
+                # 格式: var hq_str_sh600519="贵州茅台,1800.00,1780.00,1810.00,1820.00,1790.00,1805.00,...";
+                if '=' not in line or '"' not in line:
+                    continue
+                var_part, val_part = line.split('=', 1)
+                sina_code = var_part.strip().replace('var hq_str_', '')
+                val = val_part.strip().strip(';').strip('"')
+                if not val or val == 'NULL':
+                    continue
+                fields = val.split(',')
+                if len(fields) < 10:
+                    continue
+                # 字段含义: 0=名称 1=今开 2=昨收 3=当前 4=日高 5=日低 ...
+                name = fields[0]
+                try:
+                    current = float(fields[3])
+                    prev_close = float(fields[2])
+                except (ValueError, IndexError):
+                    continue
+                if prev_close <= 0:
+                    continue
+                change_pct = (current - prev_close) / prev_close * 100
+                # 时间: index 30 起始 HHMMSS (不同市场略有差异)
+                quote_time = fields[30] if len(fields) > 30 else ''
+                ts_code = _ts_code_for_sina(sina_code)
+                if ts_code:
+                    entry = {
+                        'price': current,
+                        'prev_close': prev_close,
+                        'change_pct': round(change_pct, 2),
+                        'name': name,
+                        'time': quote_time,
+                    }
+                    _QUOTE_CACHE[ts_code] = {**entry, '_ts': now}
+                    result[ts_code] = entry
+        except Exception as e:
+            print(f'fetch_sina_quotes 错误: {e}')
+
+    # 3) 合并: 缓存 + 新拉
+    return {**cached, **result}
+
+
+def _quote_cache_ttl_from_request():
+    """从 request ?interval= 算 cache_ttl = max(2, min(30, int(interval))).
+    联动 posAutoInterval: 3s 周期 -> 3s 缓存 (真实 3s 刷新), 30s 周期 -> 30s 缓存.
+    """
     try:
-        r = _requests.get(url, headers=headers, timeout=5)
-        if r.status_code != 200:
-            print(f'sina 返回 {r.status_code}')
-            return result
-        for line in r.text.strip().split('\n'):
-            # 格式: var hq_str_sh600519="贵州茅台,1800.00,1780.00,1810.00,1820.00,1790.00,1805.00,...";
-            if '=' not in line or '"' not in line:
-                continue
-            var_part, val_part = line.split('=', 1)
-            sina_code = var_part.strip().replace('var hq_str_', '')
-            val = val_part.strip().strip(';').strip('"')
-            if not val or val == 'NULL':
-                continue
-            fields = val.split(',')
-            if len(fields) < 10:
-                continue
-            # 字段含义: 0=名称 1=今开 2=昨收 3=当前 4=日高 5=日低 ...
-            name = fields[0]
-            try:
-                current = float(fields[3])
-                prev_close = float(fields[2])
-            except (ValueError, IndexError):
-                continue
-            if prev_close <= 0:
-                continue
-            change_pct = (current - prev_close) / prev_close * 100
-            # 时间: index 30 起始 HHMMSS (不同市场略有差异)
-            quote_time = fields[30] if len(fields) > 30 else ''
-            ts_code = _ts_code_for_sina(sina_code)
-            if ts_code:
-                result[ts_code] = {
-                    'price': current,
-                    'prev_close': prev_close,
-                    'change_pct': round(change_pct, 2),
-                    'name': name,
-                    'time': quote_time,
-                }
-    except Exception as e:
-        print(f'fetch_sina_quotes 错误: {e}')
-    return result
+        n = int(request.args.get('interval', 3))
+    except (TypeError, ValueError):
+        n = 3
+    return max(2, min(30, n))
 
 
 @app.route('/api/positions/quote', methods=['GET'])
@@ -4424,7 +5060,43 @@ def get_positions_quote():
     codes = [c.strip() for c in codes_param.split(',') if c.strip()]
     if not codes:
         return jsonify({})
-    return jsonify(fetch_sina_quotes(codes))
+    return jsonify(fetch_sina_quotes(codes, cache_ttl=_quote_cache_ttl_from_request()))
+
+
+@app.route('/api/limitup/quote', methods=['GET'])
+def get_limitup_quote():
+    """涨停拆解明细专用 quote 端点: 输入一批 ts_code, 返回 sina 实时价 dict.
+    给前端补"所有"涨停股的盘中实时涨幅 (不限 date).
+    sina 单次 URL 长度有限, 内部按 200 一组串行分批拉."""
+    codes_param = request.args.get('codes', '')
+    codes = [c.strip() for c in codes_param.split(',') if c.strip()]
+    if not codes:
+        return jsonify({})
+    all_quotes = {}
+    BATCH = 200
+    ttl = _quote_cache_ttl_from_request()
+    for i in range(0, len(codes), BATCH):
+        batch = codes[i:i + BATCH]
+        all_quotes.update(fetch_sina_quotes(batch, cache_ttl=ttl))
+    return jsonify(all_quotes)
+
+
+@app.route('/api/leaderboard/quote', methods=['GET'])
+def get_leaderboard_quote():
+    """阶段涨幅榜单专用 quote 端点: 给榜单每只股票补"当下实时涨跌幅" (跟 5日/10日/20日 涨幅并列显示)
+    sina 全局 30s 缓存, 跨 tab 复用. 复用 /api/limitup/quote 同样的批量逻辑.
+    """
+    codes_param = request.args.get('codes', '')
+    codes = [c.strip() for c in codes_param.split(',') if c.strip()]
+    if not codes:
+        return jsonify({})
+    all_quotes = {}
+    BATCH = 200
+    ttl = _quote_cache_ttl_from_request()
+    for i in range(0, len(codes), BATCH):
+        batch = codes[i:i + BATCH]
+        all_quotes.update(fetch_sina_quotes(batch, cache_ttl=ttl))
+    return jsonify(all_quotes)
 
 
 @app.route('/api/picks/quote', methods=['GET'])
@@ -4441,7 +5113,7 @@ def api_picks_quote():
         return jsonify({})
 
     # 1. 拉新浪实时价
-    quotes = fetch_sina_quotes(codes)
+    quotes = fetch_sina_quotes(codes, cache_ttl=_quote_cache_ttl_from_request())
     if not quotes:
         return jsonify({})
 
@@ -4749,6 +5421,7 @@ def api_flow_market():
     rows.sort(key=lambda r: (r[sort] or 0) if sort in r.keys() else 0, reverse=(order == 'desc'))
 
     out = [dict(r) for r in rows[:limit]]
+    _attach_sector(out, key='ts_code')  # 补 sector_history
     return jsonify({
         'count': len(out),
         'total_matched': len(rows),
@@ -5218,7 +5891,17 @@ def _em_sync_market_bg():
     print(f'[em-sync] 开始: 同步 {today}', flush=True)
 
     def _cb(stage, **kw):
-        if stage == 'total':
+        if stage == 'start':
+            # kw: actual_date, today
+            ad = kw.get('actual_date', today)
+            if ad != today:
+                _AKSYNC_STATE['is_holiday'] = True
+                _AKSYNC_STATE['actual_date'] = ad
+                _AKSYNC_STATE['current_code'] = f'⏸ {today} 非交易日, 数据将归属到 {ad}'
+            else:
+                _AKSYNC_STATE['is_holiday'] = False
+                _AKSYNC_STATE['actual_date'] = ad
+        elif stage == 'total':
             _AKSYNC_STATE['total'] = kw.get('total', 0)
             _AKSYNC_STATE['current_code'] = f'总 {kw["total"]} 只, 开始翻页...'
         elif stage == 'page':
@@ -5231,15 +5914,27 @@ def _em_sync_market_bg():
         elif stage == 'done':
             _AKSYNC_STATE['done'] = kw.get('rows', 0)
             _AKSYNC_STATE['failed'] = len(kw.get('failed', []))
+            ad = kw.get('actual_date', _AKSYNC_STATE.get('actual_date', today))
             _AKSYNC_STATE['current_code'] = (
-                f'抓取完成 {kw["rows"]}/{kw["total"]} 行'
+                f'抓取完成 {kw["rows"]}/{kw["total"]} 行 (写入 {ad})'
                 + (f' (失败 {len(kw["failed"])} 页)' if kw.get('failed') else '')
             )
+        elif stage == 'already_synced':
+            # 幂等守卫命中, 跳过抓取
+            ad = kw.get('actual_date', today)
+            cnt = kw.get('existing_count', 0)
+            _AKSYNC_STATE['is_already_synced'] = True
+            _AKSYNC_STATE['actual_date'] = ad
+            _AKSYNC_STATE['current_code'] = f'✅ {ad} 已有数据 ({cnt} 行), 跳过抓取'
         elif stage == 'error':
             _AKSYNC_STATE['errors'].append(('eastmoney-push2', kw.get('message', '')))
 
+    _AKSYNC_STATE['is_holiday'] = False
+    _AKSYNC_STATE['is_already_synced'] = False
+    _AKSYNC_STATE['actual_date'] = today
     try:
-        rows, total, failed = fetch_today_market(progress_callback=_cb, headless=False, verbose=True)
+        rows, total, failed, actual_date = fetch_today_market(
+            progress_callback=_cb, headless=False, verbose=True, skip_if_exists=True)
     except Exception as e:
         err_msg = f'{type(e).__name__}: {str(e)[:200]}'
         _AKSYNC_STATE['errors'].append(('eastmoney-push2', err_msg))
@@ -5250,17 +5945,25 @@ def _em_sync_market_bg():
         print(f'[em-sync] 异常: {err_msg}', flush=True)
         return
 
+    # 幂等守卫命中: 早退, 算成功不算错误
+    if not rows and _AKSYNC_STATE.get('is_already_synced'):
+        _AKSYNC_STATE['running'] = False
+        _AKSYNC_STATE['finished_at'] = datetime.now().isoformat()
+        _AKSYNC_STATE['elapsed_sec'] = round(_t.time() - t0, 1)
+        print(f'[em-sync] ⏭ {actual_date} 已有数据, 跳过 ({_AKSYNC_STATE["elapsed_sec"]}s)', flush=True)
+        return
+
     if not rows:
         _AKSYNC_STATE['failed'] = 1
         if not _AKSYNC_STATE['errors']:
             _AKSYNC_STATE['errors'].append(('eastmoney-push2', '抓取结果为空'))
     else:
         try:
-            _AKSYNC_STATE['current_code'] = f'写入 DB {len(rows)} 行 ({today})...'
-            inserted = _save_em_fund_flow_rows(rows, today, source='eastmoney-push2')
+            _AKSYNC_STATE['current_code'] = f'写入 DB {len(rows)} 行 ({actual_date})...'
+            inserted = _save_em_fund_flow_rows(rows, actual_date, source='eastmoney-push2')
             _AKSYNC_STATE['success'] = inserted
-            _AKSYNC_STATE['current_code'] = f'✅ {today} 已写入 {inserted} 行'
-            print(f'[em-sync] ✅ {today} 写入 {inserted} 行', flush=True)
+            _AKSYNC_STATE['current_code'] = f'✅ {actual_date} 已写入 {inserted} 行'
+            print(f'[em-sync] ✅ {actual_date} 写入 {inserted} 行', flush=True)
         except Exception as e:
             err_msg = f'写入 DB: {type(e).__name__}: {str(e)[:200]}'
             _AKSYNC_STATE['errors'].append(('db.write', err_msg))
@@ -5538,17 +6241,24 @@ def _volume_ratio(closes_or_vols, idx=-1, lookback=5):
 
 
 def _flow_days_available(end_date):
-    """fund_flow 表在 end_date 及之前有多少天的数据"""
+    """fund_flow 表在 end_date 及之前, eastmoney-push2 源有多少"有效"资金流数据日。
+
+    口径跟主力净流入 tab 默认源一致 (source=eastmoney-push2),
+    main_net_inflow != 0 过滤 ifind 那种全 0 的空壳日 (tushare 已清, 不会再出现).
+    """
     conn = sqlite3.connect(DB_PATH, timeout=30)
     row = conn.execute("""
         SELECT COUNT(DISTINCT trade_date) FROM fund_flow
         WHERE trade_date <= ?
+          AND source = 'eastmoney-push2'
+          AND main_net_inflow IS NOT NULL
+          AND main_net_inflow != 0
     """, (end_date,)).fetchone()
     conn.close()
     return row[0] if row else 0
 
 
-def _compute_picks(trade_date=None):
+def _compute_picks(trade_date=None, ts_codes=None):
     """按《均线 + 资金流》文档计算选股推荐.
 
     双维度评分:
@@ -5556,6 +6266,10 @@ def _compute_picks(trade_date=None):
       2) 资金流: 当日主力净流入 + 3/5/10/20 日累计主力净流入 + 5 档占比
 
     数据不足时降级: 缺几天的累计就跳过哪个维度, 不强行估算.
+
+    Args:
+        trade_date: 计算日期 (YYYYMMDD), None = 最新
+        ts_codes: 限定只算这些 ts_code (None = 全市场). 用于自选股 sub-tab 只算用户加的代码.
     """
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -5578,8 +6292,14 @@ def _compute_picks(trade_date=None):
         return []
 
     # fund_flow 可用天数 (决定哪些累计资金流维度能算)
+    # 口径 B: 只数默认源 eastmoney-push2, 跟主力净流入 tab 一致
+    # (ifind 全 0 是空壳, tushare 已被清掉, 都不再参与累计算法)
     flow_dates = [r[0] for r in conn.execute(
-        'SELECT DISTINCT trade_date FROM fund_flow WHERE trade_date <= ? ORDER BY trade_date DESC',
+        'SELECT DISTINCT trade_date FROM fund_flow '
+        'WHERE trade_date <= ? '
+        '  AND source = \'eastmoney-push2\' '
+        '  AND main_net_inflow IS NOT NULL AND main_net_inflow != 0 '
+        'ORDER BY trade_date DESC',
         (trade_date,)
     ).fetchall()]
     flow_days = len(flow_dates)
@@ -5589,14 +6309,24 @@ def _compute_picks(trade_date=None):
     can_10d = flow_days >= 10
     can_20d = flow_days >= 20
 
-    # 拉所有股票日线
+    # 拉股票日线 (ts_codes 限定时只算给定代码, 否则全市场)
     placeholders = ','.join(['?' for _ in dates_30])
-    rows = conn.execute(f"""
-        SELECT ts_code, name, trade_date, close, change, volume
-        FROM stock_daily
-        WHERE trade_date IN ({placeholders})
-        ORDER BY ts_code, trade_date DESC
-    """, dates_30).fetchall()
+    sql_args = list(dates_30)
+    if ts_codes:
+        codes_ph = ','.join(['?' for _ in ts_codes])
+        rows = conn.execute(f"""
+            SELECT ts_code, name, trade_date, close, change, volume
+            FROM stock_daily
+            WHERE trade_date IN ({placeholders}) AND ts_code IN ({codes_ph})
+            ORDER BY ts_code, trade_date DESC
+        """, sql_args + list(ts_codes)).fetchall()
+    else:
+        rows = conn.execute(f"""
+            SELECT ts_code, name, trade_date, close, change, volume
+            FROM stock_daily
+            WHERE trade_date IN ({placeholders})
+            ORDER BY ts_code, trade_date DESC
+        """, sql_args).fetchall()
 
     # 按股票分组
     stock_data = defaultdict(list)
@@ -5971,6 +6701,7 @@ def _compute_picks(trade_date=None):
         picks.append({
             'ts_code': ts_code,
             'name': latest['name'] or ts_code.split('.')[0],
+            'trade_date': trade_date,  # 入选日, 入选后涨幅的参考基准
             'close': latest['close'],
             'change_pct': round(change_pct, 2),
             'ma5': round(ma5, 2), 'ma10': round(ma10, 2),
@@ -5999,7 +6730,7 @@ def _compute_picks(trade_date=None):
 
     # 按评分绝对值降序 (推荐排序按 score 降序, 卖出信号靠后)
     picks.sort(key=lambda x: x['score'], reverse=True)
-    return picks[:50]  # 返回 top 50, buy/sell 都包含
+    return picks[:100]  # 返回 top 100, buy/sell 都包含 (前端 limit=100)
 
 
 @app.route('/api/picks/sync', methods=['POST'])
@@ -6101,9 +6832,10 @@ def api_picks():
         picks.append({
             'ts_code': r['ts_code'],
             'name': r['name'],
-            'close': r['close'],
+            'trade_date': r['trade_date'],  # 入选日, 给"入选后涨幅"做 tooltip
+            'close': r['close'],            # 入选当日收盘价
             'change_pct': r['change_pct'],
-            # 均线
+            # 均线 (保留数据, 前端可隐藏列)
             'ma5': _f(r['ma5']) if 'ma5' in r.keys() else None,
             'ma10': _f(r['ma10']) if 'ma10' in r.keys() else None,
             'ma20': _f(r['ma20']) if 'ma20' in r.keys() else None,
@@ -6133,6 +6865,26 @@ def api_picks():
             'reasons': reasons,
         })
 
+    # 板块历史
+    _attach_sector(picks, key='ts_code')
+
+    # 入选后涨幅: 调 sina 拿当前实时价, 对比入选当日 close
+    if picks:
+        codes = [p['ts_code'] for p in picks if p.get('ts_code')]
+        if codes:
+            try:
+                quotes = fetch_sina_quotes(codes)
+                for p in picks:
+                    q = quotes.get(p['ts_code'])
+                    if q and p.get('close') and q.get('price'):
+                        cur = q['price']
+                        ref = p['close']
+                        p['current_price'] = cur
+                        p['quote_time'] = q.get('time', '')
+                        p['post_pick_change_pct'] = round((cur - ref) / ref * 100, 2)
+            except Exception as e:
+                print(f'[api_picks] sina 拉取失败 (不影响主流程): {e}')
+
     return jsonify({
         'picks': picks,
         'date': rows[0]['trade_date'] if rows else '',
@@ -6140,8 +6892,1853 @@ def api_picks():
     })
 
 
+# ============ 我的选股 (user_picks, 复用 _compute_picks 算法) ============
+
+
+@app.route('/api/user-picks', methods=['GET'])
+def api_user_picks_list():
+    """从 user_picks 拉 ts_code 列表, 复用 _compute_picks 全量算法 + 板块 + 实时价.
+    返回结构跟 /api/picks 一致, 多一个 group 字段.
+    """
+    date = request.args.get('date', '').strip() or None
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    # date 过滤: 只返回那天入库的股票; 无 date 返回全部
+    # date 参数可能是 YYYYMMDD (前端 flatpickr) 或 YYYY-MM-DD, 归一成 YYYYMMDD (内部 _compute_picks 用)
+    date_yyyymmdd = None
+    if date:
+        if len(date) == 8 and date.isdigit():
+            date_yyyymmdd = date
+        elif len(date) == 10 and date[4] == '-':
+            date_yyyymmdd = date.replace('-', '')
+    if date_yyyymmdd:
+        # added_at 是 'YYYY-MM-DD HH:MM:SS' 格式, 用 substr 比对前 10 位
+        date_dash = f'{date_yyyymmdd[:4]}-{date_yyyymmdd[4:6]}-{date_yyyymmdd[6:8]}'
+        sql = "SELECT ts_code, added_at FROM user_picks WHERE substr(added_at, 1, 10) = ? ORDER BY added_at DESC"
+        user_rows = conn.execute(sql, (date_dash,)).fetchall()
+    else:
+        user_rows = conn.execute('SELECT ts_code, added_at FROM user_picks ORDER BY added_at DESC').fetchall()
+    conn.close()
+    codes = [r['ts_code'] for r in user_rows]
+    # 入库时间映射 (ts_code -> 'YYYY-MM-DD HH:MM'), 前端表格显示用
+    added_at_map = {r['ts_code']: r['added_at'] for r in user_rows if r['added_at']}
+    if not codes:
+        return jsonify({'picks': [], 'date': '', 'count': 0, 'group': 'user', 'added_at_map': {}})
+
+    # 选股计算用 stock_daily 最新有数据的日期 (入库日可能是当天, stock_daily 还没同步)
+    # 这样 6/25 入库的股能用 6/24 的最新行情算 MA / 资金流
+    conn2 = sqlite3.connect(DB_PATH, timeout=10)
+    latest_sd_row = conn2.execute('SELECT MAX(trade_date) FROM stock_daily').fetchone()
+    conn2.close()
+    calc_trade_date = latest_sd_row[0] if latest_sd_row and latest_sd_row[0] else None
+    picks = _compute_picks(trade_date=calc_trade_date, ts_codes=codes)
+    if not picks:
+        return jsonify({'picks': [], 'date': date or '', 'count': 0, 'group': 'user', 'added_at_map': added_at_map})
+
+    # 板块历史 (复用)
+    _attach_sector(picks, key='ts_code')
+
+    # 入选后涨幅 (复用, 用 picks 中第一只的 trade_date 当入选日)
+    if picks:
+        all_codes = [p['ts_code'] for p in picks if p.get('ts_code')]
+        if all_codes:
+            try:
+                quotes = fetch_sina_quotes(all_codes)
+                for p in picks:
+                    q = quotes.get(p['ts_code'])
+                    if q and p.get('close') and q.get('price'):
+                        p['current_price'] = q['price']
+                        p['quote_time'] = q.get('time', '')
+                        p['post_pick_change_pct'] = round((q['price'] - p['close']) / p['close'] * 100, 2)
+            except Exception as e:
+                print(f'[api_user_picks] sina 拉取失败 (不影响主流程): {e}')
+
+    return jsonify({
+        'picks': picks,
+        'date': picks[0]['trade_date'] if picks else '',
+        'count': len(picks),
+        'group': 'user',
+        'added_count': len(codes),
+        'added_at_map': added_at_map,
+    })
+
+
+@app.route('/api/user-picks', methods=['POST'])
+def api_user_picks_add():
+    """添加一只到 user_picks. body: {ts_code, note?, date?}
+    _normalize_code 归一化 + stock_basic 校验
+    date: 可选 YYYYMMDD 或 YYYY-MM-DD; 传入则 added_at 用该日期中午 12:00 (避免跨日), 缺省用当下时间
+    """
+    data = request.get_json(silent=True) or request.form
+    raw = data.get('ts_code')
+    note = (data.get('note') or '').strip() or None
+    target_date = (data.get('date') or '').strip()
+    ts_code = _normalize_code(raw)
+    if not ts_code:
+        return jsonify({'status': 'error', 'message': f'代码格式无效: {raw!r} (接受 6 位数字 / sh600519 / 600519.SH)'}), 400
+
+    # 校验 stock_basic 存在
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    row = conn.execute('SELECT name FROM stock_basic WHERE ts_code = ?', (ts_code,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'status': 'error', 'message': f'股票不存在: {ts_code} (stock_basic 里没找到)'}), 400
+    name = row['name']
+
+    # 解析目标日期: YYYYMMDD 或 YYYY-MM-DD -> 写入 added_at 用该日期中午 12:00
+    added_at_override = None
+    if target_date:
+        date_norm = None
+        if len(target_date) == 8 and target_date.isdigit():
+            date_norm = target_date
+        elif len(target_date) == 10 and target_date[4] == '-':
+            date_norm = target_date.replace('-', '')
+        if date_norm:
+            added_at_override = f'{date_norm[:4]}-{date_norm[4:6]}-{date_norm[6:8]} 12:00:00'
+
+    # 直接 INSERT: 每次添加都新建一条记录, 不去重 (用户每天的选择完整保留, 重复的也记)
+    if added_at_override:
+        cur = conn.execute('INSERT INTO user_picks (ts_code, added_at, note) VALUES (?, ?, ?)',
+                          (ts_code, added_at_override, note))
+    else:
+        cur = conn.execute('INSERT INTO user_picks (ts_code, note) VALUES (?, ?)', (ts_code, note))
+    conn.commit()
+    new_id = cur.lastrowid
+    conn.close()
+    return jsonify({
+        'status': 'success',
+        'ts_code': ts_code,
+        'name': name,
+        'action': 'added',
+        'id': new_id,
+    })
+
+
+@app.route('/api/user-picks/<ts_code>', methods=['DELETE'])
+def api_user_picks_delete(ts_code):
+    """从 user_picks 删除. 路径参数 ts_code 接受任意格式 (_normalize_code 归一化)."""
+    norm = _normalize_code(ts_code)
+    if not norm:
+        return jsonify({'status': 'error', 'message': f'代码格式无效: {ts_code!r}'}), 400
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.execute('DELETE FROM user_picks WHERE ts_code = ?', (norm,))
+    deleted = cur.rowcount
+    conn.commit()
+    conn.close()
+    if deleted == 0:
+        return jsonify({'status': 'error', 'message': f'自选股不存在: {norm}'}), 404
+    return jsonify({
+        'status': 'success',
+        'ts_code': norm,
+        'action': 'deleted',
+    })
+
+
+# ============ 自选股: 上传图片 OCR 识别股票 ============
+
+_USER_PICKS_OCR_PROMPT = (
+    '识别图中所有股票。每只股票输出 code (6位数字) 和 name (中文名称)。\n'
+    '严格按 JSON 数组输出，不加任何解释、不带 markdown 代码块标记：\n'
+    '[{"code":"600519","name":"贵州茅台"}, {"code":"000001","name":"平安银行"}]\n'
+    '如果只看到名称没看到代码, code 填空字符串 ""。\n'
+    '如果只看到代码没看到名称, name 填空字符串 ""。\n'
+    '只输出图中实际出现的股票, 不要推测或编造。'
+)
+
+
+def _parse_mmx_picks_user(stdout_text):
+    """从 mmx stdout 解析出 [{code, name}, ...] 数组. 失败返回 ([], 错误描述)."""
+    try:
+        outer = _json.loads(stdout_text.strip())
+        inner = outer.get('content', '')
+        inner = re.sub(r'^```json\s*', '', inner).strip()
+        inner = re.sub(r'```\s*$', '', inner).strip()
+        if inner.startswith('```'):
+            inner = re.sub(r'^```[a-z]*\s*', '', inner).strip()
+            inner = re.sub(r'```\s*$', '', inner).strip()
+        if inner.startswith('['):
+            return _json.loads(inner), ''
+        if inner.startswith('"'):
+            decoded = _json.loads(inner)
+            if isinstance(decoded, str) and decoded.startswith('['):
+                return _json.loads(decoded), ''
+        m = re.search(r'\[\s*\{.*?\}\s*\]', stdout_text.strip(), re.DOTALL)
+        if m:
+            return _json.loads(m.group()), ''
+    except Exception as _pe:
+        return [], f'{type(_pe).__name__}: {_pe}'
+    return [], 'no array found'
+
+
+def _enrich_user_picks_with_stock_basic(items):
+    """JOIN stock_basic: 按 code 精确匹配 (前缀 .SH/.SZ 试两边), 失败按 name 等值匹配.
+    返回 [{code, name, ts_code, matched, candidates: [{ts_code, name}]}]
+    matched=True 才会被前端选中添加.
+    """
+    if not items:
+        return []
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    out = []
+    for it in items:
+        code = (it.get('code') or '').strip()
+        name = (it.get('name') or '').strip()
+        ts_code = None
+        # 1) code 精确: try 6位 + .SH/.SZ
+        if code and len(code) == 6 and code.isdigit():
+            for suffix in ('.SH', '.SZ', '.BJ'):
+                row = conn.execute('SELECT ts_code, name FROM stock_basic WHERE ts_code = ?', (code + suffix,)).fetchone()
+                if row:
+                    ts_code = row['ts_code']
+                    if not name:
+                        name = row['name']
+                    break
+        # 2) name 等值匹配
+        if not ts_code and name:
+            row = conn.execute('SELECT ts_code, name FROM stock_basic WHERE name = ? LIMIT 1', (name,)).fetchone()
+            if row:
+                ts_code = row['ts_code']
+        # 3) name 模糊 (LIKE) — 给候选
+        candidates = []
+        if not ts_code and name and len(name) >= 2:
+            for r in conn.execute(
+                "SELECT ts_code, name FROM stock_basic WHERE name LIKE ? LIMIT 5",
+                (f'%{name}%',),
+            ).fetchall():
+                candidates.append({'ts_code': r['ts_code'], 'name': r['name']})
+        out.append({
+            'code': code,
+            'name': name,
+            'ts_code': ts_code,
+            'matched': ts_code is not None,
+            'candidates': candidates,
+        })
+    conn.close()
+    return out
+
+
+def _run_user_picks_ocr_job(filepath, job_id):
+    """子进程: 跑 mmx vision 识别股票 → JOIN stock_basic → 写 status 文件.
+    复用 _ocr_status_path / 格式. 自选股图片一般较小不切块, 单次 mmx 调用.
+    """
+    import re as _re
+    status_path = _ocr_status_path(job_id)
+
+    def _save(stage, **extra):
+        try:
+            payload = {'status': 'processing', 'stage': stage}
+            payload.update(extra)
+            with open(status_path, 'w', encoding='utf-8') as _f:
+                _json.dump(payload, _f, ensure_ascii=False)
+        except Exception:
+            pass
+
+    def _save_done(items, raw_text=''):
+        try:
+            with open(status_path, 'w', encoding='utf-8') as _f:
+                _json.dump({
+                    'status': 'done', 'stage': 'done',
+                    'items': items, 'raw_text': raw_text[:2000],
+                }, _f, ensure_ascii=False)
+        except Exception:
+            pass
+
+    def _save_err(msg):
+        try:
+            with open(status_path, 'w', encoding='utf-8') as _f:
+                _json.dump({'status': 'error', 'stage': 'error', 'message': msg}, _f, ensure_ascii=False)
+        except Exception:
+            pass
+
+    try:
+        _save('ocring')
+        r = subprocess.run(
+            ['/usr/local/bin/mmx', 'vision', 'describe', '--image', filepath,
+             '--output', 'json', '--prompt', _USER_PICKS_OCR_PROMPT],
+            capture_output=True, text=True, timeout=180,
+        )
+        if r.returncode != 0 or not r.stdout.strip():
+            _save_err(f'mmx 失败: {(r.stderr or "empty stdout")[:200]}')
+            return
+        items, parse_err = _parse_mmx_picks_user(r.stdout)
+        if parse_err:
+            _save_err(f'OCR 解析失败: {parse_err}')
+            return
+        enriched = _enrich_user_picks_with_stock_basic(items)
+        matched = sum(1 for x in enriched if x['matched'])
+        _save_done(enriched, raw_text=r.stdout)
+        # OCR 成功, 5 分钟后删临时图片
+        _schedule_ocr_image_cleanup(filepath, delay_sec=0)
+        print(f'[user-picks-ocr] job {job_id} 识别 {len(enriched)} 只, 匹配 {matched}', flush=True)
+    except subprocess.TimeoutExpired:
+        _save_err('mmx 180s 超时, 图片可能太大或太复杂')
+    except Exception as e:
+        _save_err(f'{type(e).__name__}: {str(e)[:200]}')
+
+
+@app.route('/api/user-picks/ocr-image', methods=['POST'])
+def ocr_user_picks_image():
+    """异步 OCR 任意股票截图, 立即返回 job_id. 多进程跑 mmx, 父进程轮询 status."""
+    if 'image' not in request.files:
+        return jsonify({'status': 'error', 'message': '请上传图片文件'}), 400
+    image_file = request.files['image']
+    if not image_file.filename:
+        return jsonify({'status': 'error', 'message': '请上传图片文件'}), 400
+
+    upload_dir = os.path.join(os.path.dirname(__file__), 'uploads')
+    os.makedirs(upload_dir, exist_ok=True)
+    import uuid
+    job_id = str(uuid.uuid4())[:8]
+    filename = f'user_picks_{datetime.now().strftime("%Y%m%d%H%M%S")}_{job_id}_{image_file.filename}'
+    filepath = os.path.join(upload_dir, filename)
+    image_file.save(filepath)
+
+    try:
+        with open(_ocr_status_path(job_id), 'w', encoding='utf-8') as _f:
+            _json.dump({'status': 'processing', 'stage': 'saving_image'}, _f, ensure_ascii=False)
+    except Exception:
+        pass
+
+    import multiprocessing
+    p = multiprocessing.Process(target=_run_user_picks_ocr_job, args=(filepath, job_id), daemon=True)
+    p.start()
+    return jsonify({'status': 'processing', 'job_id': job_id})
+
+
+@app.route('/api/user-picks/ocr-status/<job_id>', methods=['GET'])
+def get_user_picks_ocr_status(job_id):
+    """轮询 OCR 状态. done 时返回 items (含 ts_code 匹配) + raw_text (mmx 原文)."""
+    job = _read_ocr_status(job_id) or _ocr_jobs.get(job_id)
+    if not job:
+        return jsonify({'status': 'error', 'message': '任务不存在'}), 404
+    if job.get('status') == 'done':
+        return jsonify({
+            'status': 'done',
+            'items': job.get('items', []),
+            'raw_text': job.get('raw_text', ''),
+        })
+    if job.get('status') == 'error':
+        return jsonify({'status': 'error', 'message': job.get('message', 'OCR 失败')}), 500
+    return jsonify({'status': 'processing', 'stage': job.get('stage', '')})
+
+
+# ============ 板块合集 (基于 limitup 表聚合) ============
+
+
+@app.route('/api/sector-collections', methods=['GET'])
+def api_sector_collections():
+    """板块热度榜: 按近 N 天涨停次数排, 涉及股票数广度, 时间窗口可调.
+    query: days (默认 7, 0=全部), search (板块名模糊), sort (hot/breadth/latest, 默认 hot)
+    """
+    days = max(0, int(request.args.get('days', 7)))
+    search = (request.args.get('search') or '').strip()
+    sort = request.args.get('sort', 'hot')
+
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    conn.row_factory = sqlite3.Row
+
+    # 排除"占位"板块 (limitup 表里 sector 字段为"其他"/"公告" 的不是真板块, 是韭研/OCR fallback)
+    excluded_sectors = ('其他', '公告')
+
+    # 1) 基础: 每个 sector 累计统计 (全时间)
+    base_sql = """
+        SELECT sector,
+               COUNT(DISTINCT code) AS stock_count,
+               COUNT(DISTINCT date) AS days_count,
+               MAX(date) AS latest_date
+        FROM limitup
+        WHERE sector IS NOT NULL AND sector != ''
+          AND sector NOT IN ('其他', '公告')
+    """
+    params = []
+    if search:
+        base_sql += " AND sector LIKE ?"
+        params.append(f'%{search}%')
+    base_sql += " GROUP BY sector"
+
+    base_rows = conn.execute(base_sql, params).fetchall()
+    if not base_rows:
+        conn.close()
+        return jsonify({'sectors': [], 'days': days, 'total': 0})
+
+    # 2) 近期热度: 近 N 天每个 sector 的涨停次数
+    if days > 0:
+        # 用相对今天减 N 天的 SQL date
+        recent_sql = """
+            SELECT sector, COUNT(*) AS hot_count,
+                   GROUP_CONCAT(DISTINCT date) AS recent_dates
+            FROM limitup
+            WHERE sector IS NOT NULL AND sector != ''
+              AND sector NOT IN ('其他', '公告')
+              AND date >= date('now', ?)
+        """
+        recent_params = [f'-{days} days']
+        if search:
+            recent_sql += " AND sector LIKE ?"
+            recent_params.append(f'%{search}%')
+        recent_sql += " GROUP BY sector"
+        recent_rows = conn.execute(recent_sql, recent_params).fetchall()
+        recent_map = {r['sector']: dict(r) for r in recent_rows}
+    else:
+        # 全部时间 = 累计 hot_count
+        recent_map = {r['sector']: {'hot_count': 0, 'recent_dates': ''} for r in base_rows}
+
+    # 3) 最新一次涨停的代表股票 (top 3)
+    latest_date = conn.execute("""
+        SELECT MAX(date) AS d FROM limitup
+    """).fetchone()['d']
+
+    rep_map = {}
+    if latest_date:
+        rep_rows = conn.execute("""
+            SELECT sector, code, name, streak, marketCap
+            FROM limitup
+            WHERE date = ? AND sector IS NOT NULL AND sector != ''
+              AND sector NOT IN ('其他', '公告')
+            ORDER BY marketCap DESC NULLS LAST
+        """, (latest_date,)).fetchall()
+        for r in rep_rows:
+            rep_map.setdefault(r['sector'], []).append({
+                'ts_code': r['code'],
+                'name': r['name'],
+                'streak': r['streak'],
+                'market_cap': r['marketCap'],
+            })
+
+    # 4) 合并 + 排序
+    out = []
+    for r in base_rows:
+        sector = r['sector']
+        rec = recent_map.get(sector, {'hot_count': 0, 'recent_dates': ''})
+        reps = rep_map.get(sector, [])[:3]
+        recent_dates = (rec.get('recent_dates') or '').split(',') if rec.get('recent_dates') else []
+        out.append({
+            'sector': sector,
+            'stock_count': r['stock_count'],
+            'days_count': r['days_count'],
+            'latest_date': r['latest_date'],
+            'hot_count': rec['hot_count'],
+            'recent_dates': recent_dates,
+            'top_stocks': reps,
+        })
+
+    if sort == 'breadth':
+        out.sort(key=lambda x: (x['stock_count'], x['hot_count']), reverse=True)
+    elif sort == 'latest':
+        out.sort(key=lambda x: (x['latest_date'] or '', x['hot_count']), reverse=True)
+    else:  # hot
+        out.sort(key=lambda x: (x['hot_count'], x['stock_count']), reverse=True)
+
+    conn.close()
+    return jsonify({
+        'sectors': out,
+        'days': days,
+        'total': len(out),
+        'sort': sort,
+    })
+
+
+@app.route('/api/sector-collections/<path:sector>', methods=['GET'])
+def api_sector_collection_detail(sector):
+    """板块详情: 该板块所有历史股票 + 走势.
+    query: days (默认 30, 0=全部)
+    """
+    days = max(0, int(request.args.get('days', 30)))
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    conn.row_factory = sqlite3.Row
+
+    # 板块摘要
+    summary_row = conn.execute("""
+        SELECT COUNT(DISTINCT code) AS stock_count,
+               COUNT(DISTINCT date) AS days_count,
+               MAX(date) AS latest_date
+        FROM limitup WHERE sector = ?
+    """, (sector,)).fetchone()
+
+    # 历史股票 (按日期倒序, 应用时间窗口) — 单只股票只显示最近上榜的那一次
+    sql = """
+        SELECT * FROM (
+            SELECT date, code, name, marketCap, time, sector, volume, streak, keyword,
+                   ROW_NUMBER() OVER (PARTITION BY code ORDER BY date DESC, marketCap DESC NULLS LAST) AS rn
+            FROM limitup
+            WHERE sector = ?
+    """
+    params = [sector]
+    if days > 0:
+        sql += " AND date >= date('now', ?)"
+        params.append(f'-{days} days')
+    sql += """
+        ) WHERE rn = 1
+        ORDER BY date DESC, marketCap DESC NULLS LAST
+    """
+    stocks = [dict(r) for r in conn.execute(sql, params).fetchall()]
+
+    # 走势: 每日的涨停次数 + 当日平均涨幅 (stock_daily.change 当作近似)
+    timeline_sql = """
+        SELECT l.date,
+               COUNT(*) AS hot_count,
+               GROUP_CONCAT(l.code) AS codes
+        FROM limitup l
+        WHERE l.sector = ?
+    """
+    tl_params = [sector]
+    if days > 0:
+        timeline_sql += " AND l.date >= date('now', ?)"
+        tl_params.append(f'-{days} days')
+    timeline_sql += " GROUP BY l.date ORDER BY l.date ASC"
+    timeline = [dict(r) for r in conn.execute(timeline_sql, tl_params).fetchall()]
+
+    # 涉及股票去重列表 (近 N 天)
+    seen = set()
+    involved = []
+    for s in stocks:
+        if s['code'] not in seen:
+            seen.add(s['code'])
+            involved.append({'ts_code': s['code'], 'name': s['name'], 'first_date': s['date']})
+
+    # 给每只股票补今日涨幅 (调 sina 实时, 30s 全局缓存, 跨 tab 复用)
+    codes = list({s['code'] for s in stocks if s.get('code')})
+    quote_map = fetch_sina_quotes(codes) if codes else {}
+    for s in stocks:
+        q = quote_map.get(s['code'])
+        if q:
+            s['change_pct'] = q['change_pct']
+            s['price'] = q['price']
+
+    conn.close()
+    return jsonify({
+        'sector': sector,
+        'days': days,
+        'summary': dict(summary_row) if summary_row else {},
+        'stocks': stocks,
+        'timeline': timeline,
+        'involved_count': len(involved),
+    })
+
+
+_SECTORS_QUOTE_CACHE = {}  # key: (days, sort, search, top_n, per_n) -> (timestamp, result)
+_SECTORS_QUOTE_TTL = 30  # 30s 缓存 (避免高频拉 sina)
+
+
+@app.route('/api/sector-collections/quote', methods=['GET'])
+def api_sector_collections_quote():
+    """板块涨幅:
+    - 不传 date (实时): 拉 sina 实时价, 算 current 流通市值加权平均 (30s 缓存)
+    - 传 date (YYYYMMDD): 用 stock_daily.change + stock_daily.close × float_share 算历史某日板块涨幅 (缓存 1h)
+    query: days (默认 7), sort (默认 hot), search, top_n (默认 138 全板块), names (自选板块名 逗号分隔, 跟 top_n 互斥)
+    """
+    import time as _t
+    days = max(0, int(request.args.get('days', 7)))
+    sort = request.args.get('sort', 'hot')
+    search = (request.args.get('search') or '').strip()
+    top_n = min(200, max(1, int(request.args.get('top_n', 138))))
+    date = (request.args.get('date') or '').strip()  # YYYYMMDD, 空 = 实时
+    # 自选板块名列表 (逗号分隔); 传了 names 就只算这几个, 忽略 top_n
+    names_param = (request.args.get('names') or '').strip()
+    name_list = [n for n in names_param.split(',') if n.strip()] if names_param else []
+
+    cache_key = (days, sort, search, top_n, date, tuple(name_list))
+    ttl = 3600 if date else _SECTORS_QUOTE_TTL  # 历史日期缓存 1h, 实时 30s
+    now = _t.time()
+    if cache_key in _SECTORS_QUOTE_CACHE:
+        ts, cached = _SECTORS_QUOTE_CACHE[cache_key]
+        if now - ts < ttl:
+            return jsonify({**cached, 'cached': True, 'cache_age': round(now - ts, 1)})
+    return _compute_sectors_quote(days, sort, search, top_n, cache_key, now, date, name_list)
+
+
+def _compute_sectors_quote(days, sort, search, top_n, cache_key, now, date='', name_list=None):
+    """实际计算板块涨幅 (无缓存命中时调)
+    date 空: 实时模式, sina 拉实时价 + 实时流通市值加权
+    date 有值: 历史模式, 用 stock_daily.change + close × float_share 算当日板块涨幅
+    name_list: 自选板块名列表; 传了则只算这几个 (否则走 top N)
+    """
+    import time as _t
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    conn.row_factory = sqlite3.Row
+
+    # 1) 复用一级逻辑取 top N 板块 (或自选板块)
+    base_sql = """
+        SELECT sector, COUNT(DISTINCT code) AS stock_count, MAX(date) AS latest_date
+        FROM limitup
+        WHERE sector IS NOT NULL AND sector != ''
+          AND sector NOT IN ('其他', '公告')
+    """
+    params = []
+    if name_list:
+        # 自选模式: 用 IN 限定
+        placeholders = ','.join('?' * len(name_list))
+        base_sql += f" AND sector IN ({placeholders})"
+        params.extend(name_list)
+    elif search:
+        base_sql += " AND sector LIKE ?"
+        params.append(f'%{search}%')
+    base_sql += " GROUP BY sector"
+    base_rows = conn.execute(base_sql, params).fetchall()
+    if not base_rows:
+        conn.close()
+        return jsonify({'quotes': {}, 'count': 0, 'days': days, 'sort': sort, 'cached': False, 'cache_age': 0})
+
+    # 2) 计算 hot_count (排信用)
+    if days > 0:
+        recent_sql = """
+            SELECT sector, COUNT(*) AS hot_count
+            FROM limitup
+            WHERE sector IS NOT NULL AND sector != ''
+              AND sector NOT IN ('其他', '公告')
+              AND date >= date('now', ?)
+        """
+        recent_params = [f'-{days} days']
+        if name_list:
+            placeholders = ','.join('?' * len(name_list))
+            recent_sql += f" AND sector IN ({placeholders})"
+            recent_params.extend(name_list)
+        elif search:
+            recent_sql += " AND sector LIKE ?"
+            recent_params.append(f'%{search}%')
+        recent_sql += " GROUP BY sector"
+        recent_map = {r['sector']: r['hot_count'] for r in conn.execute(recent_sql, recent_params).fetchall()}
+    else:
+        recent_map = {r['sector']: 0 for r in base_rows}
+
+    sectors = []
+    for r in base_rows:
+        sectors.append({
+            'sector': r['sector'],
+            'hot_count': recent_map.get(r['sector'], 0),
+            'stock_count': r['stock_count'],
+        })
+    if sort == 'breadth':
+        sectors.sort(key=lambda x: (x['stock_count'], x['hot_count']), reverse=True)
+    elif sort == 'latest':
+        sectors.sort(key=lambda x: x['hot_count'], reverse=True)
+    else:
+        sectors.sort(key=lambda x: (x['hot_count'], x['stock_count']), reverse=True)
+    # 自选模式: name_list 已限定, 不再截断 top_n
+    if not name_list:
+        sectors = sectors[:top_n]
+
+    # 3) 每板块所有历史个股 (去重, 不限日期, 不限数量)
+    # 一个股票多次涨停只算一次, 板块涨幅反映"概念股池"今日整体表现
+    sector_codes = {}
+    for s in sectors:
+        all_rows = conn.execute("""
+            SELECT DISTINCT code FROM limitup WHERE sector = ?
+        """, (s['sector'],)).fetchall()
+        sector_codes[s['sector']] = [r['code'] for r in all_rows]
+    conn.close()
+
+    # 4) 拉数据
+    all_codes = []
+    for codes in sector_codes.values():
+        all_codes.extend(codes)
+    all_codes = list(set(all_codes))  # 去重
+
+    quotes = {}      # 实时模式: ts_code -> {price, change_pct, ...}
+    daily_map = {}   # 历史模式: ts_code -> {close, change_pct}
+
+    if date:
+        # 历史模式: 从 stock_daily 查当日的 close + change
+        try:
+            daily_conn = sqlite3.connect(DB_PATH, timeout=10)
+            qmarks = ','.join('?' * len(all_codes))
+            daily_rows = daily_conn.execute(
+                f'SELECT ts_code, close, change FROM stock_daily WHERE trade_date = ? AND ts_code IN ({qmarks})',
+                [date, *all_codes]
+            ).fetchall()
+            daily_conn.close()
+            for r in daily_rows:
+                daily_map[r[0]] = {'close': r[1], 'change_pct': r[2]}
+        except Exception as e:
+            print(f'[sector-quote] daily lookup error: {e}')
+    else:
+        # 实时模式: sina 一次最多 ~80 个 code, 50 一批更安全
+        if all_codes:
+            BATCH = 50
+            try:
+                for i in range(0, len(all_codes), BATCH):
+                    batch = all_codes[i:i + BATCH]
+                    batch_quotes = fetch_sina_quotes(batch)
+                    quotes.update(batch_quotes)
+            except Exception as e:
+                print(f'[sector-quote] fetch error: {e}')
+
+    # 4.5) 拉流通股本 (stock_basic.float_share, 单位万股), 用于按市值加权
+    share_map = {}  # ts_code -> float_share (万股)
+    if all_codes:
+        try:
+            share_conn = sqlite3.connect(DB_PATH, timeout=10)
+            qmarks = ','.join('?' * len(all_codes))
+            share_rows = share_conn.execute(
+                f'SELECT ts_code, float_share FROM stock_basic WHERE ts_code IN ({qmarks}) AND float_share IS NOT NULL AND float_share > 0',
+                all_codes
+            ).fetchall()
+            share_conn.close()
+            for r in share_rows:
+                share_map[r[0]] = r[1]
+        except Exception as e:
+            print(f'[sector-quote] share lookup error: {e}')
+
+    # 5) 按板块算加权 change_pct
+    # 实时流通市值 = current_price × float_share × 10000
+    # 当日流通市值 = close × float_share × 10000 (历史模式用)
+    # 加权公式: Σ(change_pct × 流通市值) / Σ(流通市值)
+    # 缺 float_share 的股票按 0 权重跳过 (但仍计入 sample_count 显示)
+    result = {}
+    for sec, codes in sector_codes.items():
+        weighted_sum = 0.0
+        weight_total = 0.0
+        valid_count = 0
+        weighted_count = 0
+        for c in codes:
+            if date:
+                d = daily_map.get(c)
+                if not d or d.get('change_pct') is None:
+                    continue
+                valid_count += 1
+                price = d.get('close') or 0
+                cp = d['change_pct']
+            else:
+                q = quotes.get(c)
+                if not q or q.get('change_pct') is None:
+                    continue
+                valid_count += 1
+                price = q.get('price') or 0
+                cp = q['change_pct']
+            fs = share_map.get(c)
+            if price > 0 and fs:
+                mcap = price * fs * 10000  # 元
+                weighted_sum += cp * mcap
+                weight_total += mcap
+                weighted_count += 1
+        if weight_total > 0:
+            avg = round(weighted_sum / weight_total, 2)
+            result[sec] = {
+                'change_pct': avg,
+                'sample_count': valid_count,
+                'weighted_count': weighted_count,
+                'total_stocks': len(codes),
+            }
+        elif valid_count > 0:
+            # 兜底: 有数据但全无 float_share, 退化成算术平均
+            if date:
+                cps = [daily_map.get(c, {}).get('change_pct') for c in codes
+                       if daily_map.get(c, {}).get('change_pct') is not None]
+            else:
+                cps = [quotes.get(c, {}).get('change_pct') for c in codes
+                       if quotes.get(c, {}).get('change_pct') is not None]
+            avg = round(sum(cps) / len(cps), 2)
+            result[sec] = {
+                'change_pct': avg,
+                'sample_count': valid_count,
+                'weighted_count': 0,
+                'total_stocks': len(codes),
+            }
+        else:
+            result[sec] = {'change_pct': None, 'sample_count': 0, 'weighted_count': 0, 'total_stocks': len(codes)}
+
+    payload = {
+        'quotes': result,
+        'count': len(result),
+        'days': days,
+        'sort': sort,
+        'date': date or None,
+        'mode': 'historical' if date else 'realtime',
+        'total_codes': len(all_codes),
+        'cached': False,
+        'cache_age': 0,
+    }
+    _SECTORS_QUOTE_CACHE[cache_key] = (now, payload)
+    return jsonify(payload)
+
+
+# ============ 申万行业 (sw_industry / sw_industry_member / sw_industry_daily, 给情绪分析用) ============
+# 注: Tushare 免费版拿不到 src='SW' (新申万, 需高级积分). 用老版申万 2014 (不带 src 参数, ~28 个 L1 行业).
+# 同时把 pro.stock_basic 的 industry 字段 (中信一级) 同步到 stock_basic 表, 给个股→行业映射用.
+
+def sync_sw_industry_classify(level='L1'):
+    """同步申万行业分类到老表 sw_industry.
+    level: 'L1' / 'L2' / 'L3', 默认 L1.
+    注意: src 不能传 'SW' (新申万要积分), 不传时返回老版申万 2014 (~28 L1 / ~100 L2)."""
+    pro = get_pro()
+    df = pro.index_classify(level=level)  # 不传 src, 走老版 SW2014
+    if df is None or len(df) == 0:
+        return 0
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    try:
+        n = 0
+        now_ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        for _, row in df.iterrows():
+            conn.execute('''INSERT OR REPLACE INTO sw_industry
+                (index_code, industry_name, level, src, parent_code, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)''',
+                (row['index_code'], row['industry_name'], level, row.get('src') or 'SW2014',
+                 row.get('parent_code') or '', now_ts))
+            n += 1
+        conn.commit()
+        return n
+    finally:
+        conn.close()
+
+
+def sync_sw_industry_members(level='L1'):
+    """同步申万行业成分股到 sw_industry_member."""
+    pro = get_pro()
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    try:
+        # 拉所有 L1 行业的 index_code
+        codes = [r[0] for r in conn.execute(
+            "SELECT index_code FROM sw_industry WHERE level=?", (level,)).fetchall()]
+        n = 0
+        for code in codes:
+            try:
+                df = pro.index_member(index_code=code)
+            except Exception as e:
+                print(f'[sync_sw_members] {code} 失败: {e}')
+                continue
+            if df is None or len(df) == 0:
+                continue
+            for _, row in df.iterrows():
+                conn.execute('''INSERT OR REPLACE INTO sw_industry_member
+                    (index_code, ts_code, in_date, out_date, is_new)
+                    VALUES (?, ?, ?, ?, ?)''',
+                    (code, row['con_code'], row.get('in_date') or '', row.get('out_date') or '',
+                     row.get('is_new') or 'N'))
+                n += 1
+            time.sleep(0.2)  # 限速
+        conn.commit()
+        return n
+    finally:
+        conn.close()
+
+
+def sync_sw_industry_daily(index_code, days=365):
+    """同步单个申万行业日线到 sw_industry_daily."""
+    pro = get_pro()
+    end_date = datetime.now().strftime('%Y%m%d')
+    start_date = (datetime.now() - timedelta(days=days)).strftime('%Y%m%d')
+    df = pro.sw_index_daily(index_code=index_code, start_date=start_date, end_date=end_date)
+    if df is None or len(df) == 0:
+        return 0
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    try:
+        n = 0
+        for _, row in df.iterrows():
+            conn.execute('''INSERT OR REPLACE INTO sw_industry_daily
+                (index_code, trade_date, close, open, high, low, change_pct, vol, amount)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                (index_code, row['trade_date'],
+                 row.get('close'), row.get('open'), row.get('high'), row.get('low'),
+                 row.get('change_pct'), row.get('vol'), row.get('amount')))
+            n += 1
+        conn.commit()
+        return n
+    finally:
+        conn.close()
+
+
+@app.route('/api/industry/sync', methods=['POST'])
+def api_industry_sync():
+    """同步申万分类 + 成分股 + 行业日线.
+    body: {"levels": ["L1","L2"], "with_members": true, "with_daily": true, "daily_days": 30}
+    申万日线较慢, 默认只同步 L1 分类 + 成分股; daily 可选."""
+    body = request.get_json(silent=True) or {}
+    levels = body.get('levels') or ['L1']
+    with_members = body.get('with_members', True)
+    with_daily = body.get('with_daily', False)
+    daily_days = int(body.get('daily_days', 30))
+    result = {'levels': {}, 'members': 0, 'daily_rows': 0}
+    for lvl in levels:
+        n = sync_sw_industry_classify(level=lvl)
+        result['levels'][lvl] = n
+    if with_members:
+        for lvl in levels:
+            result['members'] += sync_sw_industry_members(level=lvl)
+    if with_daily:
+        conn = sqlite3.connect(DB_PATH, timeout=30)
+        codes = [r[0] for r in conn.execute(
+            "SELECT index_code FROM sw_industry WHERE level='L1'").fetchall()]
+        conn.close()
+        for code in codes:
+            result['daily_rows'] += sync_sw_industry_daily(code, days=daily_days)
+            time.sleep(0.1)
+    return jsonify({'status': 'success', **result})
+
+
+@app.route('/api/industry/list', methods=['GET'])
+def api_industry_list():
+    """列申万行业. query: level=L1 (默认) / L2 / L3"""
+    level = request.args.get('level', 'L1')
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute(
+        "SELECT index_code, industry_name, level, src, parent_code, updated_at "
+        "FROM sw_industry WHERE level=? ORDER BY index_code", (level,)).fetchall()
+    conn.close()
+    return jsonify({
+        'level': level,
+        'industries': [dict(r) for r in rows],
+        'total': len(rows),
+    })
+
+
+@app.route('/api/industry/members', methods=['GET'])
+def api_industry_members():
+    """查某申万行业的成分股. query: index_code=801010.SI (必填)"""
+    code = request.args.get('index_code', '').strip()
+    if not code:
+        return jsonify({'error': 'index_code 必填'}), 400
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute(
+        "SELECT index_code, ts_code, in_date, out_date, is_new "
+        "FROM sw_industry_member WHERE index_code=? AND (out_date IS NULL OR out_date='') "
+        "ORDER BY ts_code", (code,)).fetchall()
+    conn.close()
+    return jsonify({
+        'index_code': code,
+        'members': [dict(r) for r in rows],
+        'total': len(rows),
+    })
+
+
+@app.route('/api/industry/daily', methods=['GET'])
+def api_industry_daily():
+    """查申万行业日线. query: index_code=801010.SI&days=30 (默认 30)"""
+    code = request.args.get('index_code', '').strip()
+    days = int(request.args.get('days', 30))
+    if not code:
+        return jsonify({'error': 'index_code 必填'}), 400
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute(
+        "SELECT index_code, trade_date, close, open, high, low, change_pct, vol, amount "
+        "FROM sw_industry_daily WHERE index_code=? "
+        "ORDER BY trade_date DESC LIMIT ?", (code, days)).fetchall()
+    conn.close()
+    return jsonify({
+        'index_code': code,
+        'daily': [dict(r) for r in rows],
+        'total': len(rows),
+    })
+
+
+@app.route('/api/industry/ts-to-sw', methods=['GET'])
+def api_industry_ts_to_sw():
+    """个股→申万行业映射. query: ts_code=600519.SH"""
+    ts_code = request.args.get('ts_code', '').strip()
+    if not ts_code:
+        return jsonify({'error': 'ts_code 必填'}), 400
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    # 该个股所属的所有申万行业 (L1+L2)
+    rows = conn.execute(
+        "SELECT m.index_code, i.industry_name, i.level, i.src "
+        "FROM sw_industry_member m JOIN sw_industry i ON m.index_code = i.index_code "
+        "WHERE m.ts_code=? AND (m.out_date IS NULL OR m.out_date='') "
+        "ORDER BY i.level, m.index_code", (ts_code,)).fetchall()
+    conn.close()
+    return jsonify({
+        'ts_code': ts_code,
+        'industries': [dict(r) for r in rows],
+        'total': len(rows),
+    })
+
+
+# ============ 涨停池 (akshare stock_zt_pool_em, 给情绪指数计算封板率/炸板率) ============
+# 注: Tushare limit_list_d 免费版无权限. 改用 akshare. 数据完全独立于现有 limitup (非研) 表, 不替换.
+
+def sync_akshare_zt_pool(date_str):
+    """同步单日涨停池. date_str: 'YYYY-MM-DD'.
+    写入 akshare_zt_pool 表, ts_code 用 6 位代码 (无后缀)."""
+    import akshare as ak
+    # akshare 内部用 YYYYMMDD, 我们统一存 YYYY-MM-DD
+    date_yyyymmdd = date_str.replace('-', '')
+    df = None
+    for attempt in range(2):
+        try:
+            df = ak.stock_zt_pool_em(date=date_yyyymmdd)
+            break
+        except RecursionError:
+            print(f'[sync_akshare_zt_pool] {date_str} 递归深度超限, 重试中 ({attempt+1}/2)')
+            import sys as _s
+            _s.setrecursionlimit(50000)
+        except Exception as e:
+            print(f'[sync_akshare_zt_pool] {date_str} 失败: {e}')
+            return 0
+    if df is None:
+        return 0
+    if df is None or len(df) == 0:
+        return 0
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    try:
+        n = 0
+        for _, row in df.iterrows():
+            conn.execute('''INSERT OR REPLACE INTO akshare_zt_pool
+                (trade_date, ts_code, name, industry, close, pct_chg, amount, circulate_mv, turnover_pct,
+                 seal_amount, first_seal_time, last_seal_time, open_times, limit_stats, streak)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                (date_str,
+                 str(row.get('代码') or '').zfill(6),
+                 row.get('名称'),
+                 row.get('所属行业'),
+                 _to_float(row.get('最新价')),
+                 _to_float(row.get('涨跌幅')),
+                 _to_float(row.get('成交额')),
+                 _to_float(row.get('流通市值')),
+                 _to_float(row.get('换手率')),
+                 _to_float(row.get('封板资金')),
+                 row.get('首次封板时间'),
+                 row.get('最后封板时间'),
+                 _to_int(row.get('炸板次数')),
+                 row.get('涨停统计'),
+                 _to_int(row.get('连板数'))))
+            n += 1
+        conn.commit()
+        return n
+    finally:
+        conn.close()
+
+
+def _to_float(v):
+    """安全转 float, 处理 None/空字符串/非数字"""
+    try:
+        if v is None or v == '' or (isinstance(v, str) and v.strip() == ''):
+            return None
+        return float(v)
+    except (ValueError, TypeError):
+        return None
+
+
+def _to_int(v):
+    """安全转 int"""
+    try:
+        if v is None or v == '' or (isinstance(v, str) and v.strip() == ''):
+            return 0
+        return int(float(v))
+    except (ValueError, TypeError):
+        return 0
+
+
+@app.route('/api/limitup/ak/sync', methods=['POST'])
+def api_limitup_ak_sync():
+    """同步单日涨停池 (akshare). body: {"date": "YYYY-MM-DD"} (默认今天)"""
+    body = request.get_json(silent=True) or {}
+    date_str = body.get('date') or datetime.now().strftime('%Y-%m-%d')
+    # 校验日期格式
+    try:
+        datetime.strptime(date_str, '%Y-%m-%d')
+    except ValueError:
+        return jsonify({'status': 'error', 'message': f'日期格式错误: {date_str}, 需 YYYY-MM-DD'}), 400
+    n = sync_akshare_zt_pool(date_str)
+    return jsonify({'status': 'success', 'date': date_str, 'rows': n})
+
+
+@app.route('/api/limitup/ak', methods=['GET'])
+def api_limitup_ak_list():
+    """查涨停池. query: date=YYYY-MM-DD (默认今天) & min_streak=1 (默认全部, 设 N 表示 ≥N 板)
+    返回: 当日涨停池, 含连板/封板资金/炸板次数/封板时间等"""
+    date_str = request.args.get('date') or datetime.now().strftime('%Y-%m-%d')
+    min_streak = int(request.args.get('min_streak', 0))
+    conn = sqlite3.connect(DB_PATH, timeout=10)
+    conn.row_factory = sqlite3.Row
+    sql = "SELECT * FROM akshare_zt_pool WHERE trade_date=?"
+    params = [date_str]
+    if min_streak > 0:
+        sql += " AND streak >= ?"
+        params.append(min_streak)
+    sql += " ORDER BY streak DESC, seal_amount DESC"
+    rows = conn.execute(sql, params).fetchall()
+    conn.close()
+    return jsonify({
+        'date': date_str,
+        'min_streak': min_streak,
+        'rows': [dict(r) for r in rows],
+        'total': len(rows),
+    })
+
+# ============ 北向资金 (Tushare moneyflow_hsgt, 给情绪指数资金因子) ============
+# 注: 现有 /api/flow/* 用的是东方财富 push2 + akshare, 本表独立, 不替换.
+
+def sync_hsgt_flow(date_str):
+    """同步单日北向资金. date_str: 'YYYY-MM-DD'."""
+    pro = get_pro()
+    date_yyyymmdd = date_str.replace('-', '')
+    df = None
+    for attempt in range(2):
+        try:
+            df = pro.moneyflow_hsgt(trade_date=date_yyyymmdd)
+            break
+        except RecursionError:
+            print(f'[sync_hsgt_flow] {date_str} 递归超限, 重试 ({attempt+1}/2)')
+            import sys as _s
+            _s.setrecursionlimit(50000)
+        except Exception as e:
+            print(f'[sync_hsgt_flow] {date_str} 失败: {e}')
+            return 0
+    if df is None:
+        return 0
+    if df is None or len(df) == 0:
+        return 0
+    row = df.iloc[0]
+    conn = sqlite3.connect(DB_PATH, timeout=10)
+    try:
+        conn.execute('''INSERT OR REPLACE INTO hsgt_flow
+            (trade_date, hgt, sgt, north_money, south_money)
+            VALUES (?, ?, ?, ?, ?)''',
+            (date_str,
+             _to_float(row.get('hgt')),
+             _to_float(row.get('sgt')),
+             _to_float(row.get('north_money')),
+             _to_float(row.get('south_money'))))
+        conn.commit()
+        return 1
+    finally:
+        conn.close()
+
+
+@app.route('/api/hsgt/sync', methods=['POST'])
+def api_hsgt_sync():
+    """同步单日北向资金. body: {"date": "YYYY-MM-DD"} (默认今天)"""
+    body = request.get_json(silent=True) or {}
+    date_str = body.get('date') or datetime.now().strftime('%Y-%m-%d')
+    try:
+        datetime.strptime(date_str, '%Y-%m-%d')
+    except ValueError:
+        return jsonify({'status': 'error', 'message': f'日期格式错误: {date_str}'}), 400
+    n = sync_hsgt_flow(date_str)
+    return jsonify({'status': 'success', 'date': date_str, 'rows': n})
+
+
+@app.route('/api/hsgt', methods=['GET'])
+def api_hsgt_list():
+    """查北向资金. query: date=YYYY-MM-DD (单日) 或 start_date+end_date (区间)"""
+    conn = sqlite3.connect(DB_PATH, timeout=10)
+    conn.row_factory = sqlite3.Row
+    date = request.args.get('date')
+    start = request.args.get('start_date')
+    end = request.args.get('end_date')
+    if date:
+        rows = conn.execute("SELECT * FROM hsgt_flow WHERE trade_date=?", (date,)).fetchall()
+    elif start and end:
+        rows = conn.execute(
+            "SELECT * FROM hsgt_flow WHERE trade_date BETWEEN ? AND ? ORDER BY trade_date DESC",
+            (start, end)).fetchall()
+    else:
+        rows = conn.execute("SELECT * FROM hsgt_flow ORDER BY trade_date DESC LIMIT 30").fetchall()
+    conn.close()
+    return jsonify({
+        'rows': [dict(r) for r in rows],
+        'total': len(rows),
+    })
+
+# ============ 阶段 1: 情绪分析 (sentiment_intraday + 6 路由 + 7 类规则触发) ============
+
+@app.route('/api/sentiment/current', methods=['GET'])
+def api_sentiment_current():
+    """GET 情绪最新分. 调 sentiment.api_sentiment_current()."""
+    from sentiment import api_sentiment_current as _h
+    return _h()
+
+
+@app.route('/api/sentiment/compute', methods=['POST'])
+def api_sentiment_compute():
+    """POST 立即算一次情绪. body: {} (用当前时间)"""
+    from sentiment import compute_sentiment
+    from alert_rules import run_all_rules
+    try:
+        result = compute_sentiment()
+        run_all_rules(result['ts'], result['level'])
+        return jsonify({'status': 'success', **result})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/sentiment/intraday', methods=['GET'])
+def api_sentiment_intraday_route():
+    """GET 情绪分时曲线. query: date=YYYY-MM-DD (默认今天)"""
+    from sentiment import api_sentiment_intraday
+    date_str = request.args.get('date')
+    return api_sentiment_intraday(date_str)
+
+
+@app.route('/api/sentiment/factors', methods=['GET'])
+def api_sentiment_factors_route():
+    """GET 某时刻因子分项. query: ts=YYYY-MM-DD HH:MM:SS (默认当前)"""
+    from sentiment import api_sentiment_factors
+    ts = request.args.get('ts')
+    return api_sentiment_factors(ts)
+
+
+@app.route('/api/sentiment/level', methods=['GET'])
+def api_sentiment_level_route():
+    """GET 当日 5 档等级. query: date=YYYY-MM-DD (默认今天)"""
+    from sentiment import api_sentiment_level
+    date_str = request.args.get('date')
+    return api_sentiment_level(date_str)
+
+
+@app.route('/api/sentiment/alerts', methods=['GET'])
+def api_sentiment_alerts_route():
+    """GET 当日预警列表. query: date=YYYY-MM-DD&limit=100"""
+    from sentiment import api_sentiment_alerts
+    date_str = request.args.get('date')
+    limit = int(request.args.get('limit', 100))
+    return api_sentiment_alerts(date_str, limit)
+
+
+@app.route('/api/sentiment/daily-history', methods=['GET'])
+def api_sentiment_daily_history_route():
+    """GET 近 N 日情绪等级对比. query: days=10"""
+    from sentiment import api_sentiment_daily_history
+    days = int(request.args.get('days', 10))
+    return api_sentiment_daily_history(days)
+
+# ============ 阶段 2: 板块情绪热力图 + 连板梯队 (需求文档 §3.2 + §3.3) ============
+
+@app.route('/api/sector/sw-heatmap', methods=['GET'])
+def api_sector_sw_heatmap():
+    """申万行业涨幅热力图. query: date=YYYY-MM-DD (默认今天) & level=L1 (默认) / L2
+    返回: 申万行业 × {涨跌幅, 涨停数, 领涨龙头, 资金净流入, 持续性评分}.
+    文档 §3.2: 按涨跌幅排序, 标注板块内涨停个股数量/领涨龙头/资金净流入.
+    文档 §3.2 末: 识别主线/支线/轮动板块, 展示板块持续性评分 (近 3 日涨幅连续性)."""
+    from datetime import timedelta as _td
+    level = request.args.get('level', 'L1')
+    date_str = request.args.get('date') or datetime.now().strftime('%Y-%m-%d')
+    conn = sqlite3.connect(DB_PATH, timeout=10)
+    conn.row_factory = sqlite3.Row
+    try:
+        # 1) 当日申万行业涨幅
+        rows = conn.execute(
+            "SELECT i.index_code, i.industry_name, d.change_pct, d.close, d.amount "
+            "FROM sw_industry_daily d JOIN sw_industry i ON d.index_code = i.index_code "
+            "WHERE d.trade_date=? AND i.level=? "
+            "ORDER BY d.change_pct DESC", (date_str, level)).fetchall()
+        if not rows:
+            # 找最近一个交易日
+            row = conn.execute(
+                "SELECT MAX(trade_date) FROM sw_industry_daily").fetchone()
+            last_date = row[0] if row else None
+            if not last_date:
+                return jsonify({'date': date_str, 'level': level, 'industries': [], 'total': 0})
+            rows = conn.execute(
+                "SELECT i.index_code, i.industry_name, d.change_pct, d.close, d.amount "
+                "FROM sw_industry_daily d JOIN sw_industry i ON d.index_code = i.index_code "
+                "WHERE d.trade_date=? AND i.level=? "
+                "ORDER BY d.change_pct DESC", (last_date, level)).fetchall()
+            date_str = last_date
+
+        # 2) 板块内涨停个股数 (从 akshare_zt_pool 关联 sw_industry_member)
+        # 3) 领涨龙头 (板块内涨幅最大的 1 只涨停股)
+        # 4) 资金净流入 (从 fund_flow 关联成分股, 简化: 用板块涨幅近似; 精确: 计算板块成分股资金流)
+        # 5) 持续性评分 (近 3 日涨幅连续性)
+        industries = []
+        for r in rows:
+            idx = r['index_code']
+            # 涨停数
+            zt_row = conn.execute(
+                "SELECT COUNT(*) AS n FROM akshare_zt_pool azp "
+                "JOIN sw_industry_member sim ON azp.ts_code = sim.ts_code "
+                "WHERE sim.index_code=? AND azp.trade_date=?",
+                (idx, date_str)).fetchone()
+            zt_count = (zt_row['n'] if zt_row else 0) or 0
+            # 领涨龙头 (板块内涨幅最大的 1 只涨停股)
+            lead_row = conn.execute(
+                "SELECT azp.name, azp.pct_chg FROM akshare_zt_pool azp "
+                "JOIN sw_industry_member sim ON azp.ts_code = sim.ts_code "
+                "WHERE sim.index_code=? AND azp.trade_date=? "
+                "ORDER BY azp.pct_chg DESC LIMIT 1", (idx, date_str)).fetchone()
+            leader = {'name': lead_row['name'], 'pct_chg': lead_row['pct_chg']} if lead_row else None
+            # 持续性: 近 3 日申万涨幅, 正数天数 >= 2 = 持续强
+            last3 = conn.execute(
+                "SELECT change_pct FROM sw_industry_daily WHERE index_code=? "
+                "ORDER BY trade_date DESC LIMIT 3", (idx,)).fetchall()
+            last3_vals = [r2['change_pct'] for r2 in last3 if r2['change_pct'] is not None]
+            up_days = sum(1 for v in last3_vals if v > 0)
+            avg3 = (sum(last3_vals) / len(last3_vals)) if last3_vals else 0
+            persistent_score = min(100, max(0, 50 + up_days * 17 + avg3 * 5))
+            # 资金净流入 (近 1 日, 从 fund_flow 关联成分股)
+            fund_row = conn.execute(
+                "SELECT SUM(f.main_net_inflow) AS total "
+                "FROM fund_flow f JOIN sw_industry_member sim ON f.ts_code = sim.ts_code "
+                "WHERE sim.index_code=? AND f.trade_date=?",
+                (idx, date_str)).fetchone()
+            main_net = (fund_row['total'] if fund_row and fund_row['total'] else 0) or 0
+            # 主线/支线/轮动判断
+            tag = '轮动'
+            if r['change_pct'] is not None and r['change_pct'] >= 3 and zt_count >= 5:
+                tag = '主线'
+            elif r['change_pct'] is not None and r['change_pct'] >= 1 and zt_count >= 2:
+                tag = '支线'
+
+            industries.append({
+                'index_code': idx,
+                'industry_name': r['industry_name'],
+                'level': level,
+                'change_pct': r['change_pct'],
+                'close': r['close'],
+                'amount': r['amount'],
+                'limit_up_count': zt_count,
+                'leader': leader,
+                'main_net': main_net,
+                'persistent_score': round(persistent_score, 1),
+                'tag': tag,
+            })
+        return jsonify({
+            'date': date_str,
+            'level': level,
+            'industries': industries,
+            'total': len(industries),
+        })
+    finally:
+        conn.close()
+
+
+@app.route('/api/limitup/hierarchy', methods=['GET'])
+def api_limitup_hierarchy():
+    """连板梯队 (需求文档 §3.3). query: date=YYYY-MM-DD (默认今天) & min_streak=1
+    返回: 按连板数分组的梯队列表, 含开板次数/封单金额/封板时间/行业.
+    1板 = streak=1, 2板 = streak=2, 3板+ = streak>=3, 高位板 = streak>=5 (可配)."""
+    date_str = request.args.get('date') or datetime.now().strftime('%Y-%m-%d')
+    min_streak = int(request.args.get('min_streak', 1))
+    high_threshold = int(_get_config('streak_high_threshold', '5'))
+    conn = sqlite3.connect(DB_PATH, timeout=10)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            "SELECT ts_code, name, industry, streak, open_times, seal_amount, "
+            "first_seal_time, last_seal_time, pct_chg, close "
+            "FROM akshare_zt_pool WHERE trade_date=? AND streak >= ? "
+            "ORDER BY streak DESC, seal_amount DESC",
+            (date_str, min_streak)).fetchall()
+        # 分组
+        groups = {
+            '1板': [],
+            '2板': [],
+            '3板+': [],
+            f'{high_threshold}板+ (高位)': [],
+        }
+        for r in rows:
+            s = r['streak'] or 0
+            item = {
+                'ts_code': r['ts_code'], 'name': r['name'],
+                'industry': r['industry'], 'streak': s,
+                'open_times': r['open_times'] or 0,
+                'seal_amount': r['seal_amount'],
+                'first_seal_time': r['first_seal_time'],
+                'last_seal_time': r['last_seal_time'],
+                'pct_chg': r['pct_chg'], 'close': r['close'],
+                # 状态: '涨停'/'炸板'/'回封'
+                'status': '涨停' if (r['open_times'] or 0) == 0 else '炸板',
+            }
+            if s >= high_threshold:
+                groups[f'{high_threshold}板+ (高位)'].append(item)
+            elif s >= 3:
+                groups['3板+'].append(item)
+            elif s == 2:
+                groups['2板'].append(item)
+            else:
+                groups['1板'].append(item)
+        # 移除空组
+        result = {k: v for k, v in groups.items() if v}
+        return jsonify({
+            'date': date_str,
+            'min_streak': min_streak,
+            'high_threshold': high_threshold,
+            'groups': result,
+            'total': len(rows),
+        })
+    finally:
+        conn.close()
+
+
+@app.route('/api/limitup/promotion-rate', methods=['GET'])
+def api_limitup_promotion_rate():
+    """连板晋级率 (需求文档 §3.3 末). 文档原话: 计算连板晋级率, 反映情绪承接力度.
+    定义: 当日 streak>=N 的股数 / 昨日 streak>=N-1 且今日存在 (= 今日晋级 N 板的比例).
+    简化实现: 用 akshare_zt_pool 当日 streak, 与昨日 limitup 行业 streak (如果有) 对比.
+    文档没有严格定义晋级率公式, 此处用 '今日 N 板及以上家数 / 今日涨停总数' 作为简化指标.
+    """
+    date_str = request.args.get('date') or datetime.now().strftime('%Y-%m-%d')
+    conn = sqlite3.connect(DB_PATH, timeout=10)
+    conn.row_factory = sqlite3.Row
+    try:
+        row = conn.execute(
+            "SELECT COUNT(*) AS total, "
+            "SUM(CASE WHEN streak >= 1 THEN 1 ELSE 0 END) AS s1, "
+            "SUM(CASE WHEN streak >= 2 THEN 1 ELSE 0 END) AS s2, "
+            "SUM(CASE WHEN streak >= 3 THEN 1 ELSE 0 END) AS s3, "
+            "SUM(CASE WHEN streak >= 5 THEN 1 ELSE 0 END) AS s5 "
+            "FROM akshare_zt_pool WHERE trade_date=?",
+            (date_str,)).fetchone()
+        total = (row['total'] if row else 0) or 0
+        return jsonify({
+            'date': date_str,
+            'total': total,
+            'rates': {
+                '1板率': (row['s1'] or 0) / total * 100 if total else 0,
+                '2板率': (row['s2'] or 0) / total * 100 if total else 0,
+                '3板率': (row['s3'] or 0) / total * 100 if total else 0,
+                '5板率': (row['s5'] or 0) / total * 100 if total else 0,
+            },
+        })
+    finally:
+        conn.close()
+
+# ============ 自选板块 (user_sectors, 板块名列表, 复用 limitup 聚合) ============
+
+def _enrich_user_sectors_with_stats(user_rows, days, search, sort):
+    """对 user_sectors 行数组, 从 limitup 表拉统计 (hot_count/stock_count/days_count/latest_date/top_stocks).
+    user_rows: [{'id', 'name', 'note', 'created_at', 'updated_at', 'pinned'}, ...]
+    返回: 同样的数组, 加上 hot_count/stock_count/days_count/latest_date/top_stocks 字段
+    规则: 不在 limitup 出现过的板块 (limitup 表里没数据) 也要返回, 统计字段填 0 / None, 便于用户保存"预备关注"的板块
+    """
+    if not user_rows:
+        return []
+    names = [r['name'] for r in user_rows]
+    placeholders = ','.join('?' * len(names))
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    conn.row_factory = sqlite3.Row
+    # 1) 全时间统计: stock_count / days_count / latest_date
+    base_sql = f"""
+        SELECT sector,
+               COUNT(DISTINCT code) AS stock_count,
+               COUNT(DISTINCT date) AS days_count,
+               MAX(date) AS latest_date
+        FROM limitup
+        WHERE sector IN ({placeholders})
+          AND sector NOT IN ('其他', '公告')
+        GROUP BY sector
+    """
+    base_rows = conn.execute(base_sql, names).fetchall()
+    base_map = {r['sector']: dict(r) for r in base_rows}
+
+    # 2) 近 N 天 hot_count
+    if days > 0:
+        hot_sql = f"""
+            SELECT sector, COUNT(*) AS hot_count
+            FROM limitup
+            WHERE sector IN ({placeholders})
+              AND sector NOT IN ('其他', '公告')
+              AND date >= date('now', ?)
+            GROUP BY sector
+        """
+        hot_rows = conn.execute(hot_sql, names + [f'-{days} days']).fetchall()
+        hot_map = {r['sector']: r['hot_count'] for r in hot_rows}
+    else:
+        # 全部时间 = 累计 hot_count
+        hot_map = {n: base_map.get(n, {}).get('stock_count', 0) for n in names}
+
+    # 3) 最新一日的代表股 top 3 (按流通市值)
+    latest_date = conn.execute("SELECT MAX(date) AS d FROM limitup").fetchone()['d']
+    rep_map = {}
+    if latest_date:
+        rep_sql = f"""
+            SELECT sector, code, name, streak, marketCap
+            FROM limitup
+            WHERE date = ? AND sector IN ({placeholders})
+              AND sector NOT IN ('其他', '公告')
+            ORDER BY marketCap DESC NULLS LAST
+        """
+        rep_rows = conn.execute(rep_sql, [latest_date] + names).fetchall()
+        for r in rep_rows:
+            rep_map.setdefault(r['sector'], []).append({
+                'ts_code': r['code'],
+                'name': r['name'],
+                'streak': r['streak'],
+                'market_cap': r['marketCap'],
+            })
+
+    conn.close()
+
+    # 4) 合并 + 搜索过滤
+    out = []
+    for r in user_rows:
+        name = r['name']
+        base = base_map.get(name, {})
+        reps = rep_map.get(name, [])[:3]
+        # 搜索过滤: 板块名 LIKE 模式
+        if search and search not in name:
+            continue
+        out.append({
+            'id': r['id'],
+            'sector': name,
+            'note': r.get('note'),
+            'pinned': r.get('pinned', 0),
+            'created_at': r.get('created_at', ''),
+            'updated_at': r.get('updated_at', ''),
+            'hot_count': hot_map.get(name, 0),
+            'stock_count': base.get('stock_count', 0) or 0,
+            'days_count': base.get('days_count', 0) or 0,
+            'latest_date': base.get('latest_date') or '—',
+            'top_stocks': reps,
+        })
+
+    # 排序
+    if sort == 'breadth':
+        out.sort(key=lambda x: (x['stock_count'], x['hot_count']), reverse=True)
+    elif sort == 'latest':
+        out.sort(key=lambda x: (x['latest_date'] or '', x['hot_count']), reverse=True)
+    elif sort == 'created':
+        out.sort(key=lambda x: x['created_at'] or '', reverse=True)
+    else:  # hot
+        out.sort(key=lambda x: (x['hot_count'], x['stock_count']), reverse=True)
+    return out
+
+
+# ============ 自选板块关联股票: 辅助函数 ============
+
+def _connect_user_sectors_db():
+    """开 sqlite 连接, 启用 FK 约束 (默认关闭) + row_factory.
+    user_sector_stocks 有 FOREIGN KEY ... ON DELETE CASCADE, 不启用 FK 会留孤儿行.
+    """
+    conn = sqlite3.connect(DB_PATH, timeout=10)
+    conn.execute('PRAGMA foreign_keys = ON')
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def _lookup_stock_names(codes):
+    """批量查 stock_basic 拿 name; 返回 {ts_code: name}. 找不到返回 '股票名未知'."""
+    if not codes:
+        return {}
+    placeholders = ','.join('?' * len(codes))
+    rows = c.execute(f'SELECT ts_code, name FROM stock_basic WHERE ts_code IN ({placeholders})', codes).fetchall()
+    return {r['ts_code']: r['name'] for r in rows}
+
+
+def _load_user_sector_stocks(conn, sector_ids):
+    """批量拉 sector_ids 对应的所有股票 (按 role/rank 排序). 返回 {sector_id: [{ts_code, name, role, rank}, ...]}"""
+    if not sector_ids:
+        return {}
+    placeholders = ','.join('?' * len(sector_ids))
+    rows = conn.execute(f'''
+        SELECT sector_id, ts_code, name, role, rank
+        FROM user_sector_stocks
+        WHERE sector_id IN ({placeholders})
+        ORDER BY sector_id, role, rank
+    ''', sector_ids).fetchall()
+    out = {}
+    for r in rows:
+        out.setdefault(r['sector_id'], []).append({
+            'ts_code': r['ts_code'],
+            'name': r['name'] or '',
+            'role': r['role'] or 'legacy',
+            'rank': r['rank'] if r['rank'] is not None else 99,
+        })
+    # 对每个 sector_id 的股票: 旧数据没有 name, 批量回查 stock_basic
+    for sid, stocks in out.items():
+        missing = [s for s in stocks if not s['name']]
+        if missing:
+            name_map = _lookup_stock_names(conn, [s['ts_code'] for s in missing])
+            for s in stocks:
+                if not s['name']:
+                    s['name'] = name_map.get(s['ts_code'], '股票名未知')
+    return out
+
+
+def _insert_user_sector_stock(conn, sector_id, ts_code, role, rank, name=None):
+    """插入一只股票到 user_sector_stocks. 重复则跳过 (ON CONFLICT DO NOTHING)."""
+    if name is None:
+        # 查 stock_basic 拿 name
+        row = conn.execute('SELECT name FROM stock_basic WHERE ts_code = ?', (ts_code,)).fetchone()
+        name = row['name'] if row else '股票名未知'
+    try:
+        conn.execute('''
+            INSERT INTO user_sector_stocks (sector_id, ts_code, name, role, rank)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (sector_id, ts_code, name, role, rank))
+        return True, name
+    except sqlite3.IntegrityError:
+        # UNIQUE(sector_id, ts_code) 冲突 → 跳过
+        return False, name
+
+
+@app.route('/api/user-sectors', methods=['GET'])
+def api_user_sectors_list():
+    """自选板块列表 (user_sectors), 复用 limitup 聚合统计.
+    query: days (默认 7), search (板块名包含), sort (hot/breadth/latest/created, 默认 hot)
+    response 中每个 sector 多一个 stocks 字段: [{ts_code, name, role, rank}, ...]
+    """
+    days = max(0, int(request.args.get('days', 7)))
+    search = (request.args.get('search') or '').strip()
+    sort = request.args.get('sort', 'hot')
+    conn = _connect_user_sectors_db()
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute('SELECT id, name, pinned, created_at, updated_at, note FROM user_sectors ORDER BY created_at DESC').fetchall()
+    # 批量拉所有 stocks (一次查询, 避免 N+1)
+    stocks_by_sector = _load_user_sector_stocks(conn, [r['id'] for r in rows])
+    conn.close()
+    sectors = _enrich_user_sectors_with_stats([dict(r) for r in rows], days, search, sort)
+    # 把 stocks 挂到对应 sector 上
+    for s in sectors:
+        s['stocks'] = stocks_by_sector.get(s['id'], [])
+        s['stock_total'] = len(s['stocks'])
+    return jsonify({
+        'sectors': sectors,
+        'total': len(sectors),
+        'days': days,
+        'sort': sort,
+    })
+
+
+@app.route('/api/user-sectors', methods=['POST'])
+def api_user_sectors_add():
+    """添加一个自选板块. body: {name, note?, stocks?: [{code, role, rank}, ...]}
+    name: 必填, 板块名
+    stocks: 可选, 同时插入的股票列表; role ∈ {'core','peer'}, rank ∈ {1,2,3}
+    重复添加返回 200 + action=already_exists (stocks 不会重复插入)
+    """
+    data = request.get_json(silent=True) or request.form
+    name = (data.get('name') or '').strip()
+    note = (data.get('note') or '').strip() or None
+    if not name:
+        return jsonify({'status': 'error', 'message': '板块名不能为空'}), 400
+    if len(name) > 50:
+        return jsonify({'status': 'error', 'message': '板块名过长 (限 50 字符)'}), 400
+    conn = _connect_user_sectors_db()
+    conn.row_factory = sqlite3.Row
+    existing = conn.execute('SELECT id, name, created_at FROM user_sectors WHERE name = ? COLLATE NOCASE', (name,)).fetchone()
+    if existing:
+        sector_id = existing['id']
+        action = 'already_exists'
+    else:
+        cur = conn.execute('INSERT INTO user_sectors (name, note) VALUES (?, ?)', (name, note))
+        sector_id = cur.lastrowid
+        action = 'added'
+    # 解析 stocks 列表 [{code, role, rank}]
+    raw_stocks = data.get('stocks') or []
+    inserted = []
+    skipped = []
+    invalid = []
+    if isinstance(raw_stocks, list):
+        for item in raw_stocks:
+            if not isinstance(item, dict):
+                continue
+            raw_code = (item.get('code') or '').strip()
+            if not raw_code:
+                continue
+            ts_code = _normalize_code(raw_code)
+            if not ts_code:
+                invalid.append({'raw': raw_code, 'reason': '代码格式无效'})
+                continue
+            role = (item.get('role') or '').strip()
+            if role not in ('core', 'peer'):
+                invalid.append({'raw': raw_code, 'reason': f'role 必须是 core/peer, 收到 {role!r}'})
+                continue
+            try:
+                rank = int(item.get('rank', 0))
+            except (TypeError, ValueError):
+                rank = 0
+            if rank not in (1, 2, 3):
+                invalid.append({'raw': raw_code, 'reason': f'rank 必须是 1/2/3, 收到 {rank}'})
+                continue
+            ok, name_found = _insert_user_sector_stock(conn, sector_id, ts_code, role, rank)
+            if ok:
+                inserted.append({'ts_code': ts_code, 'name': name_found, 'role': role, 'rank': rank})
+            else:
+                skipped.append(ts_code)
+    conn.commit()
+    # 拿回 created_at
+    row = conn.execute('SELECT created_at FROM user_sectors WHERE id = ?', (sector_id,)).fetchone()
+    conn.close()
+    resp = {
+        'status': 'success',
+        'action': action,
+        'id': sector_id,
+        'name': name,
+        'created_at': row['created_at'] if row else None,
+        'stocks_inserted': len(inserted),
+        'stocks_skipped': skipped,
+        'stocks_invalid': invalid,
+    }
+    if action == 'already_exists':
+        resp['message'] = f'"{name}" 已在自选板块中'
+    return jsonify(resp)
+
+
+@app.route('/api/user-sectors/<path:name>', methods=['DELETE'])
+def api_user_sectors_delete(name):
+    """删除自选板块. 路径参数 name 接受任意字符 (URL 解码后做大小写不敏感匹配).
+    CASCADE 自动删 user_sector_stocks 关联股票 (FOREIGN KEY ON DELETE CASCADE)
+    """
+    from urllib.parse import unquote
+    name = unquote(name).strip()
+    if not name:
+        return jsonify({'status': 'error', 'message': '板块名不能为空'}), 400
+    conn = _connect_user_sectors_db()
+    conn.row_factory = sqlite3.Row
+    row = conn.execute('SELECT id, name FROM user_sectors WHERE name = ? COLLATE NOCASE', (name,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'status': 'error', 'message': f'自选板块不存在: {name}'}), 404
+    # 先数一下关联股票, 用于返回信息
+    stock_count = conn.execute('SELECT COUNT(*) AS c FROM user_sector_stocks WHERE sector_id = ?', (row['id'],)).fetchone()['c']
+    conn.execute('DELETE FROM user_sectors WHERE id = ?', (row['id'],))
+    conn.commit()
+    conn.close()
+    return jsonify({
+        'status': 'success',
+        'action': 'deleted',
+        'id': row['id'],
+        'name': row['name'],
+        'stocks_deleted': stock_count,
+    })
+
+
+# ---- 单只股票: 增 / 删 / 详情 ----
+
+@app.route('/api/user-sectors/<path:name>/stocks', methods=['POST'])
+def api_user_sector_add_stock(name):
+    """给已有板块加一只股票. body: {code, role, rank}
+    role: 'core' | 'peer'; rank: 1|2|3
+    """
+    from urllib.parse import unquote
+    name = unquote(name).strip()
+    data = request.get_json(silent=True) or request.form
+    raw_code = (data.get('code') or '').strip()
+    role = (data.get('role') or '').strip()
+    try:
+        rank = int(data.get('rank', 0))
+    except (TypeError, ValueError):
+        rank = 0
+    if not name:
+        return jsonify({'status': 'error', 'message': '板块名缺失'}), 400
+    if not raw_code:
+        return jsonify({'status': 'error', 'message': '代码缺失'}), 400
+    if role not in ('core', 'peer'):
+        return jsonify({'status': 'error', 'message': f'role 必须是 core/peer, 收到 {role!r}'}), 400
+    if rank not in (1, 2, 3):
+        return jsonify({'status': 'error', 'message': f'rank 必须是 1/2/3, 收到 {rank}'}), 400
+    ts_code = _normalize_code(raw_code)
+    if not ts_code:
+        return jsonify({'status': 'error', 'message': f'代码格式无效: {raw_code!r}'}), 400
+    conn = _connect_user_sectors_db()
+    conn.row_factory = sqlite3.Row
+    row = conn.execute('SELECT id FROM user_sectors WHERE name = ? COLLATE NOCASE', (name,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'status': 'error', 'message': f'自选板块不存在: {name}'}), 404
+    sector_id = row['id']
+    # 同一 (role, rank) 已存在: 替换 (update); 同一 ts_code 已存在: 跳过
+    existing_by_code = conn.execute('SELECT id, role, rank FROM user_sector_stocks WHERE sector_id = ? AND ts_code = ?', (sector_id, ts_code)).fetchone()
+    if existing_by_code:
+        conn.close()
+        return jsonify({
+            'status': 'success',
+            'action': 'already_exists',
+            'ts_code': ts_code,
+            'message': f'{ts_code} 已在该板块 ({existing_by_code["role"]}-{existing_by_code["rank"]})',
+        })
+    # 同 (role, rank) 占位: 删旧的 (让新股票占位)
+    conn.execute('DELETE FROM user_sector_stocks WHERE sector_id = ? AND role = ? AND rank = ?', (sector_id, role, rank))
+    ok, name_found = _insert_user_sector_stock(conn, sector_id, ts_code, role, rank)
+    conn.commit()
+    conn.close()
+    return jsonify({
+        'status': 'success',
+        'action': 'added' if ok else 'replaced',
+        'ts_code': ts_code,
+        'name': name_found,
+        'role': role,
+        'rank': rank,
+    })
+
+
+@app.route('/api/user-sectors/<path:name>/stocks/<path:ts_code>', methods=['DELETE'])
+def api_user_sector_delete_stock(name, ts_code):
+    """从板块删一只股票."""
+    from urllib.parse import unquote
+    name = unquote(name).strip()
+    ts_code = unquote(ts_code).strip()
+    norm = _normalize_code(ts_code)
+    if not name or not norm:
+        return jsonify({'status': 'error', 'message': '板块名或代码缺失'}), 400
+    conn = _connect_user_sectors_db()
+    conn.row_factory = sqlite3.Row
+    row = conn.execute('SELECT id FROM user_sectors WHERE name = ? COLLATE NOCASE', (name,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'status': 'error', 'message': f'自选板块不存在: {name}'}), 404
+    cur = conn.execute('DELETE FROM user_sector_stocks WHERE sector_id = ? AND ts_code = ?', (row['id'], norm))
+    deleted = cur.rowcount
+    conn.commit()
+    conn.close()
+    if deleted == 0:
+        return jsonify({'status': 'error', 'message': f'{norm} 不在该板块中'}), 404
+    return jsonify({
+        'status': 'success',
+        'action': 'deleted',
+        'ts_code': norm,
+    })
+
+
+@app.route('/api/user-sectors/<path:name>/detail', methods=['GET'])
+def api_user_sector_detail(name):
+    """自选板块详情 (二级页): 板块信息 + 6 只股票 + 实时行情.
+    返回结构跟 /api/sector-collections/<sector> 部分相似, 但 stocks 字段是用户选的 6 只, 不是全市场历史.
+    """
+    from urllib.parse import unquote
+    name = unquote(name).strip()
+    conn = _connect_user_sectors_db()
+    conn.row_factory = sqlite3.Row
+    sec = conn.execute('SELECT id, name, note, created_at, updated_at, pinned FROM user_sectors WHERE name = ? COLLATE NOCASE', (name,)).fetchone()
+    if not sec:
+        conn.close()
+        return jsonify({'status': 'error', 'message': f'自选板块不存在: {name}'}), 404
+    # 拉 6 只股票
+    stocks = _load_user_sector_stocks(conn, [sec['id']]).get(sec['id'], [])
+    conn.close()
+    # 拉实时行情 (sina) - 用全量 fetch_sina_quotes, 跟选股推荐 / 持仓同一份
+    codes = [s['ts_code'] for s in stocks]
+    quotes = {}
+    if codes:
+        try:
+            quotes = fetch_sina_quotes(codes)
+        except Exception as e:
+            print(f'[user_sector_detail] sina 拉取失败: {e}', flush=True)
+    # 拼装每只股票的实时信息
+    stocks_out = []
+    for s in stocks:
+        q = quotes.get(s['ts_code']) or {}
+        price = q.get('price')
+        change_pct = q.get('change_pct')
+        prev_close = q.get('prev_close')
+        stocks_out.append({
+            'ts_code': s['ts_code'],
+            'name': s['name'],
+            'role': s['role'],
+            'rank': s['rank'],
+            'price': price,
+            'change_pct': change_pct,
+            'prev_close': prev_close,
+            'quote_time': q.get('time', ''),
+        })
+    return jsonify({
+        'sector': sec['name'],
+        'id': sec['id'],
+        'note': sec['note'],
+        'created_at': sec['created_at'],
+        'pinned': sec['pinned'],
+        'stocks': stocks_out,
+        'core_count': sum(1 for s in stocks_out if s['role'] == 'core'),
+        'peer_count': sum(1 for s in stocks_out if s['role'] == 'peer'),
+    })
+
+
 if __name__ == '__main__':
     init_db()
     print(f"数据库初始化完成: {DB_PATH}")
+    # 启动 APScheduler 调度 (阶段 0.4 框架, 各阶段任务在各阶段代码里注册)
+    try:
+        from scheduler import start_scheduler, register_sentiment_sampling, register_daily_review, register_push_jobs
+        register_sentiment_sampling()   # 阶段 1
+        register_daily_review()          # 阶段 3
+        register_push_jobs()             # 阶段 5
+        start_scheduler()
+    except Exception as e:
+        print(f'[scheduler] 启动失败 (非致命, Flask 继续): {e}')
     print("启动 Flask 服务...")
     app.run(debug=True, host='0.0.0.0', port=5555)

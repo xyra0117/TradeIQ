@@ -24,6 +24,8 @@
 """
 import argparse
 import json
+import os
+import sqlite3
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -31,6 +33,104 @@ from typing import Optional
 
 import pandas as pd
 from playwright.sync_api import sync_playwright
+
+
+# ---------- 交易日历 ----------
+# 复用后端 SQLite trading_dates_cache 表（TuShare 同步的数据），
+# 缓存 miss 时用 akshare.tool_trade_date_hist_sina() 兜底。
+#
+# 非交易日同步的语义:
+#   东财 push2 在周末/法定节假日仍会返回「上一交易日」的全市场数据 (amount 字段已更新),
+#   所以非交易日也允许拉取, 但 trade_date 必须填「今天之前的最近一个交易日」,
+#   不能填今天 (今天休市, 没数据, 写了就污染 fund_flow)。
+#   例: 6/19 端午 sync → 实际数据是 6/18 收盘的 → trade_date='20260618'
+#       6/21 周日 sync → 中间 6/19 端午不开 → trade_date 仍为 '20260618'
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'market_data.db')
+_AK_TRADE_DATES_CACHE: Optional[set] = None  # 模块级缓存, 一次进程内只拉一次
+_AK_TRADE_DATES_SORTED: Optional[list] = None  # 升序 list, 给 last_trading_date 用
+
+
+def _load_ak_trade_dates() -> bool:
+    """从 akshare 拉历史交易日, 填两个缓存。返回是否成功。"""
+    global _AK_TRADE_DATES_CACHE, _AK_TRADE_DATES_SORTED
+    if _AK_TRADE_DATES_CACHE is not None:
+        return True
+    try:
+        import akshare as ak
+        df = ak.tool_trade_date_hist_sina()
+        dates = df['trade_date'].astype(str).str.replace('-', '').tolist()
+        _AK_TRADE_DATES_CACHE = set(dates)
+        _AK_TRADE_DATES_SORTED = sorted(dates)
+        return True
+    except Exception as e:
+        print(f'[akshare] 拉交易日历失败: {e}', file=sys.stderr)
+        return False
+
+
+def is_trading_date(date_str: str) -> bool:
+    """判断 date_str (YYYYMMDD) 是否为 A 股交易日。
+
+    优先级: SQLite trading_dates_cache > akshare.tool_trade_date_hist_sina() > 简单周末判断。
+    缓存/网络都失败时, 兜底返回 True (按交易日处理, 避免误判休市) — 节假日错抓一两行
+    总比节假日大年三十全市场报错强。
+    """
+    if not date_str or len(date_str) != 8 or not date_str.isdigit():
+        return True  # 异常日期不挡, 让后续逻辑自己处理
+
+    # 1) 本地 SQLite 缓存 (TuShare 同步的, 准确)
+    try:
+        conn = sqlite3.connect(DB_PATH, timeout=5)
+        row = conn.execute(
+            'SELECT 1 FROM trading_dates_cache WHERE cal_date = ? LIMIT 1',
+            (date_str,),
+        ).fetchone()
+        conn.close()
+        if row is not None:
+            return True
+        # 缓存里没有这日期, 但缓存覆盖范围可能只到 2025 年, 6/19 端午节实际不在缓存,
+        # 走第 2 步 akshare 二次确认
+    except Exception:
+        pass
+
+    # 2) akshare 兜底 (全历史交易日)
+    if not _load_ak_trade_dates():
+        return True  # 兜底, 不挡
+    return date_str in _AK_TRADE_DATES_CACHE
+
+
+def last_trading_date(date_str: str) -> str:
+    """返回 <= date_str 的最近一个交易日 (YYYYMMDD)。如果 date_str 本身是交易日, 返回自身。
+
+    节日同步时, 东财 push2 返回的「今日」数据实际属于上一个交易日,
+    调用方用这个函数算出真正的 trade_date, 避免把节日数据写到今天。
+    """
+    if not date_str or len(date_str) != 8 or not date_str.isdigit():
+        return date_str
+    if is_trading_date(date_str):
+        return date_str
+
+    # 向前找最近一个交易日
+    # 1) 优先本地缓存
+    try:
+        conn = sqlite3.connect(DB_PATH, timeout=5)
+        row = conn.execute(
+            'SELECT MAX(cal_date) FROM trading_dates_cache WHERE cal_date <= ?',
+            (date_str,),
+        ).fetchone()
+        conn.close()
+        if row and row[0]:
+            return row[0]
+    except Exception:
+        pass
+
+    # 2) akshare 兜底 (升序 list, bisect 找左侧最近)
+    if not _load_ak_trade_dates():
+        return date_str  # 兜底: 用今天 (上层会有数据错位风险, 但比报错强)
+    import bisect
+    idx = bisect.bisect_right(_AK_TRADE_DATES_SORTED, date_str) - 1
+    if idx >= 0:
+        return _AK_TRADE_DATES_SORTED[idx]
+    return date_str
 
 
 # ---------- 配置 ----------
@@ -105,20 +205,29 @@ def fetch_page_jsonp(page, pn: int) -> Optional[dict]:
     return None
 
 
-def fetch_today_market(progress_callback=None, headless: bool = False, verbose: bool = True) -> tuple:
+def fetch_today_market(progress_callback=None, headless: bool = False, verbose: bool = True, force: bool = False, skip_if_exists: bool = False) -> tuple:
     """JSONP 循环拉全市场数据 (lib API, 给 Flask 后台调用).
 
     Args:
         progress_callback: 可选回调, 签名 (stage: str, **kwargs).
             - stage="total", total=N
             - stage="page", pn=N, total_pages=N, rows_count=M, failed=[...]
-            - stage="done", rows=M, total=N, failed=[...]
+            - stage="done", rows=M, total=N, failed=[...], actual_date=YYYYMMDD
+            - stage="already_synced", actual_date=YYYYMMDD  (skip_if_exists 命中, 早退)
         headless: Playwright 启动模式
         verbose: 是否 print 到 stderr (后台调用设 False)
+        force: 跳过交易日判断 (节日也强抓, 默认 False)
+        skip_if_exists: actual_date 在 fund_flow 表里已有数据时早退 (幂等, 默认 False)
+                        force=True 时此参数被忽略
 
     Returns:
-        (rows: list[dict], total: int, failed_pages: list[int])
+        (rows: list[dict], total: int, failed_pages: list[int], actual_date: str)
         rows 是 detail.html 原始 f-code dict (未做中文/英文列名转换)
+        actual_date 是数据真正归属的交易日:
+          - 今天本身就是交易日 → datetime.now() 当天
+          - 今天非交易日 → today 之前的最近一个交易日 (端午/周日点 sync 会拿到这个)
+          - force=True → datetime.now() 当天 (不管是否交易日)
+        skip_if_exists 命中时 rows/total/failed 都为空/0, actual_date 仍返回 (供 state 展示)
     """
     all_rows = []
     failed_pages = []
@@ -132,7 +241,35 @@ def fetch_today_market(progress_callback=None, headless: bool = False, verbose: 
             except Exception:
                 pass
 
-    _emit("start")
+    # 节日也允许拉 (东财 push2 在休市日仍返回上一交易日数据, amount 已更新),
+    # 但 trade_date 必须用 last_trading_date(today), 不能用 today
+    today = datetime.now().strftime('%Y%m%d')
+    if force:
+        actual_date = today
+    else:
+        actual_date = last_trading_date(today)
+    if verbose and actual_date != today:
+        print(f"[{datetime.now():%H:%M:%S}] {today} 非交易日, 数据将归属到 {actual_date} (最近交易日)")
+
+    # 幂等守卫: actual_date 已有数据就早退 (force 时跳过)
+    if not force and skip_if_exists:
+        try:
+            conn = sqlite3.connect(DB_PATH, timeout=5)
+            row = conn.execute(
+                "SELECT COUNT(*) FROM fund_flow WHERE trade_date = ? AND source = 'eastmoney-push2'",
+                (actual_date,),
+            ).fetchone()
+            conn.close()
+            if row and row[0] > 0:
+                if verbose:
+                    print(f"[{datetime.now():%H:%M:%S}] {actual_date} 已有数据 ({row[0]} 行), 跳过抓取")
+                _emit("already_synced", actual_date=actual_date, existing_count=row[0])
+                return [], 0, [], actual_date
+        except Exception as e:
+            if verbose:
+                print(f"[skip_if_exists] 检查失败, 继续拉取: {e}")
+
+    _emit("start", actual_date=actual_date, today=today)
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=headless, channel="chrome")
         page = browser.new_page(viewport={"width": 1920, "height": 1080})
@@ -151,7 +288,7 @@ def fetch_today_market(progress_callback=None, headless: bool = False, verbose: 
                 print("FAIL: 第 1 页拿不到数据", file=sys.stderr)
             _emit("error", message="第 1 页拿不到数据")
             browser.close()
-            return [], 0, list(range(1, 54))
+            return [], 0, list(range(1, 54)), actual_date
 
         total = data["data"].get("total", 0)
         diff = data["data"].get("diff") or []
@@ -163,7 +300,7 @@ def fetch_today_market(progress_callback=None, headless: bool = False, verbose: 
         if total == 0:
             browser.close()
             _emit("done", rows=0, total=0, failed=list(range(2, 54)))
-            return [], 0, list(range(2, 54))
+            return [], 0, list(range(2, 54)), actual_date
 
         # 计算总页数
         import math
@@ -193,13 +330,19 @@ def fetch_today_market(progress_callback=None, headless: bool = False, verbose: 
         if failed_pages:
             print(f"⚠️ 失败页: {failed_pages[:20]}{'...' if len(failed_pages) > 20 else ''}")
     _emit("done", rows=len(all_rows), total=total, failed=failed_pages[:])
-    return all_rows, total, failed_pages
+    return all_rows, total, failed_pages[:], actual_date
 
 
 # ===== 兼容旧名: fetch_all 仍然可用, 但走新函数 =====
-def fetch_all(headless: bool = False) -> pd.DataFrame:
-    """旧 CLI 入口, 内部用 fetch_today_market. 保留向后兼容."""
-    rows, _, _ = fetch_today_market(progress_callback=None, headless=headless, verbose=True)
+def fetch_all(headless: bool = False, force: bool = False) -> pd.DataFrame:
+    """旧 CLI 入口, 内部用 fetch_today_market. 保留向后兼容.
+
+    force=True 跳过交易日守卫; skip_if_exists 默认开 (actual_date 已有数据就早退).
+    """
+    rows, _, _, _ = fetch_today_market(
+        progress_callback=None, headless=headless, verbose=True,
+        force=force, skip_if_exists=True,
+    )
     return rows_to_df(rows)
 
 
@@ -307,14 +450,35 @@ def main():
     ap.add_argument("--top", type=int, default=None, help="只导出前 N 名")
     ap.add_argument("--out", type=str, default=None, help="输出 xlsx 路径")
     ap.add_argument("--headless", action="store_true", help="无头模式（默认有头）")
+    ap.add_argument("--force", action="store_true", help="跳过交易日判断（节假日强抓, 写到 today）; 同时跳过幂等守卫, 强制重抓")
     args = ap.parse_args()
+
+    today_yyyymmdd = datetime.now().strftime('%Y%m%d')
+    actual = today_yyyymmdd if args.force else last_trading_date(today_yyyymmdd)
+    if actual != today_yyyymmdd:
+        print(f"⏸  {today_yyyymmdd} 是非交易日, 数据将归属到 {actual} (最近交易日)")
+
+    # 幂等提示: 已有数据时不重抓 (--force 跳过)
+    if not args.force:
+        try:
+            conn = sqlite3.connect(DB_PATH, timeout=5)
+            row = conn.execute(
+                "SELECT COUNT(*) FROM fund_flow WHERE trade_date = ? AND source = 'eastmoney-push2'",
+                (actual,),
+            ).fetchone()
+            conn.close()
+            if row and row[0] > 0:
+                print(f"✅ {actual} 已有数据 ({row[0]} 行), 跳过抓取。如需强制重抓, 加 --force。")
+                sys.exit(0)
+        except Exception as e:
+            print(f"[main] 幂等检查失败, 继续拉取: {e}")
 
     today = datetime.now().strftime("%Y%m%d_%H%M")
     default_out = OUTPUT_DIR / f"主力净流入_{today}.xlsx"
     out_path = Path(args.out) if args.out else default_out
 
     print(f"[{datetime.now():%H:%M:%S}] 开始拉取（Playwright + JSONP, fid=f62 按金额排序）...")
-    df = fetch_all(headless=args.headless)
+    df = fetch_all(headless=args.headless, force=args.force)
     if df.empty:
         print("FAIL: 数据为空", file=sys.stderr)
         sys.exit(1)

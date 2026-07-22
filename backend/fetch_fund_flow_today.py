@@ -333,6 +333,157 @@ def fetch_today_market(progress_callback=None, headless: bool = False, verbose: 
     return all_rows, total, failed_pages[:], actual_date
 
 
+# ===== 5 日排行: fid=f164 拿"近 5 个交易日"累计 =====
+# 字段映射 (跟 akshare stock_fund_em.stock_individual_fund_flow_rank(indicator='5日') 一致):
+#   f164 5日主力净流入净额, f165 5日主力净流入净占比,
+#   f166 5日超大单净流入净额, f167 5日超大单净流入净占比,
+#   f168 5日大单净流入净额,   f169 5日大单净流入净占比,
+#   f170 5日中单净流入净额,   f171 5日中单净流入净占比,
+#   f172 5日小单净流入净额,   f173 5日小单净流入净占比
+PUSH2_URL_BASE_5D = (
+    "https://push2.eastmoney.com/api/qt/clist/get?"
+    "fid=f164&po=1&pz=100&np=1&fltt=2&invt=2"
+    "&ut=8dec03ba335b81bf4ebdf7b29ec27d15"
+    "&fs=m%3A0%2Bt%3A6%2Bf%3A%212%2Cm%3A0%2Bt%3A13%2Bf%3A%212%2Cm%3A0%2Bt%3A80%2Bf%3A%212%2Cm%3A1%2Bt%3A2%2Bf%3A%212%2Cm%3A1%2Bt%3A23%2Bf%3A%212%2Cm%3A0%2Bt%3A7%2Bf%3A%212%2Cm%3A1%2Bt%3A3%2Bf%3A%212"
+    "&fields=f12%2Cf14%2Cf2%2Cf109%2Cf164%2Cf165%2Cf166%2Cf167%2Cf168%2Cf169%2Cf170%2Cf171%2Cf172%2Cf173%2Cf257%2Cf258%2Cf124"
+)
+
+
+def fetch_5day_market(target_date: str, progress_callback=None, headless: bool = False, verbose: bool = True, skip_if_exists: bool = False) -> tuple:
+    """复用 fetch_today_market 的 playwright 流程, 但切到 detail.html 的「5日排行」tab.
+    fid=f184 → 排序字段 = 5 日主力净流入占比; 返回 fields 含义都变成"5 日累计".
+    用于补某一天的数据: 5日累计 = target_date 那天 + 之后 4 个交易日 (DB 里已有).
+
+    Args:
+        target_date: YYYYMMDD, 写入 fund_flow 用的 trade_date
+        progress_callback / headless / verbose / skip_if_exists: 同 fetch_today_market
+    Returns: 同 fetch_today_market, actual_date 固定为 target_date (5日排行无交易日判断)
+    """
+    all_rows = []
+    failed_pages = []
+    total = 0
+    total_pages = 0
+
+    def _emit(stage, **kw):
+        if progress_callback:
+            try:
+                progress_callback(stage, **kw)
+            except Exception:
+                pass
+
+    actual_date = target_date
+
+    # 幂等守卫: target_date 已有数据就早退
+    if skip_if_exists:
+        try:
+            conn = sqlite3.connect(DB_PATH, timeout=5)
+            row = conn.execute(
+                "SELECT COUNT(*) FROM fund_flow WHERE trade_date = ? AND source = 'eastmoney-push2'",
+                (actual_date,),
+            ).fetchone()
+            conn.close()
+            if row and row[0] > 0:
+                if verbose:
+                    print(f"[5d] {actual_date} 已有数据 ({row[0]} 行), 跳过抓取")
+                _emit("already_synced", actual_date=actual_date, existing_count=row[0])
+                return [], 0, [], actual_date
+        except Exception as e:
+            if verbose:
+                print(f"[5d skip_if_exists] 检查失败, 继续拉取: {e}")
+
+    _emit("start", actual_date=actual_date, today=actual_date)
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=headless, channel="chrome")
+        page = browser.new_page(viewport={"width": 1920, "height": 1080})
+
+        if verbose:
+            print(f"[5d] 打开页面建立 session...")
+        page.goto(PAGE_URL, wait_until="domcontentloaded", timeout=30000)
+        page.wait_for_timeout(1500)
+
+        # 注入 URL_BASE_5D, 复用 fetch_page_jsonp 的写法
+        js = """
+        (pn) => {
+            return new Promise((resolve, reject) => {
+                const cb = 'jjsonp_5d_' + Date.now() + '_' + pn;
+                window[cb] = (data) => {
+                    try { delete window[cb]; } catch(e) { window[cb] = undefined; }
+                    if (script.parentNode) script.parentNode.removeChild(script);
+                    resolve({ok: true, data: data});
+                };
+                const script = document.createElement('script');
+                const url = '%s' + '&pn=' + pn + '&cb=' + cb;
+                script.src = url;
+                script.onerror = (e) => {
+                    try { delete window[cb]; } catch(e2) {}
+                    if (script.parentNode) script.parentNode.removeChild(script);
+                    resolve({ok: false, err: 'script load failed'});
+                };
+                document.head.appendChild(script);
+                setTimeout(() => {
+                    if (window[cb] !== undefined) {
+                        try { delete window[cb]; } catch(e) {}
+                        if (script.parentNode) script.parentNode.removeChild(script);
+                        resolve({ok: false, err: 'timeout 15s'});
+                    }
+                }, 15000);
+            });
+        }
+        """ % PUSH2_URL_BASE_5D
+
+        if verbose:
+            print("[5d] 拉第 1 页...")
+        result = page.evaluate(js, 1)
+        data = result.get("data") if result and result.get("ok") else None
+        if not data or not data.get("data"):
+            if verbose:
+                print("[5d] FAIL: 第 1 页拿不到数据", file=sys.stderr)
+            browser.close()
+            _emit("error", message="第 1 页拿不到数据")
+            return [], 0, list(range(1, 54)), actual_date
+
+        total = data["data"].get("total", 0)
+        diff = data["data"].get("diff") or []
+        all_rows.extend(diff)
+        if verbose:
+            print(f"  total={total}, 第 1 页 {len(diff)} 行")
+        _emit("total", total=total)
+
+        if total == 0:
+            browser.close()
+            _emit("done", rows=0, total=0, failed=list(range(2, 54)))
+            return [], 0, list(range(2, 54)), actual_date
+
+        import math
+        total_pages = math.ceil(total / 100)
+        if verbose:
+            print(f"  总页数: {total_pages}（{total} 只）")
+
+        for pn in range(2, total_pages + 1):
+            page.wait_for_timeout(WAIT_MS_PER_PAGE)
+            result = page.evaluate(js, pn)
+            data = result.get("data") if result and result.get("ok") else None
+            if not data or not data.get("data") or not data["data"].get("diff"):
+                failed_pages.append(pn)
+                if verbose:
+                    print(f"  pn={pn}: 无数据", file=sys.stderr)
+                _emit("page", pn=pn, total_pages=total_pages, rows_count=len(all_rows), failed=failed_pages[:])
+                continue
+            all_rows.extend(data["data"]["diff"])
+            if verbose and (pn % 5 == 0 or pn == total_pages):
+                print(f"  pn={pn}/{total_pages}, 累计 {len(all_rows)} 行")
+            _emit("page", pn=pn, total_pages=total_pages, rows_count=len(all_rows), failed=failed_pages[:])
+
+        browser.close()
+
+    if verbose:
+        print(f"\n[5d] 抓取完成: {len(all_rows)} 行")
+        if failed_pages:
+            print(f"⚠️ 失败页: {failed_pages[:20]}{'...' if len(failed_pages) > 20 else ''}")
+    _emit("done", rows=len(all_rows), total=total, failed=failed_pages[:])
+    return all_rows, total, failed_pages[:], actual_date
+
+
 # ===== 兼容旧名: fetch_all 仍然可用, 但走新函数 =====
 def fetch_all(headless: bool = False, force: bool = False) -> pd.DataFrame:
     """旧 CLI 入口, 内部用 fetch_today_market. 保留向后兼容.

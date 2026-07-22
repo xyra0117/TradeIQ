@@ -1,12 +1,11 @@
-"""APScheduler 调度框架 (A 股情绪分析系统)
+"""APScheduler 调度框架 (A 股)
 
 设计原则:
-- 阶段 0.4: 此文件只装框架, 不注册具体任务. 各阶段往 register_* 函数里塞任务.
+- 此文件只装框架, 不注册具体任务. 各功能往 register_* 函数里塞任务.
 - 单例 BackgroundScheduler, 启动在 app.py 末尾 if __name__ == '__main__'.
 - 任务注册失败不阻塞启动, 仅 print 日志.
 
-任务规划 (各阶段注册):
-- 阶段 1 (情绪指数): register_sentiment_sampling - 交易时段 09:30-11:30 + 13:00-15:00 每 15 秒采样
+任务规划 (各功能注册):
 - 阶段 3 (盘后复盘): register_daily_review - 每个交易日 15:30 自动生成报告
 - 阶段 5 (推送): register_push_jobs - 09:25/11:35/15:05/15:30 定时推送
 """
@@ -47,26 +46,7 @@ def safe_register(func, trigger, id, name=None, replace_existing=True, **kwargs)
         return False
 
 
-# ============ 各阶段任务注册函数 (各阶段实现时填充) ============
-
-def register_sentiment_sampling():
-    """阶段 1: 交易时段每 15 秒采一次情绪指数.
-    触发时间: 09:30-11:30 + 13:00-15:00 的每 15 秒 (秒 0/15/30/45).
-    任务实际函数在 sentiment.py 里实现, 这里通过 lazy import 避免循环依赖."""
-    from datetime import time as _time
-    def _job():
-        from sentiment import sample_intraday
-        sample_intraday()
-    sched = get_scheduler()
-    # 两个时间区间, 每天 0/15/30/45 秒触发
-    trigger = CronTrigger(
-        hour='9-11,13-14',
-        minute='*',
-        second='0,15,30,45'
-    )
-    safe_register(_job, trigger, id='sentiment_sampling',
-                  name='情绪指数盘中 15 秒采样 (09:30-11:30 + 13:00-15:00)')
-
+# ============ 各功能任务注册函数 ============
 
 def register_daily_review():
     """阶段 3: 每个交易日 15:30 自动生成盘后复盘报告."""

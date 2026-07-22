@@ -135,6 +135,10 @@ def init_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
 
+    # 清理遗留的情绪分析表 (2026-07 删除 sentiment/alert_rules 模块后)
+    c.execute('DROP TABLE IF EXISTS sentiment_intraday')
+    c.execute('DROP TABLE IF EXISTS sentiment_alert')
+
     # 指数日线数据
     c.execute('''CREATE TABLE IF NOT EXISTS index_daily (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -352,6 +356,21 @@ def init_db():
     c.execute('CREATE INDEX IF NOT EXISTS idx_fund_flow_date        ON fund_flow(trade_date)')
     c.execute('CREATE INDEX IF NOT EXISTS idx_fund_flow_date_inflow ON fund_flow(trade_date, main_net_inflow DESC)')
     c.execute('CREATE INDEX IF NOT EXISTS idx_fund_flow_ts_code     ON fund_flow(ts_code, trade_date DESC)')
+
+    # ── fund_flow_ranked 物化表: 预排每只股的 rn + close_anchor + stock_daily 字段
+    # 主 SELECT 读这张表避免 ROW_NUMBER sort + LEFT JOIN stock_daily (提速 35 倍)
+    c.execute('''CREATE TABLE IF NOT EXISTS fund_flow_ranked (
+        ts_code TEXT, trade_date TEXT, source TEXT,
+        rn INTEGER,
+        code TEXT, name TEXT,
+        close REAL, change_pct REAL, high REAL,
+        main_net_inflow REAL, super_net REAL, mid_net REAL, small_net REAL,
+        close_anchor REAL,
+        PRIMARY KEY (ts_code, trade_date, source)
+    )''')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_ffr_date ON fund_flow_ranked(trade_date)')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_ffr_rn   ON fund_flow_ranked(source, rn)')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_ffr_ts   ON fund_flow_ranked(ts_code, trade_date DESC)')
     # 兼容早期版本: 同花顺全市场同步曾把万元字段按亿元放大。
     c.execute("""UPDATE fund_flow
         SET main_net_inflow = main_net_inflow / 10000.0,
@@ -500,44 +519,7 @@ def init_db():
     )''')
     c.execute('CREATE INDEX IF NOT EXISTS idx_akshare_zt_pool_date ON akshare_zt_pool(trade_date)')
 
-    # ============ 阶段 1: 情绪分析 (sentiment_intraday + sentiment_alert) ============
-
-    # 情绪分时采样 (盘中 15 秒一采样)
-    c.execute('''CREATE TABLE IF NOT EXISTS sentiment_intraday (
-        ts TEXT PRIMARY KEY,            -- 'YYYY-MM-DD HH:MM:SS' 15 秒一采样
-        score REAL NOT NULL,            -- 0-100
-        level TEXT NOT NULL,            -- 冰点/低迷/温和/火热/亢奋 (5 档, 严格用文档名)
-        base_score REAL,                -- 基础 60%
-        capital_score REAL,             -- 资金 25%
-        sector_score REAL,              -- 板块 15%
-        -- 基础因子 (60%)
-        up_count INTEGER, down_count INTEGER, flat_count INTEGER,
-        limit_up_count INTEGER, limit_down_count INTEGER,
-        median_change_pct REAL,
-        sealed_count INTEGER, touched_count INTEGER,
-        broken_count INTEGER,
-        streak_max INTEGER, streak_count INTEGER,
-        -- 资金因子 (25%)
-        north_net REAL, total_amount REAL, main_net REAL,
-        seal_amount REAL,
-        -- 板块因子 (15%)
-        up_sector_count INTEGER, total_sector_count INTEGER,
-        leading_sector_change_pct REAL, sector_rotation INTEGER
-    )''')
-    c.execute('CREATE INDEX IF NOT EXISTS idx_sentiment_intraday_ts ON sentiment_intraday(ts)')
-
-    # 异动预警
-    c.execute('''CREATE TABLE IF NOT EXISTS sentiment_alert (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        ts TEXT NOT NULL,
-        level TEXT NOT NULL,            -- 'warning' / 'urgent'
-        rule TEXT NOT NULL,             -- 触发的规则名
-        title TEXT, content TEXT,
-        pushed INTEGER DEFAULT 0        -- 是否已推送 (0/1)
-    )''')
-    c.execute('CREATE INDEX IF NOT EXISTS idx_sentiment_alert_ts ON sentiment_alert(ts)')
-
-    # 推送配置 (alert_rules 和 feishu 读阈值用)
+    # 推送配置 (feishu 读阈值用)
     c.execute('''CREATE TABLE IF NOT EXISTS push_config (
         key TEXT PRIMARY KEY,
         value TEXT,
@@ -813,6 +795,49 @@ def _attach_sector(rows, key='ts_code'):
     return rows
 
 
+def build_fund_flow_ranked(since_date=None):
+    """重建 fund_flow_ranked 物化表.
+    since_date=None → 全量 rebuild (8s 一次性).
+    since_date='YYYYMMDD' → 仅刷该日及之后 (含 buffer 前 30 天, 防 ROW_NUMBER 错位)
+    写入字段: ts_code/trade_date/source + rn (按 ts_code+source 排序) + stock_daily close/change/high + close_anchor.
+    """
+    conn = sqlite3.connect(DB_PATH, timeout=60)
+    c = conn.cursor()
+    if since_date is None:
+        # 全量: 清空重写
+        c.execute('DELETE FROM fund_flow_ranked')
+        where_clause = ''
+        params = []
+    else:
+        # 增量: 仅刷 since_date 及之前 30 天起的新数据 (避免窗口边界错位)
+        c.execute('DELETE FROM fund_flow_ranked WHERE trade_date >= ?', (since_date,))
+        # 前 30 天 buffer
+        cutoff = (datetime.strptime(since_date, '%Y%m%d') - timedelta(days=30)).strftime('%Y%m%d')
+        where_clause = 'AND f.trade_date >= ?'
+        params = [cutoff]
+    c.execute(f"""
+        INSERT OR IGNORE INTO fund_flow_ranked
+            (ts_code, trade_date, source, rn, code, name,
+             close, change_pct, high,
+             main_net_inflow, super_net, mid_net, small_net,
+             close_anchor)
+        SELECT
+            f.ts_code, f.trade_date, f.source,
+            ROW_NUMBER() OVER (PARTITION BY f.ts_code, f.source ORDER BY f.trade_date DESC) AS rn,
+            f.code, f.name,
+            sd.close, sd.change AS change_pct, sd.high,
+            f.main_net_inflow, f.super_net, f.mid_net, f.small_net,
+            FIRST_VALUE(sd.close) OVER (PARTITION BY f.ts_code, f.source ORDER BY f.trade_date DESC) AS close_anchor
+        FROM fund_flow f
+        LEFT JOIN stock_daily sd ON sd.ts_code = f.ts_code AND sd.trade_date = f.trade_date
+        WHERE 1=1 {where_clause}
+    """, params)
+    inserted = c.rowcount
+    conn.commit()
+    conn.close()
+    return inserted
+
+
 def refresh_sector_summary_for_codes(ts_codes):
     """增量刷新指定 ts_code 列表的 sector 汇总.
     逻辑: GROUP BY (code, sector) → 标记 is_latest (跨 sector 取 MAX(date) 的 sector) → UPSERT.
@@ -856,7 +881,7 @@ def refresh_sector_summary_for_codes(ts_codes):
 
 
 def _init_default_push_config(conn):
-    """默认推送配置 (alert_rules / feishu 读阈值用). 已存在的不覆盖."""
+    """默认推送配置 (feishu 读阈值用). 已存在的不覆盖."""
     defaults = {
         # 开关
         'enabled': 'true',
@@ -2549,6 +2574,64 @@ def dashboard_static(filename):
         resp.headers['Pragma'] = 'no-cache'
         resp.headers['Expires'] = '0'
     return resp
+
+# ============ 分析日报挂载 (用户 18:30/9:30 手动放下 HTML, 前端 iframe 轮询) ============
+
+# folder 白名单 + 文件名前缀 (用户放文件时按这个规律命名, manifest 按前缀提日期)
+_ALLOWED_REPORT_FOLDERS = {'复盘日报': 'A股日报-', '盘前提示': '盘前提示-'}
+
+
+@app.route('/reports/<folder>/<path:filename>')
+def report_static(folder, filename):
+    """挂载 分析日报/<folder>/<filename.html> 给前端 iframe 引用.
+    folder 白名单: 复盘日报 | 盘前提示. send_from_directory 自带防 path traversal."""
+    if folder not in _ALLOWED_REPORT_FOLDERS:
+        return jsonify({'status': 'error', 'message': f'folder 不在白名单: {folder}'}), 404
+    base = os.path.join(os.path.dirname(__file__), '..', '分析日报', folder)
+    if not os.path.isdir(base):
+        return jsonify({'status': 'error', 'message': f'目录不存在: {base}'}), 404
+    resp = send_from_directory(base, filename)
+    if filename.endswith('.html'):
+        resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
+        resp.headers['Pragma'] = 'no-cache'
+        resp.headers['Expires'] = '0'
+    return resp
+
+
+@app.route('/api/reports/manifest')
+def api_reports_manifest():
+    """返回 分析日报/ 下两个白名单文件夹的当日+历史文件清单.
+    前端 iframe 轮询 (60s) 发现今日文件就自动切 src."""
+    today = date.today().isoformat()  # 'YYYY-MM-DD'
+    folders_out = {}
+    for folder, prefix in _ALLOWED_REPORT_FOLDERS.items():
+        base = os.path.join(os.path.dirname(__file__), '..', '分析日报', folder)
+        files_out = []
+        today_file = None
+        if os.path.isdir(base):
+            for name in os.listdir(base):
+                if not name.endswith('.html'):
+                    continue
+                m = re.match(re.escape(prefix) + r'(\d{4}-\d{2}-\d{2})\.html$', name)
+                if not m:
+                    continue
+                d = m.group(1)
+                full = os.path.join(base, name)
+                mtime = int(os.path.getmtime(full))
+                files_out.append({'name': name, 'date': d, 'mtime': mtime})
+                if d == today and today_file is None:
+                    today_file = name
+        files_out.sort(key=lambda x: x['mtime'], reverse=True)
+        folders_out[folder] = {
+            'prefix': prefix,
+            'today_exists': today_file is not None,
+            'today_file': today_file,
+            'files': files_out,
+        }
+    return jsonify({
+        'current_date': today,
+        'folders': folders_out,
+    })
 
 # ============ 健康检查 ============
 
@@ -4410,6 +4493,291 @@ def list_sell_trades():
     return jsonify({'sells': sells, 'summary': summary})
 
 
+# ── 个股搜索 + 个股交易档案 (持仓模块顶栏搜索用) ──
+
+@app.route('/api/stocks/search', methods=['GET'])
+def search_stocks():
+    """模糊搜股票 (用于持仓 tab 顶栏搜索)
+    候选池: stock_basic ∪ trades.ts_code ∪ positions.ts_code (后者拿来支持退市股 / 历史股)
+    匹配: ts_code LIKE 'q%' OR name LIKE '%q%' (大小写不敏感)
+    排序: stock_basic 命中优先, 然后 ts_code 前缀优先, 然后名字序
+    """
+    q = (request.args.get('q') or '').strip()
+    limit = request.args.get('limit', 20, type=int)
+    if limit > 50:
+        limit = 50
+    if not q:
+        return jsonify({'results': []})
+
+    like = f'%{q}%'
+    prefix = f'{q}%'
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    # 候选池: 上市股 + 历史交易里出现过的 (给退市股兜底)
+    rows = conn.execute(
+        """SELECT ts_code, MAX(name) AS name,
+                  MAX(listing_date) AS listing_date,
+                  MAX(market) AS market,
+                  MAX(status) AS status,
+                  'listed' AS source
+           FROM stock_basic
+           WHERE ts_code LIKE ? OR name LIKE ?
+           GROUP BY ts_code
+           UNION
+           SELECT ts_code, MAX(name) AS name, NULL, NULL, 'delisted', 'history'
+           FROM (
+               SELECT DISTINCT ts_code, name FROM trades WHERE ts_code NOT IN (SELECT ts_code FROM stock_basic)
+               UNION
+               SELECT DISTINCT ts_code, name FROM positions WHERE ts_code NOT IN (SELECT ts_code FROM stock_basic)
+           )
+           WHERE ts_code LIKE ? OR name LIKE ?
+           GROUP BY ts_code""",
+        (prefix, like, prefix, like)
+    ).fetchall()
+    conn.close()
+
+    norm_q = q.lower().replace('sh', '').replace('sz', '').replace('bj', '').lstrip('shsz').lower()
+
+    def _score(r):
+        code = (r['ts_code'] or '').lower()
+        name = (r['name'] or '')
+        # 排序键: source='listed' 优先 (0 < 1), 然后 ts_code 前缀优先, 然后名字前缀优先
+        s = 0 if r['source'] == 'listed' else 100
+        if code.startswith(norm_q):
+            s += 0
+        elif code.replace('.', '').startswith(norm_q):
+            s += 5
+        else:
+            s += 20
+        if name.startswith(q):
+            s += 0
+        elif name.startswith(q.upper()):
+            s += 1
+        else:
+            s += 10
+        return s
+
+    results = sorted([dict(r) for r in rows], key=_score)
+    # 最精简: 只返回 ts_code, name, source
+    out = [{'ts_code': r['ts_code'], 'name': r['name'] or '', 'source': r['source']} for r in results[:limit]]
+    return jsonify({'results': out, 'query': q, 'count': len(out)})
+
+
+def _build_trade_history(ts_code):
+    """单股交易档案 (stock + position + buys + sells)
+    - stock.stock_basic 没这只股 (退市) 也保证能返回 (用 trades.name)
+    - buys 含 buy_fees / current_price / post_buy_change_pct
+    - sells 含 sell_fees / current_price / post_sell_change_pct / realized_pnl (FIFO 单股版)
+    - position 取 active (closed_at IS NULL) 那条, 算市值/浮盈
+    """
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+
+    # 股票名: stock_basic > trades > positions (优先用 stock_basic 的官方名)
+    name = None
+    source = 'delisted'
+    sb = conn.execute('SELECT name, listing_date, market, status FROM stock_basic WHERE ts_code=?', (ts_code,)).fetchone()
+    if sb:
+        name = sb['name']
+        source = 'listed'
+    else:
+        trow = conn.execute('SELECT name FROM trades WHERE ts_code=? AND name IS NOT NULL LIMIT 1', (ts_code,)).fetchone()
+        if trow and trow['name']:
+            name = trow['name']
+        else:
+            prow = conn.execute('SELECT name FROM positions WHERE ts_code=? AND name IS NOT NULL LIMIT 1', (ts_code,)).fetchone()
+            if prow and prow['name']:
+                name = prow['name']
+
+    # 行情: 一次拉, 单只股
+    try:
+        quote_map = fetch_sina_quotes([ts_code])
+    except Exception:
+        quote_map = {}
+    cur_price = quote_map.get(ts_code, {}).get('price')
+
+    # 现持仓: active 那条
+    pos = conn.execute(
+        'SELECT * FROM positions WHERE ts_code=? AND closed_at IS NULL ORDER BY created_at DESC LIMIT 1',
+        (ts_code,)
+    ).fetchone()
+    position = None
+    if pos:
+        position = dict(pos)
+        if cur_price and position.get('cost_price') and position.get('shares'):
+            mv = round(cur_price * position['shares'], 2)
+            cost = round(position['cost_price'] * position['shares'], 2)
+            position['market_value'] = mv
+            position['floating_pnl'] = round(mv - cost, 2)
+            position['floating_pnl_pct'] = round((cur_price - position['cost_price']) / position['cost_price'] * 100, 3)
+            position['current_price'] = cur_price
+        else:
+            position['market_value'] = None
+            position['floating_pnl'] = None
+            position['floating_pnl_pct'] = None
+            position['current_price'] = cur_price
+
+    # buys
+    buy_rows = conn.execute(
+        """SELECT t.*, p.position_type AS pos_type, p.shares AS pos_shares,
+                  p.original_shares AS pos_original_shares, p.closed_at AS pos_closed_at
+           FROM trades t
+           LEFT JOIN positions p
+             ON p.ts_code = t.ts_code AND p.closed_at IS NULL
+           WHERE t.direction = 'buy' AND t.ts_code = ?
+           ORDER BY t.trade_date DESC, t.trade_time DESC, t.id DESC""",
+        (ts_code,)
+    ).fetchall()
+    buys = []
+    total_buy_amount = 0.0
+    total_buy_fees = 0.0
+    for r in buy_rows:
+        b = dict(r)
+        buy_amt = b.get('amount') or (b.get('price', 0) * b.get('shares', 0))
+        b['buy_fees'] = round(calc_buy_fees(buy_amt, ts_code), 2) if buy_amt > 0 else 0.0
+        if cur_price and b.get('price'):
+            b['current_price'] = cur_price
+            b['post_buy_change_pct'] = round((cur_price - b['price']) / b['price'] * 100, 3)
+        else:
+            b['current_price'] = None
+            b['post_buy_change_pct'] = None
+        buys.append(b)
+        total_buy_amount += buy_amt
+        total_buy_fees += b['buy_fees']
+
+    # sells + 单股版 FIFO (只对当前股票跑, 性能可控)
+    # 1) 拉该股全部 trades (含 buy/sell/bonus/transfer_out/dividend/tax) 用于 FIFO
+    all_ts = conn.execute(
+        """SELECT id, ts_code, direction, price, shares, amount, trade_date, trade_time, trade_no
+           FROM trades
+           WHERE ts_code = ? AND direction IN ('buy','sell','bonus','transfer_out','dividend','tax')
+             AND applied != -1
+           ORDER BY trade_date, trade_time, trade_no, id""",
+        (ts_code,)
+    ).fetchall()
+    all_ts = [dict(r) for r in all_ts]
+    # 2) FIFO 队列
+    fifo_q = []  # [(raw_cps, remaining, buy_date), ...]
+    realized_by_trade_id = {}  # trade.id -> realized_pnl
+    for t in all_ts:
+        amt = t.get('amount') or 0
+        sh = t.get('shares') or 0
+        if t['direction'] == 'buy':
+            bf = calc_buy_fees(amt, ts_code)
+            raw_cps = (amt + bf) / sh if sh else t['price']
+            fifo_q.append([raw_cps, sh, t['trade_date']])
+        elif t['direction'] == 'sell':
+            sf = calc_sell_fees(amt, ts_code)
+            raw_sps = (amt - sf) / sh if sh else t['price']
+            # 同日 div/tax 摊销
+            net_div_total = 0
+            max_div_date = None
+            for prior in all_ts:
+                if prior['trade_date'] > t['trade_date']:
+                    break
+                if prior['direction'] == 'dividend':
+                    net_div_total += prior.get('amount') or 0
+                    if max_div_date is None or prior['trade_date'] > max_div_date:
+                        max_div_date = prior['trade_date']
+                elif prior['direction'] == 'tax':
+                    net_div_total -= prior.get('amount') or 0
+                    if max_div_date is None or prior['trade_date'] > max_div_date:
+                        max_div_date = prior['trade_date']
+            if net_div_total != 0 and max_div_date is not None:
+                eligible = sum(q[1] for q in fifo_q if q[2] <= max_div_date and q[1] > 0)
+                if eligible > 0:
+                    per_share = net_div_total / eligible
+                    for q in fifo_q:
+                        if q[2] <= max_div_date and q[1] > 0:
+                            q[0] = q[0] - per_share
+            seg_total = 0.0
+            remaining = sh
+            while remaining > 0 and fifo_q:
+                head = fifo_q[0]
+                take = min(head[1], remaining)
+                seg = _round_half_up((raw_sps - head[0]) * take)
+                seg_total = _round_half_up(seg_total + seg)
+                head[1] -= take
+                remaining -= take
+                if head[1] < 1e-9:
+                    fifo_q.pop(0)
+            realized_by_trade_id[t['id']] = seg_total
+        elif t['direction'] == 'bonus':
+            fifo_q.append([0.0, sh, t['trade_date']])
+        elif t['direction'] == 'transfer_out':
+            remaining = sh
+            while remaining > 0 and fifo_q:
+                head = fifo_q[0]
+                take = min(head[1], remaining)
+                head[1] -= take
+                remaining -= take
+                if head[1] < 1e-9:
+                    fifo_q.pop(0)
+        # dividend / tax 单股场景下 pending 不需要 (sell 段内已摊销完)
+
+    sell_rows = conn.execute(
+        """SELECT * FROM trades
+           WHERE direction = 'sell' AND ts_code = ? AND applied != -1
+           ORDER BY trade_date DESC, trade_time DESC, id DESC""",
+        (ts_code,)
+    ).fetchall()
+    sells = []
+    total_sell_amount = 0.0
+    total_sell_fees = 0.0
+    total_realized_pnl = 0.0
+    for r in sell_rows:
+        s = dict(r)
+        sell_amt = s.get('amount') or (s.get('price', 0) * s.get('shares', 0))
+        s['sell_fees'] = round(calc_sell_fees(sell_amt, ts_code), 2) if sell_amt > 0 else 0.0
+        if cur_price and s.get('price'):
+            s['current_price'] = cur_price
+            s['post_sell_change_pct'] = round((cur_price - s['price']) / s['price'] * 100, 3)
+        else:
+            s['current_price'] = None
+            s['post_sell_change_pct'] = None
+        s['realized_pnl'] = realized_by_trade_id.get(s['id'])
+        sells.append(s)
+        total_sell_amount += sell_amt
+        total_sell_fees += s['sell_fees']
+        if s['realized_pnl'] is not None:
+            total_realized_pnl += s['realized_pnl']
+
+    conn.close()
+
+    return {
+        'stock': {
+            'ts_code': ts_code,
+            'name': name or '',
+            'source': source,
+            'listing_date': sb['listing_date'] if sb else None,
+            'market': sb['market'] if sb else None,
+        },
+        'position': position,
+        'buys': buys,
+        'sells': sells,
+        'summary': {
+            'buy_count': len(buys),
+            'sell_count': len(sells),
+            'total_buy_amount': round(total_buy_amount, 2),
+            'total_buy_fees': round(total_buy_fees, 2),
+            'total_sell_amount': round(total_sell_amount, 2),
+            'total_sell_fees': round(total_sell_fees, 2),
+            'total_realized_pnl': round(total_realized_pnl, 2),
+            'current_price': cur_price,
+        }
+    }
+
+
+@app.route('/api/trades/history/<path:code>', methods=['GET'])
+def get_trade_history(code):
+    """个股交易档案: stock + position + buys + sells 一次返回 (持仓 tab 搜索命中后用)"""
+    ts_code = _normalize_code(code)
+    if not ts_code:
+        return jsonify({'status': 'error', 'message': f'代码格式无效: {code!r}'}), 400
+    data = _build_trade_history(ts_code)
+    return jsonify({'status': 'success', **data})
+
+
 def _apply_one_trade(c, trade, closed_at_expr="datetime('now','localtime')"):
     """把单条成交应用到 positions, 返回 (status, msg)
     status: 'ok' | 'oversell' | 'missing'
@@ -5205,13 +5573,12 @@ def _save_fund_flow_df(df, source='akshare'):
                 return None
         cur.execute('DELETE FROM fund_flow WHERE ts_code=? AND trade_date=?', (ts_code, td))
         cur.execute('''INSERT INTO fund_flow
-            (trade_date, ts_code, code, name, close, change_pct,
+            (trade_date, ts_code, code, name,
              main_net_inflow, main_net_pct,
              super_net, super_pct, big_net, big_pct,
              mid_net, mid_pct, small_net, small_pct, source)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
             (td, ts_code, code, r.get('name', ''),
-             _f(r.get('close')), _f(r.get('change_pct')),
              _f(r.get('main_net_inflow')) or 0.0, _f(r.get('main_net_pct')),
              _f(r.get('super_net')), _f(r.get('super_pct')),
              _f(r.get('big_net')), _f(r.get('big_pct')),
@@ -5335,71 +5702,142 @@ def api_flow_latest_date():
 
 @app.route('/api/flow/market', methods=['GET'])
 def api_flow_market():
-    """全市场: 取某日 (或最近 N 天) 每只股票的主力气净额. 支持 ?date=YYYYMMDD 过滤.
+    """全市场主力净流入排行. 支持两种口径:
+      - period=today (默认): 每只股票最新一日的 main_net_inflow, 兼容旧行为.
+      - period=3d/5d/10d/20d: SQL 聚合最近 N 个交易日的主力气净额, limit 100, 按 sum_main_net desc.
+    支持 ?date=YYYYMMDD 指定某日 (today 模式才生效).
     默认 source=eastmoney-push2 (Skill 抓取的数据). 传 source=all 看全部来源.
     """
+    period = request.args.get('period', 'today').lower().strip()
+    period_map = {'today': 1, '3d': 3, '5d': 5, '10d': 10, '20d': 20}
+    if period not in period_map:
+        period = 'today'
+    period_days = period_map[period]
+
+    # today 模式兼容老 days 参数; Nd 模式忽略 days
     days = min(max(int(request.args.get('days', 1)), 1), 200)
-    sort = request.args.get('sort', 'main_net_inflow')
+    if period != 'today':
+        days = period_days
+    sort = request.args.get('sort', '').strip()
     order = 'desc' if request.args.get('order', 'desc').lower() == 'desc' else 'asc'
     market = request.args.get('market', 'all').lower()
     search = request.args.get('search', '').strip()
-    limit = min(int(request.args.get('limit', 200)), 10000)
-    date = request.args.get('date', '').strip()  # 指定日期 (YYYYMMDD)
+    if period == 'today':
+        limit = min(int(request.args.get('limit', 200)), 10000)
+    else:
+        limit = min(int(request.args.get('limit', 200)), 10000)
+    date = request.args.get('date', '').strip()  # 指定日期 (YYYYMMDD, today 模式才生效)
     source = request.args.get('source', 'eastmoney-push2').strip()  # 默认只显示 Skill 抓的数据
 
-    sort_whitelist = {'main_net_inflow', 'main_net_pct', 'change_pct', 'close'}
-    if sort not in sort_whitelist:
-        sort = 'main_net_inflow'
+    # 排序白名单: today 模式 vs Nd 模式字段不同
+    if period == 'today':
+        sort_whitelist = {'main_net_inflow', 'main_net_pct', 'change_pct', 'close'}
+        if not sort or sort not in sort_whitelist:
+            sort = 'main_net_inflow'
+    else:
+        sort_whitelist = {'sum_main_net', 'sum_super_net', 'sum_big_net', 'sum_mid_net',
+                          'sum_small_net', 'change_pct', 'close', 'flow_days'}
+        if not sort or sort not in sort_whitelist:
+            sort = 'sum_main_net'
 
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
-    if date:
-        # 指定日期: 取该日所有 ts_code
-        if source == 'all':
-            rows = conn.execute("""
-                SELECT trade_date, ts_code, code, name, close, change_pct,
-                       main_net_inflow, main_net_pct,
-                       super_net, big_net, mid_net, small_net, source
-                FROM fund_flow
-                WHERE trade_date = ?
-            """, (date,)).fetchall()
+
+    if period == 'today':
+        # ===== today 模式: 每只股票最新一日的 main_net_inflow (兼容旧行为) =====
+        # close / change_pct 改为 JOIN stock_daily (fund_flow 这两列已弃用, 走权威源)
+        if date:
+            if source == 'all':
+                rows = conn.execute("""
+                    SELECT f.trade_date, f.ts_code, f.code, f.name,
+                           sd.close AS close, sd.change AS change_pct,
+                           f.main_net_inflow, f.main_net_pct,
+                           f.super_net, f.big_net, f.mid_net, f.small_net, f.source
+                    FROM fund_flow f
+                    LEFT JOIN stock_daily sd
+                      ON sd.ts_code = f.ts_code AND sd.trade_date = f.trade_date
+                    WHERE f.trade_date = ?
+                """, (date,)).fetchall()
+            else:
+                rows = conn.execute("""
+                    SELECT f.trade_date, f.ts_code, f.code, f.name,
+                           sd.close AS close, sd.change AS change_pct,
+                           f.main_net_inflow, f.main_net_pct,
+                           f.super_net, f.big_net, f.mid_net, f.small_net, f.source
+                    FROM fund_flow f
+                    LEFT JOIN stock_daily sd
+                      ON sd.ts_code = f.ts_code AND sd.trade_date = f.trade_date
+                    WHERE f.trade_date = ? AND f.source = ?
+                """, (date, source)).fetchall()
         else:
-            rows = conn.execute("""
-                SELECT trade_date, ts_code, code, name, close, change_pct,
-                       main_net_inflow, main_net_pct,
-                       super_net, big_net, mid_net, small_net, source
-                FROM fund_flow
-                WHERE trade_date = ? AND source = ?
-            """, (date, source)).fetchall()
+            if source == 'all':
+                rows = conn.execute("""
+                    SELECT f.trade_date, f.ts_code, f.code, f.name,
+                           sd.close AS close, sd.change AS change_pct,
+                           f.main_net_inflow, f.main_net_pct,
+                           f.super_net, f.big_net, f.mid_net, f.small_net, f.source
+                    FROM fund_flow f
+                    INNER JOIN (
+                        SELECT ts_code, MAX(trade_date) AS max_date
+                        FROM fund_flow
+                        WHERE trade_date >= strftime('%Y%m%d', date('now', '-' || ? || ' days', 'localtime'))
+                        GROUP BY ts_code
+                    ) m ON f.ts_code = m.ts_code AND f.trade_date = m.max_date
+                    LEFT JOIN stock_daily sd
+                      ON sd.ts_code = f.ts_code AND sd.trade_date = f.trade_date
+                """, (days,)).fetchall()
+            else:
+                rows = conn.execute("""
+                    SELECT f.trade_date, f.ts_code, f.code, f.name,
+                           sd.close AS close, sd.change AS change_pct,
+                           f.main_net_inflow, f.main_net_pct,
+                           f.super_net, f.big_net, f.mid_net, f.small_net, f.source
+                    FROM fund_flow f
+                    INNER JOIN (
+                        SELECT ts_code, MAX(trade_date) AS max_date
+                        FROM fund_flow
+                        WHERE trade_date >= strftime('%Y%m%d', date('now', '-' || ? || ' days', 'localtime'))
+                          AND source = ?
+                        GROUP BY ts_code
+                    ) m ON f.ts_code = m.ts_code AND f.trade_date = m.max_date
+                    LEFT JOIN stock_daily sd
+                      ON sd.ts_code = f.ts_code AND sd.trade_date = f.trade_date
+                """, (days, source)).fetchall()
     else:
-        # 无日期: 取最近 N 天每个 ts_code 的最新一行
-        if source == 'all':
-            rows = conn.execute("""
-                SELECT f.trade_date, f.ts_code, f.code, f.name, f.close, f.change_pct,
-                       f.main_net_inflow, f.main_net_pct,
-                       f.super_net, f.big_net, f.mid_net, f.small_net, f.source
-                FROM fund_flow f
-                INNER JOIN (
-                    SELECT ts_code, MAX(trade_date) AS max_date
-                    FROM fund_flow
-                    WHERE trade_date >= date('now', '-' || ? || ' days', 'localtime')
-                    GROUP BY ts_code
-                ) m ON f.ts_code = m.ts_code AND f.trade_date = m.max_date
-            """, (days,)).fetchall()
-        else:
-            rows = conn.execute("""
-                SELECT f.trade_date, f.ts_code, f.code, f.name, f.close, f.change_pct,
-                       f.main_net_inflow, f.main_net_pct,
-                       f.super_net, f.big_net, f.mid_net, f.small_net, f.source
-                FROM fund_flow f
-                INNER JOIN (
-                    SELECT ts_code, MAX(trade_date) AS max_date
-                    FROM fund_flow
-                    WHERE trade_date >= date('now', '-' || ? || ' days', 'localtime')
-                      AND source = ?
-                    GROUP BY ts_code
-                ) m ON f.ts_code = m.ts_code AND f.trade_date = m.max_date
-            """, (days, source)).fetchall()
+        # ===== Nd 模式: SQL 聚合最近 N 个交易日, 按 sum_main_net desc, limit 200 =====
+        # 关键: 窗口是"近 N 个交易日", 不是"近 N 个日历日". 用 trading_dates_cache 表
+        # 按 cal_date 倒序取第 N 个 (= OFFSET N-1), >= 那个日期的所有 fund_flow 行都算入.
+        source_clause = "" if source == 'all' else "AND source = ?"
+        source_params = () if source == 'all' else (source,)
+        rows = conn.execute(f"""
+            SELECT
+                ts_code, code, name,
+                SUM(main_net_inflow) AS sum_main_net,
+                SUM(super_net)       AS sum_super_net,
+                SUM(big_net)         AS sum_big_net,
+                SUM(mid_net)         AS sum_mid_net,
+                SUM(small_net)       AS sum_small_net,
+                COUNT(*)             AS flow_days,
+                MIN(trade_date)      AS start_date,
+                MAX(trade_date)      AS end_date,
+                (SELECT close FROM stock_daily
+                 WHERE ts_code = f.ts_code
+                 ORDER BY trade_date DESC LIMIT 1) AS close,
+                (SELECT change FROM stock_daily
+                 WHERE ts_code = f.ts_code
+                 ORDER BY trade_date DESC LIMIT 1) AS change_pct
+            FROM fund_flow f
+            WHERE trade_date >= (
+                SELECT cal_date FROM trading_dates_cache
+                WHERE cal_date <= strftime('%Y%m%d', date('now', 'localtime'))
+                ORDER BY cal_date DESC
+                LIMIT 1 OFFSET ?
+            )
+              {source_clause}
+            GROUP BY ts_code
+            ORDER BY sum_main_net DESC
+            LIMIT ?
+        """, (period_days - 1, *source_params, limit)).fetchall()
     conn.close()
 
     # market 过滤 (按 code 前缀)
@@ -5417,8 +5855,9 @@ def api_flow_market():
         s = search.lower()
         rows = [r for r in rows if s in r['name'].lower() or s in r['code']]
 
-    # 排序
-    rows.sort(key=lambda r: (r[sort] or 0) if sort in r.keys() else 0, reverse=(order == 'desc'))
+    # 排序 (Nd 模式 SQL 已经按 sum_main_net desc, 这里尊重用户二次排序)
+    if period == 'today' or sort != 'sum_main_net':
+        rows.sort(key=lambda r: (r[sort] or 0) if sort in r.keys() else 0, reverse=(order == 'desc'))
 
     out = [dict(r) for r in rows[:limit]]
     _attach_sector(out, key='ts_code')  # 补 sector_history
@@ -5427,6 +5866,7 @@ def api_flow_market():
         'total_matched': len(rows),
         'days': days,
         'date': date,
+        'period': period,
         'sort': sort,
         'order': order,
         'rows': out,
@@ -5455,13 +5895,16 @@ def api_flow_holdings():
     open_codes = [r['ts_code'] for r in open_rows]
     placeholders = ','.join('?' * len(open_codes))
     rows = conn.execute(f"""
-        SELECT trade_date, ts_code, code, name, close, change_pct,
-               main_net_inflow, main_net_pct,
-               super_net, big_net, mid_net, small_net
-        FROM fund_flow
-        WHERE ts_code IN ({placeholders})
-          AND trade_date >= date('now', '-' || ? || ' days', 'localtime')
-        ORDER BY ts_code, trade_date DESC
+        SELECT f.trade_date, f.ts_code, f.code, f.name,
+               sd.close AS close, sd.change AS change_pct,
+               f.main_net_inflow, f.main_net_pct,
+               f.super_net, f.big_net, f.mid_net, f.small_net
+        FROM fund_flow f
+        LEFT JOIN stock_daily sd
+          ON sd.ts_code = f.ts_code AND sd.trade_date = f.trade_date
+        WHERE f.ts_code IN ({placeholders})
+          AND f.trade_date >= date('now', '-' || ? || ' days', 'localtime')
+        ORDER BY f.ts_code, f.trade_date DESC
     """, (*open_codes, days)).fetchall()
     conn.close()
 
@@ -5522,12 +5965,16 @@ def api_flow_single():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     rows = conn.execute("""
-        SELECT trade_date, close, change_pct, main_net_inflow, main_net_pct,
-               super_net, super_pct, big_net, big_pct,
-               mid_net, mid_pct, small_net, small_pct, name
-        FROM fund_flow
-        WHERE ts_code=? AND trade_date >= date('now', '-' || ? || ' days', 'localtime')
-        ORDER BY trade_date DESC
+        SELECT f.trade_date,
+               sd.close AS close, sd.change AS change_pct,
+               f.main_net_inflow, f.main_net_pct,
+               f.super_net, f.super_pct, f.big_net, f.big_pct,
+               f.mid_net, f.mid_pct, f.small_net, f.small_pct, f.name
+        FROM fund_flow f
+        LEFT JOIN stock_daily sd
+          ON sd.ts_code = f.ts_code AND sd.trade_date = f.trade_date
+        WHERE f.ts_code=? AND f.trade_date >= date('now', '-' || ? || ' days', 'localtime')
+        ORDER BY f.trade_date DESC
     """, (ts_code, days)).fetchall()
     conn.close()
 
@@ -5602,12 +6049,16 @@ def api_flow_single():
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
         rows = conn.execute("""
-            SELECT trade_date, close, change_pct, main_net_inflow, main_net_pct,
-                   super_net, super_pct, big_net, big_pct,
-                   mid_net, mid_pct, small_net, small_pct, name
-            FROM fund_flow
-            WHERE ts_code=? AND trade_date >= date('now', '-' || ? || ' days', 'localtime')
-            ORDER BY trade_date DESC
+            SELECT f.trade_date,
+                   sd.close AS close, sd.change AS change_pct,
+                   f.main_net_inflow, f.main_net_pct,
+                   f.super_net, f.super_pct, f.big_net, f.big_pct,
+                   f.mid_net, f.mid_pct, f.small_net, f.small_pct, f.name
+            FROM fund_flow f
+            LEFT JOIN stock_daily sd
+              ON sd.ts_code = f.ts_code AND sd.trade_date = f.trade_date
+            WHERE f.ts_code=? AND f.trade_date >= date('now', '-' || ? || ' days', 'localtime')
+            ORDER BY f.trade_date DESC
         """, (ts_code, days)).fetchall()
         conn.close()
 
@@ -5780,13 +6231,12 @@ def _save_individual_rows(rows):
                 except (ValueError, TypeError):
                     return None
             cur.execute('''INSERT INTO fund_flow
-                (trade_date, ts_code, code, name, close, change_pct,
+                (trade_date, ts_code, code, name,
                  main_net_inflow, main_net_pct,
                  super_net, super_pct, big_net, big_pct,
                  mid_net, mid_pct, small_net, small_pct, source)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
                 (r['trade_date'], r['ts_code'], r['code'], r['name'],
-                 _f(r['close']), _f(r['change_pct']),
                  _f(r['main_net_inflow']) or 0.0, _f(r['main_net_pct']),
                  _f(r['super_net']), _f(r['super_pct']),
                  _f(r['big_net']), _f(r['big_pct']),
@@ -5852,12 +6302,12 @@ def _save_em_fund_flow_rows(rows, today, source='eastmoney-push2'):
 
         cur.execute('DELETE FROM fund_flow WHERE ts_code=? AND trade_date=?', (ts_code, today))
         cur.execute('''INSERT INTO fund_flow
-            (trade_date, ts_code, code, name, close, change_pct,
+            (trade_date, ts_code, code, name,
              main_net_inflow, main_net_pct,
              super_net, super_pct, big_net, big_pct,
              mid_net, mid_pct, small_net, small_pct, source)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
-            (today, ts_code, code, name, close, change_pct,
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+            (today, ts_code, code, name,
              main_net_inflow, main_net_pct,
              super_net, super_pct, big_net, big_pct,
              mid_net, mid_pct, small_net, small_pct, source))
@@ -6016,6 +6466,101 @@ def api_flow_sync_market():
 def api_flow_sync_status():
     """查询 AKShare 全市场拉取状态. 前端 setInterval 轮询."""
     return jsonify(_AKSYNC_STATE)
+
+
+# ── 补数: 5 日反推缺失日的主力净流入 ──
+_BACKFILL_STATE = {
+    'running': False, 'target_date': '', 'phase': '',
+    'total': 0, 'done': 0, 'failed': 0, 'current_code': '',
+    'started_at': None, 'finished_at': None,
+    'result': None, 'error': None,
+}
+
+_PHASE_TEXT = {
+    'fetch': '抓东财 5 日排行...', 'infer': '反推当日值...',
+    'write': '写入数据库...', 'validate': '健康检查...',
+}
+
+
+def _backfill_bg(target_date, force):
+    """后台线程: 调 backfill_flow 反推补数, 进度写入 _BACKFILL_STATE."""
+    import backfill_flow
+    _BACKFILL_STATE.update({
+        'running': True, 'target_date': target_date, 'phase': 'starting',
+        'total': 0, 'done': 0, 'failed': 0, 'current_code': f'准备补 {target_date}...',
+        'started_at': datetime.now().isoformat(), 'finished_at': None,
+        'result': None, 'error': None,
+    })
+
+    def _cb(stage, **kw):
+        if stage == 'total':
+            _BACKFILL_STATE['total'] = kw.get('total', 0)
+            _BACKFILL_STATE['current_code'] = f'共 {kw.get("total", 0)} 只, 开始翻页...'
+        elif stage == 'page':
+            _BACKFILL_STATE['done'] = kw.get('rows_count', 0)
+            _BACKFILL_STATE['failed'] = len(kw.get('failed', []))
+            _BACKFILL_STATE['current_code'] = (
+                f'pn={kw.get("pn")}/{kw.get("total_pages")} 累计 {kw.get("rows_count")} 行')
+        elif stage == 'phase':
+            ph = kw.get('phase', '')
+            _BACKFILL_STATE['phase'] = ph
+            if ph in _PHASE_TEXT:
+                _BACKFILL_STATE['current_code'] = _PHASE_TEXT[ph]
+
+    try:
+        anchor = datetime.now().strftime('%Y%m%d')
+        res = backfill_flow.backfill_fund_flow(
+            target_date, anchor_date=anchor, force=force,
+            progress_cb=_cb, headless=False)
+        _BACKFILL_STATE['result'] = res
+        if res.get('ok'):
+            _BACKFILL_STATE['done'] = res.get('inserted', 0)
+            _BACKFILL_STATE['current_code'] = f'✅ {target_date} 已补 {res.get("inserted", 0)} 行'
+        else:
+            _BACKFILL_STATE['current_code'] = '❌ ' + res.get('reason_text', res.get('reason', '补数失败'))
+    except Exception as e:
+        _BACKFILL_STATE['error'] = str(e)[:300]
+        _BACKFILL_STATE['current_code'] = f'❌ {str(e)[:120]}'
+        print(f'[backfill] 异常: {e}', flush=True)
+    finally:
+        _BACKFILL_STATE['running'] = False
+        _BACKFILL_STATE['finished_at'] = datetime.now().isoformat()
+
+
+@app.route('/api/flow/gaps', methods=['GET'])
+def api_flow_gaps():
+    """检测最近交易日里 fund_flow(push2) 的缺口, 分 fillable/unfillable."""
+    import backfill_flow
+    anchor = (request.args.get('anchor') or datetime.now().strftime('%Y%m%d')).strip()
+    try:
+        lookback = int(request.args.get('lookback', 15))
+    except ValueError:
+        lookback = 15
+    try:
+        return jsonify({'status': 'success', **backfill_flow.compute_gaps(anchor, lookback)})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)[:200]}), 500
+
+
+@app.route('/api/flow/backfill', methods=['POST'])
+def api_flow_backfill():
+    """启动后台补数. body: {date:'YYYYMMDD', force?:bool}. 立即返回 started."""
+    if _BACKFILL_STATE['running']:
+        return jsonify({'status': 'already_running', 'state': _BACKFILL_STATE})
+    data = request.get_json(silent=True) or {}
+    target = (data.get('date') or request.args.get('date') or '').strip()
+    force = bool(data.get('force'))
+    if not (len(target) == 8 and target.isdigit()):
+        return jsonify({'status': 'error', 'message': 'date 需 YYYYMMDD 格式'}), 400
+    import threading as _th
+    _th.Thread(target=_backfill_bg, args=(target, force), daemon=True).start()
+    return jsonify({'status': 'started', 'target_date': target})
+
+
+@app.route('/api/flow/backfill-status', methods=['GET'])
+def api_flow_backfill_status():
+    """查询补数进度 + 最终健康检查. 前端每秒轮询."""
+    return jsonify(_BACKFILL_STATE)
 
 
 @app.route('/api/flow/industry', methods=['GET'])
@@ -6960,6 +7505,382 @@ def api_user_picks_list():
         'group': 'user',
         'added_count': len(codes),
         'added_at_map': added_at_map,
+    })
+
+
+# ============ 条件选股 (按固定规则筛选全市场, 不入库) ============
+
+THRESHOLD_3YI = 3e8  # 至少一项累计 ≥ 3 亿元
+
+
+def _filter_conditional(rows):
+    """应用条件选股规则 (后端硬编码)
+    规则:
+      - 当日涨跌幅必须 < 0
+      - close < 200 → 看主力 (sum_main_Nd); close >= 200 → 看超大单 (sum_super_Nd)
+      - 4 项累计必须 > 0
+      - 4 项中至少 1 项 ≥ 3 亿
+    入参: rows = [{ts_code, name, close, change_pct, trade_date, sum_main_3d, ..., sum_super_20d}, ...]
+    返回: 命中行 (附 used_bucket / hit_threshold)
+    """
+    hits = []
+    for r in rows:
+        cp = r.get('change_pct')
+        close = r.get('close')
+        if cp is None or close is None:
+            continue
+        if cp >= 0:
+            continue
+        bucket = 'main' if close < 200 else 'super'
+        a = r.get(f'sum_{bucket}_3d') or 0
+        b = r.get(f'sum_{bucket}_5d') or 0
+        c = r.get(f'sum_{bucket}_10d') or 0
+        d = r.get(f'sum_{bucket}_20d') or 0
+        # 4 项都必须 > 0
+        if not (a > 0 and b > 0 and c > 0 and d > 0):
+            continue
+        # 至少 1 项 ≥ 3 亿
+        max_v = max(a, b, c, d)
+        if max_v < THRESHOLD_3YI:
+            continue
+        hit = None
+        if a >= THRESHOLD_3YI: hit = '3d'
+        elif b >= THRESHOLD_3YI: hit = '5d'
+        elif c >= THRESHOLD_3YI: hit = '10d'
+        elif d >= THRESHOLD_3YI: hit = '20d'
+        r['used_bucket'] = bucket
+        r['hit_threshold'] = hit
+        r['sum_3d'] = a
+        r['sum_5d'] = b
+        r['sum_10d'] = c
+        r['sum_20d'] = d
+        hits.append(r)
+    return hits
+
+
+def _compute_conditional_picks_internal(date, source):
+    """条件选股 raw 数据管道 (SQL+后处理).
+    供 api_conditional_picks 和 api_combined_picks 共用, 避免 ~150 行 SQL 重复.
+
+    Args:
+        date: 已归一化的入选日 (YYYYMMDD)
+        source: 已归一化的数据源
+
+    Returns:
+        (data, next_dates) tuple.
+        data: list[dict] 全市场每只股的 sum_main_*/sum_super_*/sum_mid_small_*/
+              next_1..5_close 等字段 (未经过 _filter_conditional 过滤).
+        next_dates: list[NEXT_DAYS] 入选后 T+1..T+5 trade_date (None 表示无数据).
+        当交易日窗口 < 3 天时返回 (None, [None]*NEXT_DAYS).
+    """
+    NEXT_DAYS = 5
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+
+    # 2) window_dates: 入选日及入选日前 20 天
+    window_dates = [r[0] for r in conn.execute(
+        'SELECT DISTINCT trade_date FROM fund_flow WHERE trade_date <= ? AND source = ? '
+        'ORDER BY trade_date DESC LIMIT 20',
+        (date, source)
+    ).fetchall()]
+    if len(window_dates) < 3:
+        conn.close()
+        return None, [None] * NEXT_DAYS
+
+    # 3) 入选日 T 的下 1..5 个交易日
+    next_dates = []
+    cur_lower = date
+    for _ in range(NEXT_DAYS):
+        row = conn.execute(
+            'SELECT MIN(trade_date) AS d FROM fund_flow WHERE trade_date > ? AND source = ?',
+            (cur_lower, source)
+        ).fetchone()
+        nd = row['d'] if row and row['d'] else None
+        next_dates.append(nd)
+        if not nd:
+            break
+        cur_lower = nd
+    next_dates += [None] * (NEXT_DAYS - len(next_dates))
+
+    placeholders = ','.join(['?' for _ in window_dates])
+    # 动态生成 N 个 next_day CTE — 优先 stock_daily (权威日线)
+    cte_parts = []
+    for i, d in enumerate(next_dates, start=1):
+        if d:
+            cte_parts.append(f"""
+                next_day_{i} AS (
+                    SELECT ts_code AS next_{i}_ts,
+                           MAX(close) AS next_{i}_close,
+                           MAX(change) AS next_{i}_change_pct,
+                           MAX(high) AS next_{i}_high
+                    FROM stock_daily
+                    WHERE trade_date = ?
+                    GROUP BY ts_code
+                )""")
+        else:
+            cte_parts.append(f"""
+                next_day_{i} AS (
+                    SELECT NULL AS next_{i}_ts, NULL AS next_{i}_close, NULL AS next_{i}_change_pct, NULL AS next_{i}_high
+                    WHERE 0
+                )""")
+    ctes_sql = ','.join(cte_parts)
+
+    select_next_cols = ', '.join(
+        f'n{i}.next_{i}_close, n{i}.next_{i}_change_pct, n{i}.next_{i}_high' for i in range(1, NEXT_DAYS + 1)
+    )
+    join_parts = ' '.join(f'LEFT JOIN next_day_{i} n{i} ON a.ts_code = n{i}.next_{i}_ts' for i in range(1, NEXT_DAYS + 1))
+    # max_high_t{i} = 入选后第 i 个交易日那天的 high
+    max_high_select = ', '.join(
+        f'n{i}.next_{i}_high AS max_high_t{i}'
+        for i in range(1, NEXT_DAYS + 1)
+    )
+
+    sql = f"""
+        WITH target_rn AS (
+            SELECT ts_code, rn AS target_rn
+            FROM fund_flow_ranked
+            WHERE trade_date = ? AND source = ?
+        ),
+        ranked AS (
+            SELECT r.ts_code, r.code, r.name, r.trade_date,
+                   r.close, r.change_pct, r.high,
+                   r.main_net_inflow, r.super_net, r.mid_net, r.small_net,
+                   ROW_NUMBER() OVER (PARTITION BY r.ts_code ORDER BY r.trade_date DESC) AS window_rn
+            FROM fund_flow_ranked r
+            INNER JOIN target_rn t ON t.ts_code = r.ts_code
+            WHERE r.trade_date IN ({placeholders}) AND r.source = ?
+              AND r.rn BETWEEN t.target_rn AND t.target_rn + 19
+        ),
+        post_close AS (
+            SELECT ts_code, close AS post_close FROM ranked WHERE window_rn = 1
+        ),
+        agg AS (
+            SELECT r.ts_code, MAX(r.code) AS code, MAX(r.name) AS name,
+                   MAX(CASE WHEN window_rn = 1 THEN close       END) AS close,
+                   MAX(CASE WHEN window_rn = 1 THEN change_pct  END) AS change_pct,
+                   MAX(trade_date) AS trade_date,
+                   SUM(CASE WHEN window_rn <= 3  THEN main_net_inflow END) AS sum_main_3d,
+                   SUM(CASE WHEN window_rn <= 5  THEN main_net_inflow END) AS sum_main_5d,
+                   SUM(CASE WHEN window_rn <= 10 THEN main_net_inflow END) AS sum_main_10d,
+                   SUM(CASE WHEN window_rn <= 20 THEN main_net_inflow END) AS sum_main_20d,
+                   SUM(CASE WHEN window_rn <= 3  THEN super_net       END) AS sum_super_3d,
+                   SUM(CASE WHEN window_rn <= 5  THEN super_net       END) AS sum_super_5d,
+                   SUM(CASE WHEN window_rn <= 10 THEN super_net       END) AS sum_super_10d,
+                   SUM(CASE WHEN window_rn <= 20 THEN super_net       END) AS sum_super_20d,
+                   SUM(CASE WHEN window_rn <= 3  THEN CASE WHEN pc.post_close < 200 THEN COALESCE(small_net,0)
+                                                   ELSE COALESCE(mid_net,0) + COALESCE(small_net,0) END END) AS sum_mid_small_3d,
+                   SUM(CASE WHEN window_rn <= 5  THEN CASE WHEN pc.post_close < 200 THEN COALESCE(small_net,0)
+                                                   ELSE COALESCE(mid_net,0) + COALESCE(small_net,0) END END) AS sum_mid_small_5d,
+                   SUM(CASE WHEN window_rn <= 10 THEN CASE WHEN pc.post_close < 200 THEN COALESCE(small_net,0)
+                                                   ELSE COALESCE(mid_net,0) + COALESCE(small_net,0) END END) AS sum_mid_small_10d,
+                   SUM(CASE WHEN window_rn <= 20 THEN CASE WHEN pc.post_close < 200 THEN COALESCE(small_net,0)
+                                                   ELSE COALESCE(mid_net,0) + COALESCE(small_net,0) END END) AS sum_mid_small_20d,
+                   MAX(CASE WHEN window_rn BETWEEN 2  AND 2  THEN high END) AS max_high_t1,
+                   MAX(CASE WHEN window_rn BETWEEN 2  AND 3  THEN high END) AS max_high_t2,
+                   MAX(CASE WHEN window_rn BETWEEN 2  AND 4  THEN high END) AS max_high_t3,
+                   MAX(CASE WHEN window_rn BETWEEN 2  AND 5  THEN high END) AS max_high_t4,
+                   MAX(CASE WHEN window_rn BETWEEN 2  AND 6  THEN high END) AS max_high_t5
+            FROM ranked r
+            INNER JOIN post_close pc ON pc.ts_code = r.ts_code
+            GROUP BY r.ts_code
+        ),
+        {ctes_sql}
+        SELECT a.ts_code, a.code, a.name, a.close, a.change_pct, a.trade_date,
+               a.sum_main_3d, a.sum_main_5d, a.sum_main_10d, a.sum_main_20d,
+               a.sum_super_3d, a.sum_super_5d, a.sum_super_10d, a.sum_super_20d,
+               a.sum_mid_small_3d, a.sum_mid_small_5d, a.sum_mid_small_10d, a.sum_mid_small_20d,
+               {max_high_select},
+               {select_next_cols}
+        FROM agg a
+        {join_parts}
+        GROUP BY a.ts_code, a.code, a.name, a.close, a.change_pct, a.trade_date,
+                 a.sum_main_3d, a.sum_main_5d, a.sum_main_10d, a.sum_main_20d,
+                 a.sum_super_3d, a.sum_super_5d, a.sum_super_10d, a.sum_super_20d,
+                 a.sum_mid_small_3d, a.sum_mid_small_5d, a.sum_mid_small_10d, a.sum_mid_small_20d
+    """
+    sql_args = [date, source] + list(window_dates) + [source]
+    for d in next_dates:
+        if d:
+            sql_args += [d]
+    rows = conn.execute(sql, sql_args).fetchall()
+    print(f'[DEBUG api_cond] rows={len(rows)}', flush=True)
+    conn.close()
+
+    data = [dict(r) for r in rows]
+    # 排除 close/change_pct 异常
+    data = [d for d in data if d.get('close') is not None and d.get('change_pct') is not None]
+    # T+1..T+N 涨幅: daily 优先, 兜底 (next_close - close) / close
+    def _daily_or_fallback(d, i):
+        i = str(i)
+        cp = d.get(f'next_{i}_change_pct')
+        if cp is not None:
+            return round(cp, 2)
+        nc = d.get(f'next_{i}_close')
+        if nc is not None and d.get('close'):
+            return round((nc - d['close']) / d['close'] * 100, 2)
+        return None
+    for d in data:
+        for i in range(1, NEXT_DAYS + 1):
+            if i == 1:
+                d['post_pick_next_change_pct'] = _daily_or_fallback(d, i)
+            else:
+                d[f'post_pick_next{i}_change_pct'] = _daily_or_fallback(d, i)
+        # 入选日是最新交易日时, max_high_t{i} 应当 NULL 而非"窗口反向高价"
+        for i in range(1, NEXT_DAYS + 1):
+            if next_dates[i - 1] is None:
+                d[f'max_high_t{i}'] = None
+    return data, next_dates
+
+
+@app.route('/api/conditional-picks', methods=['GET'])
+def api_conditional_picks():
+    """条件选股: 按固定规则筛选 fund_flow 全市场 (不依赖 stock_picks / _compute_picks)
+
+    规则: change_pct < 0; close < 200 看主力, >= 200 看超大单;
+          4 项累计 > 0 且至少 1 项 ≥ 3 亿
+
+    Args:
+        date: 选股交易日期 (YYYYMMDD), 不传 = 最新交易日
+              (fund_flow 主源 eastmoney-push2, 且 main_net_inflow != 0, 防 ifind 空壳)
+        source: 数据源, 默认 eastmoney-push2
+    """
+    date = (request.args.get('date') or '').strip()
+    source = (request.args.get('source') or 'eastmoney-push2').strip()
+    if not source:
+        source = 'eastmoney-push2'
+
+    # 1) 选定 trade_date (不传 = 用最新可用日)
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    if date:
+        row = conn.execute(
+            'SELECT MIN(trade_date) AS d FROM fund_flow WHERE trade_date = ? AND source = ?',
+            (date, source)
+        ).fetchone()
+        if not row or not row['d']:
+            conn.close()
+            return jsonify({
+                'status': 'success', 'date': date, 'count': 0, 'results': [],
+                'note': f'该日 ({date}) 无 {source} 数据'
+            })
+    else:
+        row = conn.execute(
+            'SELECT MAX(trade_date) AS d FROM fund_flow WHERE source = ? AND main_net_inflow IS NOT NULL AND main_net_inflow != 0',
+            (source,)
+        ).fetchone()
+        if not row or not row['d']:
+            conn.close()
+            return jsonify({'status': 'success', 'date': '', 'count': 0, 'results': [], 'note': 'fund_flow 表无数据'})
+        date = row['d']
+    conn.close()
+
+    # 2-3) 调内部函数
+    data, next_dates = _compute_conditional_picks_internal(date, source)
+    if data is None:
+        return jsonify({'status': 'success', 'date': date, 'count': 0, 'results': [],
+                        'note': f'交易日窗口不足 3 天'})
+
+    # 4) 过滤 + 板块 + 排序
+    hits = _filter_conditional(data)
+    _attach_sector(hits, key='ts_code')
+    hits.sort(key=lambda r: max(r['sum_3d'], r['sum_5d'], r['sum_10d'], r['sum_20d']), reverse=True)
+    return jsonify({
+        'status': 'success',
+        'date': date,
+        'next_date':   next_dates[0] if len(next_dates) > 0 else None,
+        'next_date_2': next_dates[1] if len(next_dates) > 1 else None,
+        'next_date_3': next_dates[2] if len(next_dates) > 2 else None,
+        'next_date_4': next_dates[3] if len(next_dates) > 3 else None,
+        'next_date_5': next_dates[4] if len(next_dates) > 4 else None,
+        'count': len(hits),
+        'results': hits,
+        'filter': {
+            'change_pct_required': '< 0',
+            'price_bucket': 'close < 200 → 主力 (main); close >= 200 → 超大单 (super)',
+            'cumulative_window': '3d / 5d / 10d / 20d 必须 > 0',
+            'threshold': '至少 1 项累计 ≥ 3 亿 (3e8 元)'
+        }
+    })
+
+
+@app.route('/api/combined-picks', methods=['GET'])
+def api_combined_picks():
+    """组合选股: 同日同时被 (系统推荐 stock_picks) 和 (条件选股) 命中的票.
+
+    Args:
+        date: 交易日 YYYYMMDD. 不传 = 取 stock_picks 表最新 trade_date
+    """
+    date = (request.args.get('date') or '').strip()
+
+    # 1) 选定 date: 不传 -> stock_picks 最新 trade_date
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    if not date:
+        row = conn.execute('SELECT MAX(trade_date) AS d FROM stock_picks').fetchone()
+        if not row or not row['d']:
+            conn.close()
+            return jsonify({
+                'status': 'success', 'date': '', 'count': 0, 'results': [],
+                'note': '系统推荐未同步, 请先在「系统推荐」tab 点击同步今日'
+            })
+        date = row['d']
+
+    # 2) 拿当日 stock_picks 全量 (系统推荐)
+    system_rows = conn.execute(
+        'SELECT * FROM stock_picks WHERE trade_date = ? ORDER BY score DESC', (date,)
+    ).fetchall()
+    system_codes = {r['ts_code'] for r in system_rows}
+
+    # 3) 同日条件选股 raw (复用 _compute_conditional_picks_internal)
+    src = 'eastmoney-push2'
+    cond_data, _ = _compute_conditional_picks_internal(date, src)
+    # 应用 _filter_conditional 拿到标准 cond 字段 (used_bucket/hit_threshold/sum_3d/5d/...)
+    cond_filtered = _filter_conditional(cond_data) if cond_data else []
+    cond_codes = {r['ts_code'] for r in cond_filtered}
+    cond_by_code = {r['ts_code']: dict(r) for r in cond_filtered}
+    conn.close()
+
+    # 4) 交集: 以 stock_picks 为主体 (TS_code, name, score, signal_type 等)
+    #    再合并 cond 那一侧渲染需要的字段, 让组合选股 tab 跟条件选股 tab 字段一致 (只多一个 score)
+    _COND_RENDER_KEYS = (
+        'close', 'change_pct',
+        'used_bucket', 'hit_threshold',
+        'sum_3d', 'sum_5d', 'sum_10d', 'sum_20d',
+        'sum_mid_small_3d', 'sum_mid_small_5d', 'sum_mid_small_10d', 'sum_mid_small_20d',
+        'next_1_close', 'next_1_change_pct', 'next_1_high',
+        'next_2_close', 'next_2_change_pct', 'next_2_high',
+        'next_3_close', 'next_3_change_pct', 'next_3_high',
+        'next_4_close', 'next_4_change_pct', 'next_4_high',
+        'next_5_close', 'next_5_change_pct', 'next_5_high',
+        'max_high_t1', 'max_high_t2', 'max_high_t3', 'max_high_t4', 'max_high_t5',
+        'post_pick_next_change_pct',
+        'post_pick_next2_change_pct', 'post_pick_next3_change_pct',
+        'post_pick_next4_change_pct', 'post_pick_next5_change_pct',
+    )
+    intersected = []
+    for r in system_rows:
+        cond_row = cond_by_code.get(r['ts_code'])
+        if not cond_row:
+            continue
+        merged = dict(r)  # system: score / signal_type / ma* / etc.
+        for k in _COND_RENDER_KEYS:
+            if k in cond_row:
+                merged[k] = cond_row[k]
+        intersected.append(merged)
+    _attach_sector(intersected, key='ts_code')
+
+    if not system_rows:
+        return jsonify({
+            'status': 'success', 'date': date, 'count': 0, 'results': [],
+            'note': f'{date} 当日系统推荐未同步, 无交集'
+        })
+
+    return jsonify({
+        'status': 'success',
+        'date': date,
+        'count': len(intersected),
+        'results': intersected,
+        'note': '' if intersected else f'{date} 系统推荐与条件选股无交集 (同日两边都命中的票为 0)'
     })
 
 
@@ -8033,70 +8954,6 @@ def api_hsgt_list():
         'total': len(rows),
     })
 
-# ============ 阶段 1: 情绪分析 (sentiment_intraday + 6 路由 + 7 类规则触发) ============
-
-@app.route('/api/sentiment/current', methods=['GET'])
-def api_sentiment_current():
-    """GET 情绪最新分. 调 sentiment.api_sentiment_current()."""
-    from sentiment import api_sentiment_current as _h
-    return _h()
-
-
-@app.route('/api/sentiment/compute', methods=['POST'])
-def api_sentiment_compute():
-    """POST 立即算一次情绪. body: {} (用当前时间)"""
-    from sentiment import compute_sentiment
-    from alert_rules import run_all_rules
-    try:
-        result = compute_sentiment()
-        run_all_rules(result['ts'], result['level'])
-        return jsonify({'status': 'success', **result})
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return jsonify({'status': 'error', 'message': str(e)}), 500
-
-
-@app.route('/api/sentiment/intraday', methods=['GET'])
-def api_sentiment_intraday_route():
-    """GET 情绪分时曲线. query: date=YYYY-MM-DD (默认今天)"""
-    from sentiment import api_sentiment_intraday
-    date_str = request.args.get('date')
-    return api_sentiment_intraday(date_str)
-
-
-@app.route('/api/sentiment/factors', methods=['GET'])
-def api_sentiment_factors_route():
-    """GET 某时刻因子分项. query: ts=YYYY-MM-DD HH:MM:SS (默认当前)"""
-    from sentiment import api_sentiment_factors
-    ts = request.args.get('ts')
-    return api_sentiment_factors(ts)
-
-
-@app.route('/api/sentiment/level', methods=['GET'])
-def api_sentiment_level_route():
-    """GET 当日 5 档等级. query: date=YYYY-MM-DD (默认今天)"""
-    from sentiment import api_sentiment_level
-    date_str = request.args.get('date')
-    return api_sentiment_level(date_str)
-
-
-@app.route('/api/sentiment/alerts', methods=['GET'])
-def api_sentiment_alerts_route():
-    """GET 当日预警列表. query: date=YYYY-MM-DD&limit=100"""
-    from sentiment import api_sentiment_alerts
-    date_str = request.args.get('date')
-    limit = int(request.args.get('limit', 100))
-    return api_sentiment_alerts(date_str, limit)
-
-
-@app.route('/api/sentiment/daily-history', methods=['GET'])
-def api_sentiment_daily_history_route():
-    """GET 近 N 日情绪等级对比. query: days=10"""
-    from sentiment import api_sentiment_daily_history
-    days = int(request.args.get('days', 10))
-    return api_sentiment_daily_history(days)
-
 # ============ 阶段 2: 板块情绪热力图 + 连板梯队 (需求文档 §3.2 + §3.3) ============
 
 @app.route('/api/sector/sw-heatmap', methods=['GET'])
@@ -8731,12 +9588,14 @@ def api_user_sector_detail(name):
 if __name__ == '__main__':
     init_db()
     print(f"数据库初始化完成: {DB_PATH}")
-    # 启动 APScheduler 调度 (阶段 0.4 框架, 各阶段任务在各阶段代码里注册)
+    # 启动时全量 rebuild fund_flow_ranked (8s 一次性, 让条件选股走物化表)
+    n = build_fund_flow_ranked()
+    print(f"[fund_flow_ranked] 全量 rebuild 完成: {n} 行")
+    # 启动 APScheduler 调度 (各功能任务在各模块里注册)
     try:
-        from scheduler import start_scheduler, register_sentiment_sampling, register_daily_review, register_push_jobs
-        register_sentiment_sampling()   # 阶段 1
-        register_daily_review()          # 阶段 3
-        register_push_jobs()             # 阶段 5
+        from scheduler import start_scheduler, register_daily_review, register_push_jobs
+        register_daily_review()          # 盘后复盘
+        register_push_jobs()             # 定时推送
         start_scheduler()
     except Exception as e:
         print(f'[scheduler] 启动失败 (非致命, Flask 继续): {e}')

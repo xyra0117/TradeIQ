@@ -710,6 +710,113 @@ def get_index_daily():
     return jsonify([dict(r) for r in rows])
 
 
+@app.route('/api/stock/daily', methods=['GET'])
+def get_stock_daily():
+    """个股日线 (K线弹窗数据源): OHLC + 涨跌幅 + 成交量, 日期升序返回.
+
+    Args:
+        ts_code: 如 300489.SZ (必传)
+        limit: 最近 N 个交易日, 默认 250 (约一年), 上限 800
+    """
+    ts_code = (request.args.get('ts_code') or '').strip()
+    limit = request.args.get('limit', 250, type=int)
+    limit = max(1, min(limit or 250, 800))
+    if not ts_code:
+        return jsonify({'status': 'success', 'ts_code': '', 'name': '', 'count': 0, 'rows': []})
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute(
+        'SELECT trade_date, open, high, low, close, change, volume, amount, name '
+        'FROM stock_daily WHERE ts_code = ? ORDER BY trade_date DESC LIMIT ?',
+        (ts_code, limit)
+    ).fetchall()
+    conn.close()
+    rows = [dict(r) for r in rows]
+    rows.reverse()  # 升序: 图表从左到右
+    name = rows[-1]['name'] if rows else ''
+    # 盘中补一根今日K (sina 实时价): 交易日 + stock_daily 还没今天 + 已开盘 (今开>0)
+    # 盘后日线入库后自动回到 TuShare 口径 (rows 里已有今天就不再补)
+    intraday = False
+    if request.args.get('intraday') in ('1', 'true', 'True'):
+        from datetime import datetime as _dt
+        _now = _dt.now()
+        today = _now.strftime('%Y%m%d')
+        if _now.weekday() < 5 and (not rows or rows[-1]['trade_date'] < today):
+            try:
+                q = fetch_sina_quotes([ts_code]).get(ts_code)
+                if q and q.get('open') and q.get('price'):
+                    rows.append({
+                        'trade_date': today,
+                        'open': q['open'],
+                        'high': q.get('high') or q['price'],
+                        'low': q.get('low') or q['price'],
+                        'close': q['price'],
+                        'change': q.get('change_pct'),
+                        'volume': q.get('volume'),
+                        'amount': None,
+                        'name': name or q.get('name') or '',
+                    })
+                    intraday = True
+                    if not name and q.get('name'):
+                        name = q['name']
+            except Exception as _e:
+                print(f'[stock/daily] {ts_code} 盘中K线补齐失败: {_e}', flush=True)
+    return jsonify({
+        'status': 'success', 'ts_code': ts_code, 'name': name or '',
+        'count': len(rows), 'rows': rows, 'intraday': intraday,
+    })
+
+
+_MINLINE_CACHE = {}  # ts_code -> {'_ts', 'rows', 'prev_close', 'name'} (分时数据 10s 缓存)
+
+
+@app.route('/api/stock/minline', methods=['GET'])
+def get_stock_minline():
+    """个股分时 (新浪分钟线): 交易时段是当日, 非交易时段 sina 自动给最近一个交易日.
+    K线弹窗「分时」tab 数据源. 返回 {m: HH:MM:SS, p: 价, avg_p: 均价, v: 量(手)} 序列."""
+    ts_code = (request.args.get('ts_code') or '').strip()
+    if not ts_code:
+        return jsonify({'status': 'success', 'ts_code': '', 'count': 0, 'rows': []})
+    import time as _t
+    now = _t.time()
+    ent = _MINLINE_CACHE.get(ts_code)
+    if ent and now - ent['_ts'] < 10:
+        return jsonify({'status': 'success', 'ts_code': ts_code, 'count': len(ent['rows']),
+                        'rows': ent['rows'], 'prev_close': ent.get('prev_close'),
+                        'name': ent.get('name') or ''})
+    sc = _sina_code_for_ts(ts_code)
+    if not sc:
+        return jsonify({'status': 'success', 'ts_code': ts_code, 'count': 0, 'rows': []})
+    try:
+        url = ('https://quotes.sina.cn/cn/api/jsonp_v2.php/var%20_ml='
+               f'/CN_MinlineService.getMinlineData?symbol={sc}')
+        r = _requests.get(url, headers={
+            'Referer': 'https://finance.sina.com.cn',
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        }, timeout=5)
+        text = r.text
+        # 响应: /*...*/ var _ml=([{...},...]);  → 取括号里的 JSON 数组
+        payload = text[text.index('(') + 1:text.rindex(')')]
+        raw = json.loads(payload)
+        rows = [{
+            'm': p.get('m', ''),
+            'p': float(p['p']) if p.get('p') not in (None, '') else None,
+            'avg_p': float(p['avg_p']) if p.get('avg_p') not in (None, '') else None,
+            'v': round(float(p.get('v') or 0) / 100, 0),  # 股 → 手
+        } for p in raw]
+        rows = [x for x in rows if x['p'] is not None]
+        rows = [x for x in rows if x['m'] <= '15:00:59']  # sina 会带 15:05+ 盘后定价交易噪点, 截到收盘
+    except Exception as e:
+        print(f'[minline] {ts_code} 拉取失败: {e}', flush=True)
+        return jsonify({'status': 'success', 'ts_code': ts_code, 'count': 0, 'rows': []})
+    quote = fetch_sina_quotes([ts_code]).get(ts_code) or {}
+    _MINLINE_CACHE[ts_code] = {'_ts': now, 'rows': rows,
+                               'prev_close': quote.get('prev_close'), 'name': quote.get('name')}
+    return jsonify({'status': 'success', 'ts_code': ts_code, 'count': len(rows),
+                    'rows': rows, 'prev_close': quote.get('prev_close'),
+                    'name': quote.get('name') or ''})
+
+
 @app.route('/api/index/sync', methods=['POST'])
 def sync_index_data():
     """从 TuShare 同步指数数据"""
@@ -2208,34 +2315,48 @@ async def _jiuye_auto_login(context, page, creds):
     """用账号密码自动登录韭研。成功返回 True，失败返回 False。
     页面 DOM 实测（2026-06）：登录页有"手机快捷登录"和"账号密码登录"两个 tab，
     默认"手机快捷登录"激活；需点切到"账号密码登录"才会出现密码 input。
+    2026-08: 每个失败点都 print 原因 (原来静默 return False, 排查全靠猜).
     """
     try:
         await page.goto('https://www.jiuyangongshe.com/login',
                         wait_until='domcontentloaded', timeout=30000)
         await page.wait_for_timeout(1200)
-        # 切到"账号密码登录" tab
+        # 切到"账号密码登录" tab (过滤不可见元素, 避开 hidFont 水印)
         try:
-            await page.locator('text=账号密码登录').first.click(timeout=5000)
+            _clicked = False
+            for _cand in await page.locator('text=账号密码登录').all():
+                if await _cand.is_visible():
+                    await _cand.click(timeout=5000)
+                    _clicked = True
+                    break
+            if not _clicked:
+                print('[jiuye-login] 找不到可见的"账号密码登录" tab', flush=True)
+                return False
             await page.wait_for_timeout(500)
-        except Exception:
+        except Exception as e:
+            print(f'[jiuye-login] 切"账号密码登录" tab 失败: {e}', flush=True)
             return False
         # 填手机号和密码（密码 input type=password 唯一）
         try:
             phone_inputs = await page.locator('input[placeholder="请输入手机号"]').all()
             if not phone_inputs:
+                print('[jiuye-login] 找不到手机号输入框', flush=True)
                 return False
             # 切到密码 tab 后，可能两个 tab 的手机号输入都存在；用最后一个（密码 tab 的）
             await phone_inputs[-1].fill(creds['phone'])
             await page.locator('input[type="password"]').first.fill(creds['password'])
-        except Exception:
+        except Exception as e:
+            print(f'[jiuye-login] 填账号密码失败: {e}', flush=True)
             return False
         # 点登录按钮（密码 tab 下的"登录"按钮；多个时取最后一个，密码 tab 通常在后）
         try:
             login_btns = await page.locator('button:has-text("登录")').all()
             if not login_btns:
+                print('[jiuye-login] 找不到登录按钮', flush=True)
                 return False
             await login_btns[-1].click(timeout=5000)
-        except Exception:
+        except Exception as e:
+            print(f'[jiuye-login] 点登录按钮失败: {e}', flush=True)
             return False
         # 等 SESSION cookie 出现 或 URL 跳走（最多 15s）
         for _ in range(30):
@@ -2243,10 +2364,13 @@ async def _jiuye_auto_login(context, page, creds):
             if any(c.get('name') == 'SESSION' and c.get('value') for c in cookies):
                 # 再等一点让其它登录态 cookie 也落下来
                 await page.wait_for_timeout(500)
+                print('[jiuye-login] 登录成功, SESSION 已刷新', flush=True)
                 return True
             await page.wait_for_timeout(500)
+        print('[jiuye-login] 登录后 15s 内未拿到 SESSION cookie (账号密码可能不对)', flush=True)
         return False
-    except Exception:
+    except Exception as e:
+        print(f'[jiuye-login] 登录流程异常: {e}', flush=True)
         return False
 
 
@@ -2322,15 +2446,12 @@ def fetch_jiuye_diagram(date_str, job_id=None):
             except Exception:
                 pass  # 失败不阻断主流程，下面 goto 实际目标页时还会再 ping 一次
 
-            # D'. 拉图前直接走自动登录刷新 SESSION，不靠 DOM 判定登录态。
-            #     原因：cookie 半失效时（SESSION 过期但其它 cookie 还在），SPA 顶部不显示
-            #     "登录注册" 按钮，DOM 误判"已登录"；但跳 action 页时会弹登录对话框挡操作。
-            #     每天一次频率，每次多 5s 登录开销可接受。
+            # D'. 拉图前直接走自动登录刷新 SESSION。登录失败直接抛错说真话——
+            #     原来静默 pass 继续拉图, 用户看到"抓不到图", 真因"登录失败"被掩盖。
             if creds:
                 ok = await _jiuye_auto_login(context, page, creds)
                 if not ok:
-                    # 登录失败不立即抛错，让后面的拉图尝试一次，错误统一在那里报
-                    pass
+                    raise RuntimeError('韭研自动登录失败, 请检查 .jiuye_login.json 里的账号密码')
 
             async def on_resp(r):
                 if 'diagram-url' in r.url and r.request.method == 'POST':
@@ -2344,13 +2465,38 @@ def fetch_jiuye_diagram(date_str, job_id=None):
                     else:
                         img_url_holder['err'] = body
             page.on('response', on_resp)
-            try:
-                await page.goto(f'https://www.jiuyangongshe.com/action/{date_str}',
-                                wait_until='domcontentloaded', timeout=45000)
-            except Exception as e:
-                await browser.close()
-                raise RuntimeError(f'打开页面失败: {e}')
-            await page.wait_for_timeout(2000)
+            async def _open_action_page():
+                try:
+                    await page.goto(f'https://www.jiuyangongshe.com/action/{date_str}',
+                                    wait_until='domcontentloaded', timeout=45000)
+                except Exception as e:
+                    raise RuntimeError(f'打开页面失败: {e}')
+                # 等 SPA 把 tab 渲染出来再点。原来固定等 2s, 网络慢时 tab 栏根本没渲染,
+                # 三策略全失败 dump 出来是 [] —— 这是"刷几次才成功"的主因之一
+                try:
+                    await page.wait_for_selector('[role="tab"], .el-tabs__item',
+                                                 state='visible', timeout=20000)
+                except Exception:
+                    pass  # 渲染超时让后面点 tab 的报错 + dump 去说, 这里不重复报
+
+            async def _login_dialog_up():
+                """页面上只有登录弹窗的 tab (pane-phone/pane-accounts) = SESSION 过期被拦。"""
+                try:
+                    return await page.evaluate("""() => {
+                        const tabs = Array.from(document.querySelectorAll('[role="tab"], .el-tabs__item'));
+                        return tabs.some(t => /pane-phone|pane-accounts/.test(t.getAttribute('aria-controls') || ''));
+                    }""")
+                except Exception:
+                    return False
+
+            await _open_action_page()
+            # 登录弹窗挡住内容时自动重登一次再进目标页, 不用用户手动刷新
+            if await _login_dialog_up():
+                print('[jiuye] 检测到登录弹窗 (SESSION 过期), 重新登录...', flush=True)
+                if creds and await _jiuye_auto_login(context, page, creds):
+                    await _open_action_page()
+                else:
+                    raise RuntimeError('韭研登录态已失效且自动登录失败, 请检查 .jiuye_login.json 账号密码')
             # diagram-url 仅在"涨停简图" tab 激活时前端 JS 才会调，需点击该 tab
             # 2026-06 起韭研 SPA 重渲染后单凭 text= 容易点不中，加多策略 + 失败必喊，
             # 否则 fail silent 12s 后误报"无数据/cookie 失效"误导排查
@@ -2362,12 +2508,19 @@ def fetch_jiuye_diagram(date_str, job_id=None):
                 print(f'[jiuye] tab 点中 (策略1: aria-controls=diagram)', flush=True)
             except Exception as e:
                 print(f'[jiuye] tab 策略1 失败: {type(e).__name__}: {e}', flush=True)
-            # 策略2: 文字匹配（fallback，兼容老版本 DOM）
+            # 策略2: 文字匹配（fallback，兼容老版本 DOM）。
+            # 必须过滤不可见元素: 页面有 hidFont 防爬水印, 文字相同但不可见,
+            # 对着水印点只会白等 5s 超时
             if not tab_clicked:
                 try:
-                    await page.locator('text=涨停简图').first.click(timeout=5000)
-                    tab_clicked = True
-                    print(f'[jiuye] tab 点中 (策略2: text=涨停简图)', flush=True)
+                    for _cand in await page.locator('text=涨停简图').all():
+                        if await _cand.is_visible():
+                            await _cand.click(timeout=5000)
+                            tab_clicked = True
+                            print(f'[jiuye] tab 点中 (策略2: text=涨停简图 visible)', flush=True)
+                            break
+                    if not tab_clicked:
+                        print('[jiuye] tab 策略2 失败: 匹配到的元素均不可见 (hidFont 水印)', flush=True)
                 except Exception as e:
                     print(f'[jiuye] tab 策略2 失败: {type(e).__name__}: {e}', flush=True)
             # 策略3: 尝试 Vue store 强切（Vue 2 兼容，Vue 3 大概率 no vue，但留着不亏）
@@ -2412,7 +2565,10 @@ def fetch_jiuye_diagram(date_str, job_id=None):
                     await page.locator('[role="tab"][aria-controls*="diagram"]').first.click(timeout=3000)
                 except Exception:
                     try:
-                        await page.locator('text=涨停简图').first.click(timeout=3000)
+                        for _cand in await page.locator('text=涨停简图').all():
+                            if await _cand.is_visible():
+                                await _cand.click(timeout=3000)
+                                break
                     except Exception as e:
                         print(f'[jiuye] tab 重试点击也失败: {type(e).__name__}: {e}', flush=True)
                 for _ in range(16):
@@ -2434,7 +2590,18 @@ def fetch_jiuye_diagram(date_str, job_id=None):
                 raise RuntimeError('未捕获到 diagram-url 响应（该日可能无涨停数据或 cookie 已失效）')
             return img_url_holder['url']
 
-    img_url = asyncio.run(_fetch())
+    # 整个抓取自动重试一次: 网络抖一下 (DNS 失败/页面 JS 没加载完) 不至于直接判失败
+    img_url = None
+    _last_err = None
+    for _attempt in range(2):
+        try:
+            img_url = asyncio.run(_fetch())
+            break
+        except Exception as e:
+            _last_err = e
+            print(f'[jiuye] 第 {_attempt+1} 次抓取失败: {e}', flush=True)
+    if img_url is None:
+        raise _last_err
     img_resp = _requests.get(img_url, timeout=60)
     img_resp.raise_for_status()
     ext = '.png'
@@ -2486,6 +2653,12 @@ def run_fetch_and_ocr(date_str, job_id, trade_date):
         _save_err('unexpected', f'子进程未处理异常: {type(e).__name__}: {e}')
 
 
+# 同日去重: 页面每次刷新都会触发 /api/limitup/fetch, 并发任务同时 DELETE+INSERT 同一天的
+# limitup 数据, 且前端只轮询最新 job —— 旧 job 成功入库但新 job 挂了, 用户看到"识别失败"
+# 而数据其实在库里。同一 trade_date 15 分钟内有 processing job 就直接复用它。
+_fetch_jobs_by_date = {}
+
+
 @app.route('/api/limitup/fetch', methods=['POST'])
 def fetch_limitup_from_jiuye():
     """从韭研公社拉取指定日期的涨停简图并自动 OCR 入库。date 格式 YYYY-MM-DD。
@@ -2497,6 +2670,14 @@ def fetch_limitup_from_jiuye():
     if not date_str or len(date_str) != 10 or date_str[4] != '-':
         return jsonify({'status': 'error', 'message': 'date 必填，格式 YYYY-MM-DD'}), 400
     trade_date = date_str.replace('-', '')
+    # 同日已有在跑的 job → 复用, 不起第二个进程
+    _ex = _fetch_jobs_by_date.get(trade_date)
+    if _ex:
+        _ex_job, _ex_ts = _ex
+        _st = _read_ocr_status(_ex_job)
+        if _st and _st.get('status') == 'processing' and time.time() - _ex_ts < 900:
+            print(f'[limitup/fetch] {trade_date} 已有在跑 job {_ex_job}, 复用 (去重)', flush=True)
+            return jsonify({'status': 'processing', 'job_id': _ex_job, 'date': trade_date, 'dedup': True})
     job_id = _uuid.uuid4().hex[:8]
     try:
         with open(_ocr_status_path(job_id), 'w', encoding='utf-8') as _f:
@@ -2507,6 +2688,7 @@ def fetch_limitup_from_jiuye():
     p = multiprocessing.Process(target=run_fetch_and_ocr,
                                 args=(date_str, job_id, trade_date), daemon=True)
     p.start()
+    _fetch_jobs_by_date[trade_date] = (job_id, time.time())
     return jsonify({'status': 'processing', 'job_id': job_id, 'date': trade_date})
 
 
@@ -2552,7 +2734,8 @@ def get_parse_status(job_id):
         return jsonify({'status': 'done', **job})
     elif job['status'] == 'error':
         return jsonify({'status': 'error', 'message': job['error']}), 500
-    return jsonify({'status': 'processing'})
+    # processing 也要带上 stage 等字段, 不然前端进度条拿不到阶段 (一直停在默认文案)
+    return jsonify({'status': 'processing', **job})
 
 
 # ============ 静态文件 ============
@@ -5380,7 +5563,7 @@ def fetch_sina_quotes(ts_codes, cache_ttl=None):
                 fields = val.split(',')
                 if len(fields) < 10:
                     continue
-                # 字段含义: 0=名称 1=今开 2=昨收 3=当前 4=日高 5=日低 ...
+                # 字段含义: 0=名称 1=今开 2=昨收 3=当前 4=日高 5=日低 8=成交量(股) ...
                 name = fields[0]
                 try:
                     current = float(fields[3])
@@ -5390,6 +5573,22 @@ def fetch_sina_quotes(ts_codes, cache_ttl=None):
                 if prev_close <= 0:
                     continue
                 change_pct = (current - prev_close) / prev_close * 100
+                try:
+                    day_high = float(fields[4])
+                    if day_high <= 0:
+                        day_high = None
+                except (ValueError, IndexError):
+                    day_high = None
+                # 今开/日低/成交量: K线弹窗盘中那根K用 (盘前今开=0 → 调用方自行判空)
+                def _f(idx):
+                    try:
+                        v = float(fields[idx])
+                        return v if v > 0 else None
+                    except (ValueError, IndexError):
+                        return None
+                day_open = _f(1)
+                day_low = _f(5)
+                vol_shares = _f(8)  # sina 单位: 股
                 # 时间: index 30 起始 HHMMSS (不同市场略有差异)
                 quote_time = fields[30] if len(fields) > 30 else ''
                 ts_code = _ts_code_for_sina(sina_code)
@@ -5398,6 +5597,10 @@ def fetch_sina_quotes(ts_codes, cache_ttl=None):
                         'price': current,
                         'prev_close': prev_close,
                         'change_pct': round(change_pct, 2),
+                        'high': day_high,
+                        'open': day_open,
+                        'low': day_low,
+                        'volume': round(vol_shares / 100, 2) if vol_shares else None,  # 股 → 手 (对齐 stock_daily)
                         'name': name,
                         'time': quote_time,
                     }
@@ -5408,6 +5611,17 @@ def fetch_sina_quotes(ts_codes, cache_ttl=None):
 
     # 3) 合并: 缓存 + 新拉
     return {**cached, **result}
+
+
+def fetch_sina_quotes_all(cache_ttl=None):
+    """拉全市场 ~5500 只股的实时行情. 复用 fetch_sina_quotes 的 30s 全局缓存."""
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        rows = conn.execute("SELECT ts_code FROM stock_basic WHERE status != 'delisting'").fetchall()
+    finally:
+        conn.close()
+    ts_codes = [r[0] for r in rows]
+    return fetch_sina_quotes(ts_codes, cache_ttl=cache_ttl)
 
 
 def _quote_cache_ttl_from_request():
@@ -6317,10 +6531,13 @@ def _save_em_fund_flow_rows(rows, today, source='eastmoney-push2'):
     return count
 
 
-def _em_sync_market_bg():
+def _em_sync_market_bg(force=False):
     """后台线程: 抓取今日主力净流入 (JSONP + 东财 detail.html).
     数据写入 fund_flow 表, trade_date = 今天. 每天点一次同步即积累一天历史.
     历史日期查询通过前端日历切换 (只是查 DB, 不重新抓).
+    force=True → skip_if_exists 关闭, 已有数据也重抓覆盖 (手动点同步按钮的场景).
+    注意不要把 force 透传给 fetch_today_market — 那个 force 会连交易日归属判断一起跳过,
+    节日/凌晨抓的数据会错标成今天.
     """
     import time as _t
     import sys as _sys
@@ -6338,7 +6555,7 @@ def _em_sync_market_bg():
         'elapsed_sec': 0, 'source': 'eastmoney-push2',
         'target_date': today,
     })
-    print(f'[em-sync] 开始: 同步 {today}', flush=True)
+    print(f'[em-sync] 开始: 同步 {today}' + (' (强制刷新, 忽略已有数据)' if force else ''), flush=True)
 
     def _cb(stage, **kw):
         if stage == 'start':
@@ -6384,7 +6601,7 @@ def _em_sync_market_bg():
     _AKSYNC_STATE['actual_date'] = today
     try:
         rows, total, failed, actual_date = fetch_today_market(
-            progress_callback=_cb, headless=False, verbose=True, skip_if_exists=True)
+            progress_callback=_cb, headless=False, verbose=True, skip_if_exists=not force)
     except Exception as e:
         err_msg = f'{type(e).__name__}: {str(e)[:200]}'
         _AKSYNC_STATE['errors'].append(('eastmoney-push2', err_msg))
@@ -6451,15 +6668,17 @@ def api_flow_dates():
 @app.route('/api/flow/sync-market', methods=['POST'])
 def api_flow_sync_market():
     """启动后台抓取今日主力净流入 (JSONP). 立即返回 'started'.
-    每天点一次同步, trade_date 自动标记今天, 写入 fund_flow 表.
-    历史日期切换查询只读 DB, 不需要再抓.
+    ?force=1 (或 body.force) → 忽略"已有数据"守卫, 强制重抓覆盖 (手动点同步按钮).
+    不带 force (页面加载的自动同步) → 幂等, 已有数据就跳过.
     """
     if _AKSYNC_STATE['running']:
         return jsonify({'status': 'already_running', 'state': _AKSYNC_STATE})
+    _force = (request.args.get('force') in ('1', 'true', 'True')
+              or bool((request.get_json(silent=True) or {}).get('force')))
     import threading as _th
-    t = _th.Thread(target=_em_sync_market_bg, daemon=True)
+    t = _th.Thread(target=_em_sync_market_bg, args=(_force,), daemon=True)
     t.start()
-    return jsonify({'status': 'started', 'state': _AKSYNC_STATE})
+    return jsonify({'status': 'started', 'force': _force, 'state': _AKSYNC_STATE})
 
 
 @app.route('/api/flow/sync-status', methods=['GET'])
@@ -6803,7 +7022,37 @@ def _flow_days_available(end_date):
     return row[0] if row else 0
 
 
-def _compute_picks(trade_date=None, ts_codes=None):
+def _write_stock_picks_for_date(trade_date, picks):
+    """_compute_picks 结果写入 stock_picks 表 (先删当日再插, 收盘口径覆盖盘中口径).
+    供 scheduler 的 picks_resync 任务和 /api/picks/sync-date 共用."""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('DELETE FROM stock_picks WHERE trade_date = ?', (trade_date,))
+    for p in picks:
+        c.execute('''INSERT OR REPLACE INTO stock_picks
+            (trade_date, ts_code, name, close, change_pct,
+             ma5, ma10, ma20, ma30,
+             ma5_slope, ma10_slope, ma20_slope, ma30_slope,
+             main_net_today, main_net_pct_today,
+             main_net_3d, main_net_5d, main_net_10d, main_net_20d,
+             super_net, super_pct, big_net, big_pct,
+             mid_net, mid_pct, small_net, small_pct,
+             score, signal_type, flow_days_available, reasons_json)
+            VALUES (?,?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?,?,?)''',
+            (trade_date, p['ts_code'], p['name'], p['close'], p['change_pct'],
+             p['ma5'], p['ma10'], p['ma20'], p['ma30'],
+             p['ma5_slope'], p['ma10_slope'], p['ma20_slope'], p['ma30_slope'],
+             p['main_net_today'], p['main_net_pct_today'],
+             p['main_net_3d'], p['main_net_5d'], p['main_net_10d'], p['main_net_20d'],
+             p['super_net'], p['super_pct'], p['big_net'], p['big_pct'],
+             p['mid_net'], p['mid_pct'], p['small_net'], p['small_pct'],
+             p['score'], p['signal_type'], p['flow_days_available'],
+             json.dumps(p['reasons'], ensure_ascii=False)))
+    conn.commit()
+    conn.close()
+
+
+def _compute_picks(trade_date=None, ts_codes=None, intraday=False):
     """按《均线 + 资金流》文档计算选股推荐.
 
     双维度评分:
@@ -6815,6 +7064,8 @@ def _compute_picks(trade_date=None, ts_codes=None):
     Args:
         trade_date: 计算日期 (YYYYMMDD), None = 最新
         ts_codes: 限定只算这些 ts_code (None = 全市场). 用于自选股 sub-tab 只算用户加的代码.
+        intraday: 盘中模式. trade_date 是今天且还没收盘入库时, 用 sina 实时价
+                  合成"今天"这根 K 线参与计算 (资金流维度仍是截至昨日累计).
     """
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -6832,9 +7083,16 @@ def _compute_picks(trade_date=None, ts_codes=None):
         SELECT DISTINCT trade_date FROM stock_daily
         WHERE trade_date <= ? ORDER BY trade_date DESC LIMIT 35
     """, (trade_date,)).fetchall()]
+    intraday_used = False
     if trade_date not in dates_30:
-        conn.close()
-        return []
+        # 盘中模式: 请求的日期 (典型=今天) 还没收盘入库, 允许用 dates_30 最新一天做基底,
+        # 后面拿 sina 实时价给每只股补上 trade_date 这个点
+        today = datetime.now().strftime('%Y%m%d')
+        if intraday and trade_date == today and dates_30:
+            intraday_used = True
+        else:
+            conn.close()
+            return []
 
     # fund_flow 可用天数 (决定哪些累计资金流维度能算)
     # 口径 B: 只数默认源 eastmoney-push2, 跟主力净流入 tab 一致
@@ -6884,16 +7142,43 @@ def _compute_picks(trade_date=None, ts_codes=None):
             'name': r['name']
         })
 
+    # 盘中模式: 拉全市场 sina 实时价, 给每只股合成"今天"的数据点
+    live_quotes = {}
+    if intraday_used:
+        try:
+            live_quotes = fetch_sina_quotes_all()
+            print(f'[picks intraday] {trade_date} sina 实时价 {len(live_quotes)} 只', flush=True)
+        except Exception as e:
+            print(f'[picks intraday] sina 拉取异常: {e}', flush=True)
+        if not live_quotes:
+            # 拿不到实时价就别硬算 — 否则等于把昨日收盘的名单盖上今天的日期戳
+            print(f'[picks intraday] 无实时价, 放弃 {trade_date} 盘中计算', flush=True)
+            conn.close()
+            return []
+
     picks = []
     for ts_code, data_list in stock_data.items():
         if len(data_list) < 30:
             continue
         data_list.sort(key=lambda x: x['date'], reverse=True)
 
+        if intraday_used:
+            q = live_quotes.get(ts_code)
+            if not q or not q.get('price') or q['price'] <= 0:
+                continue  # 停牌/无实时价, 盘中模式跳过
+            data_list.insert(0, {
+                'date': trade_date,
+                'close': q['price'],
+                'change': None,
+                'volume': None,
+                'name': data_list[0]['name'],
+            })
+
         latest = data_list[0]
         if not latest['close'] or latest['close'] <= 0:
             continue
-        if not latest['volume'] or latest['volume'] == 0:
+        # 成交量过滤 (盘中模式的合成点没有成交量, 停牌股上面已被实时价挡掉)
+        if not intraday_used and (not latest['volume'] or latest['volume'] == 0):
             continue
         if latest['name'] and ('*ST' in latest['name'] or 'ST' in latest['name']):
             continue
@@ -6923,15 +7208,14 @@ def _compute_picks(trade_date=None, ts_codes=None):
             flows['10d'] = sum(_fund_flow_window(ts_code, trade_date, 10))
         if can_20d:
             flows['20d'] = sum(_fund_flow_window(ts_code, trade_date, 20))
-        # 当日资金流详情
-        today_flow = _fund_flow_window(ts_code, trade_date, 1)
-        main_net_today = today_flow[0] if today_flow else None
-        # 当日 5 档 + 占比 (来自 fund_flow 当日行)
+        # 当日资金流详情 (精确匹配当日行: 不存在 → None.
+        # 盘中模式若上面已先抓过当日资金流, 这里正常有值)
         flow_today_row = conn.execute("""
-            SELECT main_net_pct, super_net, super_pct, big_net, big_pct,
+            SELECT main_net_inflow, main_net_pct, super_net, super_pct, big_net, big_pct,
                    mid_net, mid_pct, small_net, small_pct
             FROM fund_flow WHERE ts_code = ? AND trade_date = ?
         """, (ts_code, trade_date)).fetchone()
+        main_net_today = flow_today_row['main_net_inflow'] if flow_today_row else None
         main_net_pct_today = flow_today_row['main_net_pct'] if flow_today_row else None
         super_net = flow_today_row['super_net'] if flow_today_row else None
         super_pct = flow_today_row['super_pct'] if flow_today_row else None
@@ -7105,7 +7389,8 @@ def _compute_picks(trade_date=None, ts_codes=None):
         bias30 = (latest['close'] - ma30) / ma30 * 100 if ma30 else 0
 
         # 1. 突破买入 (中期趋势启动): 突破 MA20/MA30 + 量放大 + 资金>1亿
-        volumes = [d['volume'] for d in reversed(data_list)]
+        # 盘中模式的合成点 volume=None, 过滤掉再算量比
+        volumes = [d['volume'] for d in reversed(data_list) if d['volume'] is not None]
         vol_ratio = _volume_ratio(volumes) if len(volumes) >= 6 else None
         if (latest['close'] > ma20 and prev_ma5 <= prev_ma10 and ma5 > ma10
             and vol_ratio is not None and vol_ratio > 1.5
@@ -7280,13 +7565,45 @@ def _compute_picks(trade_date=None, ts_codes=None):
 
 @app.route('/api/picks/sync', methods=['POST'])
 def api_picks_sync():
-    """触发选股推荐计算。支持 ?date=YYYYMMDD 指定日期。"""
+    """触发选股推荐计算。支持 ?date=YYYYMMDD 指定日期。
+
+    body.intraday=1 且 date=今天 (盘中, 今天还没收盘入库) 时:
+    用 sina 实时价暂代今日 close 参与计算, 结果写 stock_picks(trade_date=今天),
+    返回 intraday_used=true. 收盘后 16:00 定时任务会用真实收盘价覆盖重算.
+    """
     try:
         req_date = request.json.get('date', '') if request.is_json else ''
-        picks = _compute_picks(req_date or None)
+        req_intraday = bool(request.json.get('intraday')) if request.is_json else False
+
+        # 盘中模式且当日资金流还没抓过: 先同步一次当日主力净流入 (playwright ~1-2 分钟),
+        # 让"当日主力净流入/占比"维度在盘中推荐里也有值. 幂等: 已有当日数据就跳过.
+        flow_synced = False
+        if req_intraday and req_date == datetime.now().strftime('%Y%m%d'):
+            try:
+                _fc = sqlite3.connect(DB_PATH)
+                _has_flow = _fc.execute(
+                    "SELECT 1 FROM fund_flow WHERE trade_date = ? AND source = 'eastmoney-push2' LIMIT 1",
+                    (req_date,)).fetchone()
+                _fc.close()
+                if not _has_flow and not _AKSYNC_STATE.get('running'):
+                    print(f'[picks intraday] {req_date} 当日资金流未同步, 先拉取...', flush=True)
+                    _AKSYNC_STATE['running'] = True  # 防止主力净流入 tab 同时重复抓
+                    try:
+                        from fetch_fund_flow_today import fetch_today_market
+                        _rows, _total, _failed, _actual = fetch_today_market(
+                            progress_callback=None, headless=False, verbose=True, skip_if_exists=True)
+                        flow_synced = bool(_rows)
+                        print(f'[picks intraday] 当日资金流写入 {_actual}: {len(_rows)} 行', flush=True)
+                    finally:
+                        _AKSYNC_STATE['running'] = False
+            except Exception as e:
+                # 资金流拉不到不阻塞推荐 (当日资金维度留空, 累计窗口仍是截至昨日)
+                print(f'[picks intraday] 当日资金流同步失败, 继续算推荐: {e}', flush=True)
+
+        picks = _compute_picks(req_date or None, intraday=req_intraday)
 
         if not picks:
-            return jsonify({'status': 'success', 'message': '无推荐股票', 'count': 0})
+            return jsonify({'status': 'success', 'message': '无推荐股票', 'count': 0, 'intraday_used': False})
 
         # 保存到数据库
         conn = sqlite3.connect(DB_PATH)
@@ -7297,6 +7614,13 @@ def api_picks_sync():
         else:
             latest_row = c.execute('SELECT MAX(trade_date) FROM stock_daily').fetchone()
             trade_date = latest_row[0] if latest_row and latest_row[0] else datetime.now().strftime('%Y%m%d')
+
+        # 是否真的走了盘中口径 (trade_date 还没收盘入库才算)
+        intraday_used = False
+        if req_intraday:
+            has_daily = c.execute(
+                'SELECT 1 FROM stock_daily WHERE trade_date = ? LIMIT 1', (trade_date,)).fetchone()
+            intraday_used = not has_daily
 
         # 清除旧数据
         c.execute('DELETE FROM stock_picks WHERE trade_date = ?', (trade_date,))
@@ -7329,7 +7653,9 @@ def api_picks_sync():
         return jsonify({
             'status': 'success',
             'count': len(picks),
-            'date': trade_date
+            'date': trade_date,
+            'intraday_used': intraday_used,
+            'flow_synced': flow_synced
         })
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)})
@@ -7513,15 +7839,12 @@ def api_user_picks_list():
 THRESHOLD_3YI = 3e8  # 至少一项累计 ≥ 3 亿元
 
 
-def _filter_conditional(rows):
-    """应用条件选股规则 (后端硬编码)
-    规则:
+def _filter_conditional_base(rows):
+    """条件选股基础规则 (与资金门槛无关):
       - 当日涨跌幅必须 < 0
       - close < 200 → 看主力 (sum_main_Nd); close >= 200 → 看超大单 (sum_super_Nd)
       - 4 项累计必须 > 0
-      - 4 项中至少 1 项 ≥ 3 亿
-    入参: rows = [{ts_code, name, close, change_pct, trade_date, sum_main_3d, ..., sum_super_20d}, ...]
-    返回: 命中行 (附 used_bucket / hit_threshold)
+    附 used_bucket / sum_3d..20d, 不设 hit_threshold (由 _apply_cond_threshold 按门槛标).
     """
     hits = []
     for r in rows:
@@ -7539,17 +7862,7 @@ def _filter_conditional(rows):
         # 4 项都必须 > 0
         if not (a > 0 and b > 0 and c > 0 and d > 0):
             continue
-        # 至少 1 项 ≥ 3 亿
-        max_v = max(a, b, c, d)
-        if max_v < THRESHOLD_3YI:
-            continue
-        hit = None
-        if a >= THRESHOLD_3YI: hit = '3d'
-        elif b >= THRESHOLD_3YI: hit = '5d'
-        elif c >= THRESHOLD_3YI: hit = '10d'
-        elif d >= THRESHOLD_3YI: hit = '20d'
         r['used_bucket'] = bucket
-        r['hit_threshold'] = hit
         r['sum_3d'] = a
         r['sum_5d'] = b
         r['sum_10d'] = c
@@ -7558,7 +7871,35 @@ def _filter_conditional(rows):
     return hits
 
 
-def _compute_conditional_picks_internal(date, source):
+def _apply_cond_threshold(rows, threshold_amt):
+    """按资金门槛过滤 + 标 hit_threshold (实时算和快照直读共用, 保证任意门槛口径一致).
+    入参 rows 需已过 _filter_conditional_base (有 sum_3d..20d). 不排序 (调用方定)."""
+    out = []
+    for r in rows:
+        a = r.get('sum_3d') or 0
+        b = r.get('sum_5d') or 0
+        c = r.get('sum_10d') or 0
+        d = r.get('sum_20d') or 0
+        # 至少 1 项 ≥ threshold_amt
+        max_v = max(a, b, c, d)
+        if max_v < threshold_amt:
+            continue
+        hit = None
+        if a >= threshold_amt: hit = '3d'
+        elif b >= threshold_amt: hit = '5d'
+        elif c >= threshold_amt: hit = '10d'
+        elif d >= threshold_amt: hit = '20d'
+        r['hit_threshold'] = hit
+        out.append(r)
+    return out
+
+
+def _filter_conditional(rows, threshold_yi=THRESHOLD_3YI):
+    """应用条件选股规则 (基础规则 + 门槛), 返回命中行 (附 used_bucket / hit_threshold)."""
+    return _apply_cond_threshold(_filter_conditional_base(rows), threshold_yi)
+
+
+def _compute_conditional_picks_internal(date, source, intraday_close=False):
     """条件选股 raw 数据管道 (SQL+后处理).
     供 api_conditional_picks 和 api_combined_picks 共用, 避免 ~150 行 SQL 重复.
 
@@ -7577,6 +7918,33 @@ def _compute_conditional_picks_internal(date, source):
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
 
+    # 1.5) 自愈: fund_flow 有该日数据但 fund_flow_ranked 物化表缺 → 增量补建.
+    #      ranked 表只在启动时全量 rebuild, 盘中/盘后新同步的数据不会自动进表,
+    #      不补的话条件选股会静默返回 0 命中 (2026-07-28 实际踩过).
+    _ff_has = conn.execute(
+        'SELECT 1 FROM fund_flow WHERE trade_date = ? AND source = ? LIMIT 1',
+        (date, source)).fetchone()
+    _rk_has = conn.execute(
+        'SELECT 1 FROM fund_flow_ranked WHERE trade_date = ? AND source = ? LIMIT 1',
+        (date, source)).fetchone()
+    if _ff_has and not _rk_has:
+        print(f'[conditional] fund_flow_ranked 缺 {date}, 增量补建...', flush=True)
+        build_fund_flow_ranked(since_date=date)
+    elif _rk_has:
+        # 盘中补建时 stock_daily 还没入库 → 该日 close 全 NULL 落库 (2026-08-06 踩过:
+        # 隔天再看该日, sina 兜底不触发, NULL 行全被过滤 → 0 命中覆盖好快照).
+        # 日线到位后这里自愈: close 全 NULL 且 stock_daily 已有该日 → 增量重建.
+        _nc = conn.execute(
+            'SELECT COUNT(*) AS n, SUM(CASE WHEN close IS NULL THEN 1 ELSE 0 END) AS nn '
+            'FROM fund_flow_ranked WHERE trade_date = ? AND source = ?',
+            (date, source)).fetchone()
+        if _nc and _nc['n'] and _nc['nn'] == _nc['n']:
+            _sd_has = conn.execute(
+                'SELECT 1 FROM stock_daily WHERE trade_date = ? LIMIT 1', (date,)).fetchone()
+            if _sd_has:
+                print(f'[conditional] fund_flow_ranked {date} close 全 NULL 且日线已入库, 增量重建自愈...', flush=True)
+                build_fund_flow_ranked(since_date=date)
+
     # 2) window_dates: 入选日及入选日前 20 天
     window_dates = [r[0] for r in conn.execute(
         'SELECT DISTINCT trade_date FROM fund_flow WHERE trade_date <= ? AND source = ? '
@@ -7589,18 +7957,36 @@ def _compute_conditional_picks_internal(date, source):
 
     # 3) 入选日 T 的下 1..5 个交易日
     next_dates = []
-    cur_lower = date
-    for _ in range(NEXT_DAYS):
-        row = conn.execute(
-            'SELECT MIN(trade_date) AS d FROM fund_flow WHERE trade_date > ? AND source = ?',
-            (cur_lower, source)
-        ).fetchone()
-        nd = row['d'] if row and row['d'] else None
-        next_dates.append(nd)
-        if not nd:
-            break
-        cur_lower = nd
-    next_dates += [None] * (NEXT_DAYS - len(next_dates))
+    # 工作日历推算 (首选, 不依赖 stock_daily / fund_flow, 保证"未来"也能算出)
+    try:
+        from datetime import date as _d2, timedelta as _td2
+        _cur = _d2(int(date[:4]), int(date[4:6]), int(date[6:8]))
+        for _ in range(NEXT_DAYS):
+            _cur = _cur + _td2(days=1)
+            while _cur.weekday() >= 5:  # 周六周日顺延
+                _cur = _cur + _td2(days=1)
+            next_dates.append(_cur.strftime('%Y%m%d'))
+    except Exception as _e:
+        print(f'[next_dates] 工作日历计算失败, 兜底 stock_daily: {_e}', flush=True)
+        # 兜底: 查 stock_daily; 再不行 fallback fund_flow
+        cur_lower = date
+        for _ in range(NEXT_DAYS):
+            row = conn.execute(
+                'SELECT MIN(trade_date) AS d FROM stock_daily WHERE trade_date > ?',
+                (cur_lower,)
+            ).fetchone()
+            nd = row['d'] if row and row['d'] else None
+            if not nd:
+                row = conn.execute(
+                    'SELECT MIN(trade_date) AS d FROM fund_flow WHERE trade_date > ? AND source = ?',
+                    (cur_lower, source)
+                ).fetchone()
+                nd = row['d'] if row and row['d'] else None
+            next_dates.append(nd)
+            if not nd:
+                next_dates += [None] * (NEXT_DAYS - len(next_dates))
+                break
+            cur_lower = nd
 
     placeholders = ','.join(['?' for _ in window_dates])
     # 动态生成 N 个 next_day CTE — 优先 stock_daily (权威日线)
@@ -7707,9 +8093,31 @@ def _compute_conditional_picks_internal(date, source):
     conn.close()
 
     data = [dict(r) for r in rows]
+    # 入选日=今天且 stock_daily 还没收盘入库: close/change_pct 全是 NULL,
+    # 不补的话下面过滤后 0 命中. 拉 sina 实时价补齐 (30s 全局缓存,
+    # 刚在系统推荐同步过的话基本全命中缓存, 否则全市场 ~25s)
+    today = datetime.now().strftime('%Y%m%d')
+    if date == today and any(d.get('close') is None or d.get('change_pct') is None for d in data):
+        try:
+            _quotes = fetch_sina_quotes([d['ts_code'] for d in data])
+            _filled = 0
+            for d in data:
+                if d.get('close') is not None and d.get('change_pct') is not None:
+                    continue
+                q = _quotes.get(d['ts_code'])
+                if q and q.get('price') and q['price'] > 0:
+                    d['close'] = q['price']
+                    d['change_pct'] = q['change_pct']
+                    d['_selday_live'] = True
+                    _filled += 1
+            print(f'[conditional] 入选日 {date} 用 sina 实时价补齐 {_filled}/{len(data)} 只', flush=True)
+        except Exception as _e:
+            print(f'[conditional] 入选日实时价补齐失败: {_e}', flush=True)
     # 排除 close/change_pct 异常
     data = [d for d in data if d.get('close') is not None and d.get('change_pct') is not None]
     # T+1..T+N 涨幅: daily 优先, 兜底 (next_close - close) / close
+    # (盘中实时价覆盖挪到 _apply_intraday_next, 只作用于最终入选的几十只票,
+    #  在这里做会拉全市场 5500 只 ≈ 110 个 sina batch ≈ 25s, 2026-07-29 实测)
     def _daily_or_fallback(d, i):
         i = str(i)
         cp = d.get(f'next_{i}_change_pct')
@@ -7732,22 +8140,314 @@ def _compute_conditional_picks_internal(date, source):
     return data, next_dates
 
 
-@app.route('/api/conditional-picks', methods=['GET'])
-def api_conditional_picks():
-    """条件选股: 按固定规则筛选 fund_flow 全市场 (不依赖 stock_picks / _compute_picks)
+def _apply_intraday_next(rows, next_dates):
+    """若 T+i 是今天且今天日线还没入库: 只对最终入选的 rows (几十只) 拉 sina 实时价,
+    覆盖 next_i_close / next_i_change_pct / post_pick_next{i}_change_pct / max_high_t{i},
+    保证 T+1 在 daily 入库前始终有值.
+
+    盘后口径: stock_daily 已有今天数据时直接跳过 — SQL 里 next_day CTE 给的
+    TuShare 收盘价/最高价才是权威值, 不能用 sina 覆盖 (2026-08-04 用户确认:
+    盘中用新浪, 盘后用 TuShare).
+
+    返回是否实际做了 sina 覆盖.
+    """
+    from datetime import datetime as _dt
+    today = _dt.now().strftime('%Y%m%d')
+    idxs = [i for i, d in enumerate(next_dates, start=1) if d == today]
+    if not idxs or not rows:
+        return False
+    try:
+        _c = sqlite3.connect(DB_PATH)
+        _has_daily = _c.execute(
+            'SELECT 1 FROM stock_daily WHERE trade_date = ? LIMIT 1', (today,)).fetchone()
+        _c.close()
+    except Exception:
+        _has_daily = None
+    if _has_daily:
+        print(f'[intraday next] {today} 日线已入库, 跳过 sina 覆盖 (盘后 TuShare 口径)', flush=True)
+        return False
+    quotes = fetch_sina_quotes([r['ts_code'] for r in rows if r.get('ts_code')])
+    for d in rows:
+        q = quotes.get(d.get('ts_code'))
+        if not q or q.get('price') is None or not q.get('prev_close') or q['prev_close'] <= 0:
+            continue
+        p = float(q['price'])
+        qp = float(q['prev_close'])
+        for i in idxs:
+            d[f'next_{i}_close'] = round(p, 2)
+            base = d.get('close') or qp
+            pct = round((p - base) / base * 100, 2) if base else None
+            d[f'next_{i}_change_pct'] = pct
+            if i == 1:
+                d['post_pick_next_change_pct'] = pct
+            else:
+                d[f'post_pick_next{i}_change_pct'] = pct
+            # 盘中最高价: sina 日高 (截至当下的最高, 收盘后若日线未入库则为当日最终高)
+            d[f'max_high_t{i}'] = round(float(q['high']), 2) if q.get('high') else None
+    print(f'[intraday next] today={today} idxs={idxs} rows={len(rows)} (sina 盘中口径)', flush=True)
+    return True
+
+
+def _next_workdays(ymd, n):
+    """工作日历推算 T+1..T+n (纯周末顺延, 同 _compute_conditional_picks_internal 首选路径)."""
+    from datetime import date as _d, timedelta as _td
+    out = []
+    cur = _d(int(ymd[:4]), int(ymd[4:6]), int(ymd[6:8]))
+    for _ in range(n):
+        cur = cur + _td(days=1)
+        while cur.weekday() >= 5:
+            cur = cur + _td(days=1)
+        out.append(cur.strftime('%Y%m%d'))
+    return out
+
+
+def _snapshot_tn_stale(conn, results, next_dates):
+    """快照 T+N 数据缺口检查: next_date_i 是已收盘的交易日 (stock_daily 有该日)
+    但快照里该列全 NULL → 快照是在窗口未收齐时存的, 已过时."""
+    closed = {r[0] for r in conn.execute(
+        'SELECT DISTINCT trade_date FROM stock_daily WHERE trade_date IN (%s)'
+        % ','.join('?' * len(next_dates)),
+        [d for d in next_dates if d]).fetchall()} if any(next_dates) else set()
+    for i, nd in enumerate(next_dates, start=1):
+        if nd and nd in closed and all(r.get(f'next_{i}_close') is None for r in results):
+            return i
+    return 0
+
+
+def _read_conditional_snapshot(date, threshold_yi):
+    """盘后快照直读: conditional_picks_snapshot 表 → 按 threshold_yi 重新过滤 + 排序.
+    返回 payload dict; 不适用 (无快照/今日/T+1 是今天/T+N 数据缺口) 返回 None → 调用方回落实时算."""
+    today = datetime.now().strftime('%Y%m%d')
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    if not date:
+        row = conn.execute('SELECT MAX(trade_date) AS d FROM conditional_picks_snapshot').fetchone()
+        date = (row['d'] or '') if row else ''
+    if not date:
+        conn.close()
+        return None
+    row = conn.execute(
+        'SELECT count, results_json, next_date, next_date_2, next_date_3, next_date_4, next_date_5, intraday_used '
+        'FROM conditional_picks_snapshot WHERE trade_date = ?', (date,)).fetchone()
+    if not row or not (row['count'] or 0):
+        conn.close()
+        return None
+    # 今日入选 / T+1 是今天 → 实时算 (盘中 sina 口径 + 自愈逻辑只在实时路径)
+    if date >= today or row['next_date'] == today:
+        conn.close()
+        return None
+    try:
+        results = json.loads(row['results_json'] or '[]')
+    except Exception:
+        results = []
+    if not results:
+        conn.close()
+        return None
+    next_dates = [row['next_date'], row['next_date_2'], row['next_date_3'],
+                  row['next_date_4'], row['next_date_5']]
+    if not any(next_dates):  # 很旧的快照没存 next_date → 工作日历推算补齐
+        next_dates = _next_workdays(date, 5)
+    stale_i = _snapshot_tn_stale(conn, results, next_dates)
+    conn.close()
+    if stale_i:
+        print(f'[conditional snapshot] {date} T+{stale_i} 已收盘但快照缺数据, 回落实时算自愈', flush=True)
+        return None
+    threshold_amt = threshold_yi * 1e8
+    hits = _apply_cond_threshold(results, threshold_amt)
+    hits.sort(key=lambda r: max(r['sum_3d'], r['sum_5d'], r['sum_10d'], r['sum_20d']), reverse=True)
+    _th_yi_str = ('%.1f' % threshold_yi).rstrip('0').rstrip('.') if threshold_yi != int(threshold_yi) else str(int(threshold_yi))
+    return {
+        'status': 'success',
+        'date': date,
+        'next_date':   next_dates[0] if len(next_dates) > 0 else None,
+        'next_date_2': next_dates[1] if len(next_dates) > 1 else None,
+        'next_date_3': next_dates[2] if len(next_dates) > 2 else None,
+        'next_date_4': next_dates[3] if len(next_dates) > 3 else None,
+        'next_date_5': next_dates[4] if len(next_dates) > 4 else None,
+        'next_1_is_today': False,
+        'intraday_used': bool(row['intraday_used']),
+        'snapshot_saved': True,
+        'snapshot_count': len(hits),
+        'count': len(hits),
+        'results': hits,
+        'filter': {
+            'change_pct_required': '< 0',
+            'price_bucket': 'close < 200 → 主力 (main); close >= 200 → 超大单 (super)',
+            'threshold_yi': threshold_yi,
+            'cumulative_window': '3d / 5d / 10d / 20d 必须 > 0',
+            'threshold': f'至少 1 项累计 ≥ {_th_yi_str} 亿'
+        },
+        'note': '快照库直读',
+    }
+
+
+@app.route('/api/conditional-picks/snapshot', methods=['GET'])
+def api_conditional_picks_snapshot():
+    """条件选股盘后快照: 优先直读 conditional_picks_snapshot 表 (历史日期秒出);
+    无快照 / 今日 / T+1 是今天 / T+N 数据缺口 → 回落实时算 (算完自动重写快照)."""
+    date = (request.args.get('date') or '').strip()
+    try:
+        threshold_yi = float(request.args.get('threshold_yi') or '3')
+        if threshold_yi < 0 or threshold_yi > 100:
+            threshold_yi = 3
+    except Exception:
+        threshold_yi = 3
+    payload = _read_conditional_snapshot(date, threshold_yi)
+    if payload is not None:
+        return jsonify(payload)
+    return api_conditional_picks()
+
+
+@app.route('/api/conditional-picks/snapshot/legacy', methods=['GET'])
+def api_conditional_picks_snapshot_legacy():
+    """盘后快照: 读 conditional_picks_snapshot 表 (init_db 自动建) . 表为空时 fallback 实时计算."""
+    date = (request.args.get('date') or '').strip()
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    if not date:
+        row = conn.execute('SELECT MAX(trade_date) AS d FROM conditional_picks_snapshot').fetchone()
+        date = (row['d'] or '') if row else ''
+    if not date:
+        conn.close()
+        return jsonify({'status': 'success', 'date': '', 'count': 0, 'results': [],
+                        'note': '尚未落库任何盘后快照 (请等待 17:00 调度任务入库或调 /api/conditional-picks 实时算)'})
+    row = conn.execute(
+        'SELECT count, results_json, next_date, next_date_2, next_date_3, next_date_4, next_date_5, intraday_used '
+        'FROM conditional_picks_snapshot WHERE trade_date = ?', (date,)).fetchone()
+    conn.close()
+    if not row:
+        return jsonify({'status': 'success', 'date': date, 'count': 0, 'results': [],
+                        'note': f'{date} 盘后快照未落库, 请直接调 /api/conditional-picks 实时计算'})
+    try:
+        results = json.loads(row['results_json'] or '[]')
+    except Exception:
+        results = []
+    return jsonify({
+        'status': 'success',
+        'date': date,
+        'count': row['count'] or 0,
+        'results': results,
+        'next_date':   row['next_date'],
+        'next_date_2': row['next_date_2'],
+        'next_date_3': row['next_date_3'],
+        'next_date_4': row['next_date_4'],
+        'next_date_5': row['next_date_5'],
+        'intraday_used': bool(row['intraday_used']),
+        'next_1_is_today': False,
+    })
+
+
+def _read_combined_snapshot(date, threshold_yi):
+    """组合选股盘后快照直读: combined_picks_snapshot 表 → 按 threshold_yi 重新过滤.
+    返回 payload dict; 不适用 (无快照/今日/T+1 是今天/T+N 数据缺口) 返回 None → 回落实时算."""
+    today = datetime.now().strftime('%Y%m%d')
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    if not date:
+        row = conn.execute('SELECT MAX(trade_date) AS d FROM combined_picks_snapshot').fetchone()
+        date = (row['d'] or '') if row else ''
+    if not date:
+        conn.close()
+        return None
+    row = conn.execute(
+        'SELECT count, results_json, note FROM combined_picks_snapshot WHERE trade_date = ?',
+        (date,)).fetchone()
+    if not row or not (row['count'] or 0):
+        conn.close()
+        return None
+    if date >= today:
+        conn.close()
+        return None
+    try:
+        results = json.loads(row['results_json'] or '[]')
+    except Exception:
+        results = []
+    if not results:
+        conn.close()
+        return None
+    next_dates = _next_workdays(date, 5)
+    # T+1 是今天 → 实时算 (盘中 sina 口径)
+    if next_dates[0] == today:
+        conn.close()
+        return None
+    stale_i = _snapshot_tn_stale(conn, results, next_dates)
+    conn.close()
+    if stale_i:
+        print(f'[combined snapshot] {date} T+{stale_i} 已收盘但快照缺数据, 回落实时算自愈', flush=True)
+        return None
+    threshold_amt = threshold_yi * 1e8
+    hits = _apply_cond_threshold(results, threshold_amt)  # 保持 stock_picks score 顺序
+    _th_yi_str = ('%.1f' % threshold_yi).rstrip('0').rstrip('.') if threshold_yi != int(threshold_yi) else str(int(threshold_yi))
+    return {
+        'status': 'success',
+        'date': date,
+        'count': len(hits),
+        'results': hits,
+        'next_1_is_today': False,
+        'filter': {
+            'cumulative_window': '3d / 5d / 10d / 20d 必须 > 0',
+            'threshold_yi': threshold_yi,
+            'threshold': f'至少 1 项累计 ≥ {_th_yi_str} 亿'
+        },
+        'note': ((row['note'] or '') + ' · ' if row['note'] else '') + '快照库直读',
+    }
+
+
+@app.route('/api/combined-picks/snapshot', methods=['GET'])
+def api_combined_picks_snapshot():
+    """组合选股盘后快照: 优先直读 combined_picks_snapshot 表 (历史日期秒出);
+    无快照 / 今日 / T+1 是今天 / T+N 数据缺口 → 回落实时算 (算完自动重写快照)."""
+    date = (request.args.get('date') or '').strip()
+    try:
+        threshold_yi = float(request.args.get('threshold_yi') or '3')
+        if threshold_yi < 0 or threshold_yi > 100:
+            threshold_yi = 3
+    except Exception:
+        threshold_yi = 3
+    payload = _read_combined_snapshot(date, threshold_yi)
+    if payload is not None:
+        return jsonify(payload)
+    return api_combined_picks()
+
+
+@app.route('/api/combined-picks/snapshot/legacy', methods=['GET'])
+def api_combined_picks_snapshot_legacy():
+    """盘后快照: 读 combined_picks_snapshot 表."""
+    date = (request.args.get('date') or '').strip()
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    if not date:
+        row = conn.execute('SELECT MAX(trade_date) AS d FROM combined_picks_snapshot').fetchone()
+        date = (row['d'] or '') if row else ''
+    if not date:
+        conn.close()
+        return jsonify({'status': 'success', 'date': '', 'count': 0, 'results': [],
+                        'note': '尚未落库任何盘后快照'})
+    row = conn.execute(
+        'SELECT count, results_json FROM combined_picks_snapshot WHERE trade_date = ?', (date,)).fetchone()
+    conn.close()
+    if not row:
+        return jsonify({'status': 'success', 'date': date, 'count': 0, 'results': [],
+                        'note': f'{date} 盘后快照未落库, 请直接调 /api/combined-picks 实时计算'})
+    try:
+        results = json.loads(row['results_json'] or '[]')
+    except Exception:
+        results = []
+    return jsonify({
+        'status': 'success',
+        'date': date,
+        'count': row['count'] or 0,
+        'results': results,
+    })
+
+
+def _conditional_picks_payload(date, source, intraday_flag, threshold_yi):
+    """api_conditional_picks 的数据部分 (抽出来给预览图接口复用).
 
     规则: change_pct < 0; close < 200 看主力, >= 200 看超大单;
-          4 项累计 > 0 且至少 1 项 ≥ 3 亿
-
-    Args:
-        date: 选股交易日期 (YYYYMMDD), 不传 = 最新交易日
-              (fund_flow 主源 eastmoney-push2, 且 main_net_inflow != 0, 防 ifind 空壳)
-        source: 数据源, 默认 eastmoney-push2
+          4 项累计 > 0 且至少 1 项 ≥ threshold
     """
-    date = (request.args.get('date') or '').strip()
-    source = (request.args.get('source') or 'eastmoney-push2').strip()
-    if not source:
-        source = 'eastmoney-push2'
+    threshold_amt = threshold_yi * 1e8
 
     # 1) 选定 trade_date (不传 = 用最新可用日)
     conn = sqlite3.connect(DB_PATH)
@@ -7759,10 +8459,11 @@ def api_conditional_picks():
         ).fetchone()
         if not row or not row['d']:
             conn.close()
-            return jsonify({
+            return {
                 'status': 'success', 'date': date, 'count': 0, 'results': [],
+                'snapshot_saved': False, 'snapshot_count': None,
                 'note': f'该日 ({date}) 无 {source} 数据'
-            })
+            }
     else:
         row = conn.execute(
             'SELECT MAX(trade_date) AS d FROM fund_flow WHERE source = ? AND main_net_inflow IS NOT NULL AND main_net_inflow != 0',
@@ -7770,21 +8471,61 @@ def api_conditional_picks():
         ).fetchone()
         if not row or not row['d']:
             conn.close()
-            return jsonify({'status': 'success', 'date': '', 'count': 0, 'results': [], 'note': 'fund_flow 表无数据'})
+            return {'status': 'success', 'date': '', 'count': 0, 'results': [],
+                    'snapshot_saved': False, 'snapshot_count': None, 'note': 'fund_flow 表无数据'}
         date = row['d']
     conn.close()
 
     # 2-3) 调内部函数
-    data, next_dates = _compute_conditional_picks_internal(date, source)
+    data, next_dates = _compute_conditional_picks_internal(date, source, intraday_close=intraday_flag)
     if data is None:
-        return jsonify({'status': 'success', 'date': date, 'count': 0, 'results': [],
-                        'note': f'交易日窗口不足 3 天'})
+        return {'status': 'success', 'date': date, 'count': 0, 'results': [],
+                'note': f'交易日窗口不足 3 天'}
 
-    # 4) 过滤 + 板块 + 排序
-    hits = _filter_conditional(data)
-    _attach_sector(hits, key='ts_code')
+    # 4) 基础规则 (与资金门槛无关) + 板块; 门槛等快照入库之后再套,
+    #    这样快照存的是全量候选, 之后任何门槛都能从快照直读过滤
+    base_hits = _filter_conditional_base(data)
+    _attach_sector(base_hits, key='ts_code')
+    _th_yi_str = ('%.1f' % threshold_yi).rstrip('0').rstrip('.') if threshold_yi != int(threshold_yi) else str(int(threshold_yi))
+    # T+1 就是今天 → 只对入选的票拉 sina 实时价覆盖 (不再全市场拉)
+    _intraday_used = _apply_intraday_next(base_hits, next_dates)
+    # 入选日=今天且用了 sina 实时价补齐 close/change_pct → 也算盘中口径
+    if any(h.get('_selday_live') for h in base_hits):
+        _intraday_used = True
+    from datetime import datetime as _dt2
+    _next_1_is_today = bool(next_dates and next_dates[0] == _dt2.now().strftime('%Y%m%d'))
+    # 计算完即写入盘后快照库 (INSERT OR REPLACE, 后算的覆盖先算的) — 存全量候选 (不带门槛)
+    # 守卫: 本次 0 命中但该日已有非空快照 → 不覆盖 (原料未就位时算出的空结果不能冲掉好数据)
+    _snapshot_saved = True
+    try:
+        _conn = sqlite3.connect(DB_PATH)
+        if not base_hits:
+            _old = _conn.execute(
+                'SELECT count FROM conditional_picks_snapshot WHERE trade_date = ?',
+                (date,)).fetchone()
+            if _old and _old[0]:
+                _snapshot_saved = False
+                print(f'[conditional snapshot] {date} 本次 0 命中, 保留已有非空快照 ({_old[0]} 条), 不覆盖', flush=True)
+        if _snapshot_saved:
+            _conn.execute(
+                'INSERT OR REPLACE INTO conditional_picks_snapshot '
+                '(trade_date, count, results_json, next_date, next_date_2, next_date_3, next_date_4, next_date_5, intraday_used) '
+                'VALUES (?,?,?,?,?,?,?,?,?)',
+                (date, len(base_hits), json.dumps(base_hits, ensure_ascii=False),
+                 next_dates[0] if len(next_dates) > 0 else None,
+                 next_dates[1] if len(next_dates) > 1 else None,
+                 next_dates[2] if len(next_dates) > 2 else None,
+                 next_dates[3] if len(next_dates) > 3 else None,
+                 next_dates[4] if len(next_dates) > 4 else None,
+                 1 if _intraday_used else 0))
+            _conn.commit()
+        _conn.close()
+    except Exception as _e:
+        print(f'[conditional snapshot] 入库失败 {date}: {_e}', flush=True)
+    # 门槛过滤 + 排序 (只作用于本次返回, 不影响已存的全量快照)
+    hits = _apply_cond_threshold(base_hits, threshold_amt)
     hits.sort(key=lambda r: max(r['sum_3d'], r['sum_5d'], r['sum_10d'], r['sum_20d']), reverse=True)
-    return jsonify({
+    return {
         'status': 'success',
         'date': date,
         'next_date':   next_dates[0] if len(next_dates) > 0 else None,
@@ -7792,14 +8533,135 @@ def api_conditional_picks():
         'next_date_3': next_dates[2] if len(next_dates) > 2 else None,
         'next_date_4': next_dates[3] if len(next_dates) > 3 else None,
         'next_date_5': next_dates[4] if len(next_dates) > 4 else None,
+        'next_1_is_today': _next_1_is_today,
+        'intraday_used': _intraday_used,
+        'snapshot_saved': _snapshot_saved,   # 本次计算完已即时入库 (0 命中且已有非空快照时保留旧快照)
+        'snapshot_count': len(hits),
         'count': len(hits),
         'results': hits,
         'filter': {
             'change_pct_required': '< 0',
             'price_bucket': 'close < 200 → 主力 (main); close >= 200 → 超大单 (super)',
+            'threshold_yi': threshold_yi,
             'cumulative_window': '3d / 5d / 10d / 20d 必须 > 0',
-            'threshold': '至少 1 项累计 ≥ 3 亿 (3e8 元)'
+
+            'threshold': f'至少 1 项累计 ≥ {_th_yi_str} 亿'
         }
+    }
+
+
+@app.route('/api/conditional-picks', methods=['GET'])
+def api_conditional_picks():
+    """条件选股: 按固定规则筛选 fund_flow 全市场 (不依赖 stock_picks / _compute_picks)
+
+    Args:
+        date: 选股交易日期 (YYYYMMDD), 不传 = 最新交易日
+              (fund_flow 主源 eastmoney-push2, 且 main_net_inflow != 0, 防 ifind 空壳)
+        source: 数据源, 默认 eastmoney-push2
+    """
+    date = (request.args.get('date') or '').strip()
+    source = (request.args.get('source') or 'eastmoney-push2').strip()
+    if not source:
+        source = 'eastmoney-push2'
+    intraday_flag = request.args.get('intraday') in ('1', 'true', 'True')
+    # 累计净流入门槛: ?threshold_yi=N (单位亿元, 默认 3, 允许 0 ~ 100); 负数/非法回退默认
+    try:
+        threshold_yi = float(request.args.get('threshold_yi') or '3')
+        if threshold_yi < 0 or threshold_yi > 100:
+            threshold_yi = 3
+    except Exception:
+        threshold_yi = 3
+    return jsonify(_conditional_picks_payload(date, source, intraday_flag, threshold_yi))
+
+
+# ===== 条件选股预览图: 手动生成 PNG 长图存 分析日报/条件选股/ =====
+import html as _html_mod
+
+PREVIEW_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '分析日报', '条件选股'))
+
+
+@app.route('/previews/<path:filename>')
+def serve_preview(filename):
+    """预览图静态访问 (send_from_directory 自带防 path traversal)."""
+    return send_from_directory(PREVIEW_DIR, filename)
+
+
+def _build_conditional_preview_html(payload):
+    """把条件选股结果渲染成精简 HTML (只有名称+代码, 深色风), 供 playwright 截图.
+    多列网格排布, 避免票多时拉成超长图."""
+    date = payload['date']
+    rows = payload.get('results') or []
+    cols = 4
+    cells = []
+    for i, r in enumerate(rows):
+        code = (r.get('ts_code') or '').replace('.SH', '').replace('.SZ', '').replace('.BJ', '')
+        name = _html_mod.escape(r.get('name') or code)
+        cells.append(f'''<div style="display:flex;align-items:baseline;gap:8px;padding:7px 12px;border-top:1px solid #1e2a3a">
+  <span style="color:#4a5568;font-size:11px;min-width:22px;text-align:right">{i + 1}</span>
+  <span style="font-size:14px;font-weight:600;white-space:nowrap">{name}</span>
+  <span style="color:#4a5568;font-size:11px">{code}</span>
+</div>''')
+    if not cells:
+        cells.append('<div style="padding:40px;text-align:center;color:#4a5568;grid-column:1/-1">'
+                     '无命中 (该日没有满足全部规则的股票)</div>')
+    return f'''<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+  body {{ margin:0; background:#0a0e17; font-family:'PingFang SC','Helvetica Neue',Arial,sans-serif; color:#e2e8f0; }}
+</style></head><body>
+<div id="capture" style="display:inline-block;padding:24px 28px;background:#0a0e17">
+  <div style="font-size:18px;font-weight:700">📋 条件选股 · {date[:4]}年{date[4:6]}月{date[6:8]}日
+    <span style="font-size:12px;font-weight:400;color:#8892a4">命中 {payload["count"]} 只</span>
+  </div>
+  <div style="margin-top:14px;display:grid;grid-template-columns:repeat({cols},max-content);column-gap:24px">
+    {''.join(cells)}
+  </div>
+</div>
+</body></html>'''
+
+
+async def _render_html_to_png(html, out_path):
+    """playwright 无头 chromium 截 #capture 元素 → PNG."""
+    from playwright.async_api import async_playwright
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        try:
+            context = await browser.new_context(viewport={'width': 1760, 'height': 1200}, device_scale_factor=2)
+            page = await context.new_page()
+            await page.set_content(html, wait_until='load')
+            el = await page.query_selector('#capture')
+            await el.screenshot(path=out_path)
+        finally:
+            await browser.close()
+
+
+@app.route('/api/conditional-picks/preview-image', methods=['POST'])
+def api_conditional_picks_preview_image():
+    """手动生成条件选股预览图: body {date?, threshold_yi?} → PNG 存 PREVIEW_DIR, 返回可访问 url."""
+    body = request.get_json(silent=True) or {}
+    date = str(body.get('date') or '').strip()
+    try:
+        threshold_yi = float(body.get('threshold_yi') or 3)
+        if threshold_yi < 0 or threshold_yi > 100:
+            threshold_yi = 3
+    except Exception:
+        threshold_yi = 3
+
+    payload = _conditional_picks_payload(date, 'eastmoney-push2', False, threshold_yi)
+    if not payload.get('date'):
+        return jsonify({'status': 'error', 'note': payload.get('note') or '无可用数据日期'}), 400
+
+    os.makedirs(PREVIEW_DIR, exist_ok=True)
+    # 文件名带门槛: 条件选股_20260728_3亿.png — 不同门槛各存各的, 不互相覆盖
+    _th_str = ('%.1f' % threshold_yi).rstrip('0').rstrip('.') if threshold_yi != int(threshold_yi) else str(int(threshold_yi))
+    out_name = f"条件选股_{payload['date']}_{_th_str}亿.png"
+    out_path = os.path.join(PREVIEW_DIR, out_name)
+    try:
+        asyncio.run(_render_html_to_png(_build_conditional_preview_html(payload), out_path))
+    except Exception as e:
+        return jsonify({'status': 'error', 'note': f'截图失败: {e}'}), 500
+    return jsonify({
+        'status': 'success', 'date': payload['date'], 'count': payload['count'],
+        'url': '/previews/' + out_name, 'path': out_path
     })
 
 
@@ -7811,6 +8673,16 @@ def api_combined_picks():
         date: 交易日 YYYYMMDD. 不传 = 取 stock_picks 表最新 trade_date
     """
     date = (request.args.get('date') or '').strip()
+    intraday_flag = request.args.get('intraday') in ('1', 'true', 'True')
+    # 累计净流入门槛: ?threshold_yi=N (单位亿元, 默认 3)
+    try:
+        threshold_yi = float(request.args.get('threshold_yi') or '3')
+        if threshold_yi < 0 or threshold_yi > 100:
+            threshold_yi = 3
+    except Exception:
+        threshold_yi = 3
+    threshold_amt = threshold_yi * 1e8
+
 
     # 1) 选定 date: 不传 -> stock_picks 最新 trade_date
     conn = sqlite3.connect(DB_PATH)
@@ -7833,11 +8705,10 @@ def api_combined_picks():
 
     # 3) 同日条件选股 raw (复用 _compute_conditional_picks_internal)
     src = 'eastmoney-push2'
-    cond_data, _ = _compute_conditional_picks_internal(date, src)
-    # 应用 _filter_conditional 拿到标准 cond 字段 (used_bucket/hit_threshold/sum_3d/5d/...)
-    cond_filtered = _filter_conditional(cond_data) if cond_data else []
-    cond_codes = {r['ts_code'] for r in cond_filtered}
-    cond_by_code = {r['ts_code']: dict(r) for r in cond_filtered}
+    cond_data, _comb_next_dates = _compute_conditional_picks_internal(date, src, intraday_close=intraday_flag)
+    # 基础规则 (与门槛无关): 交集和快照都按全量候选存, 门槛等返回前再套
+    cond_base = _filter_conditional_base(cond_data) if cond_data else []
+    cond_by_code = {r['ts_code']: dict(r) for r in cond_base}
     conn.close()
 
     # 4) 交集: 以 stock_picks 为主体 (TS_code, name, score, signal_type 等)
@@ -7868,6 +8739,8 @@ def api_combined_picks():
                 merged[k] = cond_row[k]
         intersected.append(merged)
     _attach_sector(intersected, key='ts_code')
+    # T+i 是今天 → 只对交集票拉 sina 实时价覆盖 (几十只, 避免全市场拉)
+    _apply_intraday_next(intersected, _comb_next_dates)
 
     if not system_rows:
         return jsonify({
@@ -7875,12 +8748,195 @@ def api_combined_picks():
             'note': f'{date} 当日系统推荐未同步, 无交集'
         })
 
+    # 计算完即写入盘后快照 (同条件选股的"计算完即入库";
+    # 之前漏了这步, combined_picks_snapshot 表一直停在 2026-07-24)
+    # 守卫: 本次 0 命中但该日已有非空快照 → 不覆盖
+    try:
+        _c = sqlite3.connect(DB_PATH)
+        _skip = False
+        if not intersected:
+            _old = _c.execute(
+                'SELECT count FROM combined_picks_snapshot WHERE trade_date = ?',
+                (date,)).fetchone()
+            _skip = bool(_old and _old[0])
+            if _skip:
+                print(f'[combined] {date} 本次 0 命中, 保留已有非空快照 ({_old[0]} 条), 不覆盖', flush=True)
+        if not _skip:
+            _c.execute(
+                'INSERT OR REPLACE INTO combined_picks_snapshot '
+                '(trade_date, count, results_json, note) VALUES (?,?,?,?)',
+                (date, len(intersected), json.dumps(intersected, ensure_ascii=False),
+                 '' if intersected else f'{date} 系统推荐与条件选股无交集'))
+            _c.commit()
+        _c.close()
+    except Exception as _e:
+        print(f'[combined] 快照入库失败 (不影响返回): {_e}', flush=True)
+
+    _th_yi_str = ('%.1f' % threshold_yi).rstrip('0').rstrip('.') if threshold_yi != int(threshold_yi) else str(int(threshold_yi))
+    # 门槛过滤只作用于本次返回 (快照已存全量候选); 保持 stock_picks score 顺序不重排
+    displayed = _apply_cond_threshold(intersected, threshold_amt)
+    # 同 _conditional_picks_payload: T+1 是今天 → 前端渲染 "⚡ 待实时" + 实时刷新
+    from datetime import datetime as _dt3
+    _comb_next_1_is_today = bool(_comb_next_dates and _comb_next_dates[0] == _dt3.now().strftime('%Y%m%d'))
     return jsonify({
         'status': 'success',
         'date': date,
-        'count': len(intersected),
-        'results': intersected,
-        'note': '' if intersected else f'{date} 系统推荐与条件选股无交集 (同日两边都命中的票为 0)'
+        'count': len(displayed),
+        'results': displayed,
+        'next_1_is_today': _comb_next_1_is_today,
+        'filter': {
+            'cumulative_window': '3d / 5d / 10d / 20d 必须 > 0',
+            'threshold_yi': threshold_yi,
+            'threshold': f'至少 1 项累计 ≥ {_th_yi_str} 亿'
+        },
+        'note': '' if displayed else f'{date} 系统推荐与条件选股无交集 (同日两边都命中的票为 0)'
+    })
+
+
+@app.route('/api/picks/sync-date', methods=['POST'])
+def api_picks_sync_date():
+    """按日期一键同步: 日线 → 物化表重建 → 系统推荐 → 条件/组合选股快照.
+
+    顺序就是药效: 先补原料 (stock_daily), 再重建 fund_flow_ranked
+    (治盘中补建留下的 NULL close), 最后算选股写快照.
+    供条件/组合选股 tab 的「同步数据」按钮 + 17 点后空快照自动触发.
+
+    body: {date?: 'YYYYMMDD'}  不传 = 今天. 未来日期 / 非交易日直接拒绝.
+    """
+    data = request.get_json(silent=True) or {}
+    date = (data.get('date') or request.args.get('date') or '').strip()
+    today = datetime.now().strftime('%Y%m%d')
+    if not date:
+        date = today
+    if date > today:
+        return jsonify({'status': 'error', 'message': f'{date} 是未来日期'}), 400
+
+    conn = sqlite3.connect(DB_PATH)
+    is_trading_day = conn.execute(
+        'SELECT 1 FROM trading_dates_cache WHERE cal_date = ?', (date,)).fetchone()
+    if not is_trading_day:
+        conn.close()
+        return jsonify({'status': 'success', 'date': date, 'steps': {},
+                        'note': f'{date} 非交易日, 跳过'})
+    ff_has = conn.execute(
+        'SELECT 1 FROM fund_flow WHERE trade_date = ? LIMIT 1', (date,)).fetchone()
+    sd_n = conn.execute(
+        'SELECT COUNT(*) FROM stock_daily WHERE trade_date = ?', (date,)).fetchone()[0]
+    picks_n = conn.execute(
+        'SELECT COUNT(*) FROM stock_picks WHERE trade_date = ?', (date,)).fetchone()[0]
+    conn.close()
+
+    steps = {}
+
+    # 0) 主力资金流: 今天的没同步 (白天没打开过页面) → 先拉 (沿用盘中同款逻辑)
+    if not ff_has and date == today and not _AKSYNC_STATE.get('running'):
+        try:
+            _AKSYNC_STATE['running'] = True
+            from fetch_fund_flow_today import fetch_today_market
+            _rows, _total, _failed, _actual = fetch_today_market(
+                progress_callback=None, headless=False, verbose=True, skip_if_exists=True)
+            steps['fund_flow'] = len(_rows) if _rows else 0
+            ff_has = bool(_rows)
+        except Exception as e:
+            print(f'[picks sync-date] 当日资金流同步失败: {e}', flush=True)
+            steps['fund_flow'] = f'失败: {e}'
+        finally:
+            _AKSYNC_STATE['running'] = False
+
+    if not ff_has:
+        return jsonify({'status': 'success', 'date': date, 'steps': steps,
+                        'note': f'{date} 无主力资金流数据, 无法计算选股 (历史日期需先用回填脚本补主力净流入)'})
+
+    # 1) 日线: 缺则从 TuShare 补 (盘后 16:00 前可能还没发布, sync 返 0 不算错)
+    if sd_n == 0:
+        steps['stock_daily'] = sync_stock_daily(date)
+    else:
+        steps['stock_daily'] = f'已有 {sd_n} 行'
+
+    # 2) 物化表: 增量重建该日及之后 (重新 JOIN stock_daily, 治 NULL close)
+    steps['ranked_rebuilt'] = build_fund_flow_ranked(since_date=date)
+
+    # 3) 系统推荐: 缺则重算写表 (TuShare 未入库时可能 0 条, 留 note 提示)
+    if picks_n == 0:
+        picks = _compute_picks(trade_date=date)
+        if picks:
+            _write_stock_picks_for_date(date, picks)
+            steps['stock_picks'] = len(picks)
+        else:
+            steps['stock_picks'] = '0 (日线未就位?)'
+    else:
+        steps['stock_picks'] = f'已有 {picks_n} 条'
+
+    # 4) 条件 + 组合选股: 内部自写快照 (复用路由, 行为跟手动打开 tab 一致)
+    with app.test_client() as c:
+        r1 = (c.get(f'/api/conditional-picks?date={date}').get_json() or {})
+        r2 = (c.get(f'/api/combined-picks?date={date}').get_json() or {})
+    steps['conditional_picks'] = r1.get('count', 0)
+    steps['combined_picks'] = r2.get('count', 0)
+
+    print(f'[picks sync-date] {date} -> {steps}', flush=True)
+    return jsonify({'status': 'success', 'date': date, 'steps': steps,
+                    'note': r2.get('note') or r1.get('note') or ''})
+
+
+@app.route('/api/conditional-combined/backfill', methods=['POST'])
+def api_conditional_combined_backfill():
+    """扫描最近 N 个交易日, 补齐条件选股 + 组合选股的盘后快照.
+    两张快照表都已有该日期的 → 跳过; 缺哪个补哪个.
+    组合选股依赖当日 stock_picks (系统推荐), 没同步的日期记 fail.
+    同步执行, 60 天约 2-4 分钟. body: {days?: 60}
+    """
+    data = request.get_json(silent=True) or {}
+    try:
+        days = max(1, min(int(data.get('days') or 60), 250))
+    except (TypeError, ValueError):
+        days = 60
+
+    conn = sqlite3.connect(DB_PATH)
+    dates = [r[0] for r in conn.execute(
+        'SELECT cal_date FROM trading_dates_cache WHERE cal_date <= ? ORDER BY cal_date DESC LIMIT ?',
+        (datetime.now().strftime('%Y%m%d'), days)).fetchall()]
+    cond_have = {r[0] for r in conn.execute('SELECT trade_date FROM conditional_picks_snapshot').fetchall()}
+    comb_have = {r[0] for r in conn.execute('SELECT trade_date FROM combined_picks_snapshot').fetchall()}
+    picks_have = {r[0] for r in conn.execute('SELECT DISTINCT trade_date FROM stock_picks').fetchall()}
+    conn.close()
+
+    details = []
+    n_ok = n_skip = n_fail = 0
+    with app.test_client() as c:
+        for d in dates:
+            need_cond = d not in cond_have
+            need_comb = d not in comb_have
+            if not need_cond and not need_comb:
+                n_skip += 1
+                continue
+            try:
+                filled = []
+                if need_cond:
+                    j1 = c.get(f'/api/conditional-picks?date={d}').get_json() or {}
+                    # payload 内部已写 conditional_picks_snapshot; 无数据日期不入库, 记 fail
+                    if not j1.get('count') and j1.get('note'):
+                        raise RuntimeError(j1['note'])
+                    filled.append('条件')
+                if need_comb:
+                    if d not in picks_have:
+                        raise RuntimeError('当日系统推荐未同步, 组合选股无法计算')
+                    c.get(f'/api/combined-picks?date={d}')  # 路由内部已写 combined_picks_snapshot
+                    filled.append('组合')
+                n_ok += 1
+                details.append({'date': d, 'status': 'ok', 'reason': '补' + '+'.join(filled)})
+            except Exception as e:
+                n_fail += 1
+                details.append({'date': d, 'status': 'fail', 'reason': str(e)[:100]})
+            print(f"[backfill snapshots] {d} -> {details[-1]['status']} {details[-1]['reason']}", flush=True)
+
+    return jsonify({
+        'status': 'success',
+        'total_dates': len(dates),
+        'success': n_ok,
+        'skipped': n_skip,
+        'failed': n_fail,
+        'details': details,
     })
 
 
@@ -9593,7 +10649,12 @@ if __name__ == '__main__':
     print(f"[fund_flow_ranked] 全量 rebuild 完成: {n} 行")
     # 启动 APScheduler 调度 (各功能任务在各模块里注册)
     try:
-        from scheduler import start_scheduler, register_daily_review, register_push_jobs
+        from scheduler import (start_scheduler, register_daily_review, register_push_jobs,
+                               register_stock_daily_backfill, register_picks_resync_after_close,
+                               register_conditional_combined_snapshot)
+        register_stock_daily_backfill()          # 盘后同步日线 (15:35 抢跑 / 16:30 兜底)
+        register_picks_resync_after_close()      # 收盘口径重算系统推荐 (16:00)
+        register_conditional_combined_snapshot() # 盘后写条件/组合选股快照 (17:00)
         register_daily_review()          # 盘后复盘
         register_push_jobs()             # 定时推送
         start_scheduler()

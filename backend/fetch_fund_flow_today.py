@@ -27,7 +27,7 @@ import json
 import os
 import sqlite3
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
@@ -248,8 +248,13 @@ def fetch_today_market(progress_callback=None, headless: bool = False, verbose: 
         actual_date = today
     else:
         actual_date = last_trading_date(today)
+        # 交易日开盘前 (00:00~09:30): 东财「今日」排行还是上一交易日的收盘数据,
+        # 归到今天会把昨天的数据盖上今天的日期戳 (2026-08-04 凌晨事故)
+        now = datetime.now()
+        if actual_date == today and (now.hour, now.minute) < (9, 30):
+            actual_date = last_trading_date((now - timedelta(days=1)).strftime('%Y%m%d'))
     if verbose and actual_date != today:
-        print(f"[{datetime.now():%H:%M:%S}] {today} 非交易日, 数据将归属到 {actual_date} (最近交易日)")
+        print(f"[{datetime.now():%H:%M:%S}] {today} 非交易日(或未开盘), 数据将归属到 {actual_date} (最近交易日)")
 
     # 幂等守卫: actual_date 已有数据就早退 (force 时跳过)
     if not force and skip_if_exists:

@@ -205,7 +205,7 @@ def fetch_page_jsonp(page, pn: int) -> Optional[dict]:
     return None
 
 
-def fetch_today_market(progress_callback=None, headless: bool = False, verbose: bool = True, force: bool = False, skip_if_exists: bool = False) -> tuple:
+def fetch_today_market(progress_callback=None, headless: bool = False, verbose: bool = True, force: bool = False, skip_if_exists: bool = False, wait_for_user: bool = False, wait_timeout_sec: int = 600) -> tuple:
     """JSONP 循环拉全市场数据 (lib API, 给 Flask 后台调用).
 
     Args:
@@ -214,11 +214,17 @@ def fetch_today_market(progress_callback=None, headless: bool = False, verbose: 
             - stage="page", pn=N, total_pages=N, rows_count=M, failed=[...]
             - stage="done", rows=M, total=N, failed=[...], actual_date=YYYYMMDD
             - stage="already_synced", actual_date=YYYYMMDD  (skip_if_exists 命中, 早退)
+            - stage="waiting_for_user", elapsed_sec=N, remaining_sec=M  (wait_for_user=True, 等用户刷新浏览器)
         headless: Playwright 启动模式
         verbose: 是否 print 到 stderr (后台调用设 False)
         force: 跳过交易日判断 (节日也强抓, 默认 False)
         skip_if_exists: actual_date 在 fund_flow 表里已有数据时早退 (幂等, 默认 False)
                         force=True 时此参数被忽略
+        wait_for_user: 第 1 页拿不到数据时, 不立刻关闭浏览器, 而是每 5 秒轮询一次,
+                       最长等 wait_timeout_sec 秒. 配合 headless=False 让用户能看到浏览器窗口,
+                       提示用户在浏览器里手动刷新 (Cmd+R) 触发新的 push2 请求.
+                       默认 False (1-shot 行为不变).
+        wait_timeout_sec: wait_for_user 模式下的最长等待秒数, 默认 600 (10 分钟).
 
     Returns:
         (rows: list[dict], total: int, failed_pages: list[int], actual_date: str)
@@ -228,6 +234,7 @@ def fetch_today_market(progress_callback=None, headless: bool = False, verbose: 
           - 今天非交易日 → today 之前的最近一个交易日 (端午/周日点 sync 会拿到这个)
           - force=True → datetime.now() 当天 (不管是否交易日)
         skip_if_exists 命中时 rows/total/failed 都为空/0, actual_date 仍返回 (供 state 展示)
+        wait_for_user 超时时 (用户没刷新): rows=[], failed=[1..54], actual_date 仍返回
     """
     all_rows = []
     failed_pages = []
@@ -289,11 +296,42 @@ def fetch_today_market(progress_callback=None, headless: bool = False, verbose: 
             print("拉第 1 页...")
         data = fetch_page_jsonp(page, 1)
         if not data or not data.get("data"):
-            if verbose:
-                print("FAIL: 第 1 页拿不到数据", file=sys.stderr)
-            _emit("error", message="第 1 页拿不到数据")
-            browser.close()
-            return [], 0, list(range(1, 54)), actual_date
+            # 第 1 页失败: 等用户刷新模式 (2026-08-18 加)
+            # push2 对本机 IP 间歇性限流 (5 分钟冷却), 让用户在弹出的浏览器里手动刷新
+            # detail.html → 浏览器重发 push2 请求 → 命中响应窗口 → Playwright 检测到数据 → 翻页
+            if wait_for_user:
+                import time as _time
+                if verbose:
+                    print(f"[{datetime.now():%H:%M:%S}] 第 1 页失败, 进入等待用户刷新模式 (最长 {wait_timeout_sec}s)...")
+                _emit("waiting_for_user", elapsed_sec=0, remaining_sec=wait_timeout_sec)
+                deadline = _time.time() + wait_timeout_sec
+                poll_count = 0
+                while _time.time() < deadline:
+                    _time.sleep(5)
+                    poll_count += 1
+                    elapsed = int(wait_timeout_sec - (deadline - _time.time()))
+                    remaining = int(deadline - _time.time())
+                    if verbose and poll_count % 2 == 0:
+                        print(f"[{datetime.now():%H:%M:%S}] 轮询第 {poll_count} 次 (已等 {elapsed}s, 剩 {remaining}s)...")
+                    _emit("waiting_for_user", elapsed_sec=elapsed, remaining_sec=remaining)
+                    data = fetch_page_jsonp(page, 1)
+                    if data and data.get("data"):
+                        if verbose:
+                            print(f"[{datetime.now():%H:%M:%S}] ✅ 第 {poll_count} 次轮询拿到数据")
+                        break
+                else:
+                    # 超时
+                    if verbose:
+                        print(f"FAIL: 等待用户刷新 {wait_timeout_sec}s 超时", file=sys.stderr)
+                    _emit("error", message=f"等待用户刷新 {wait_timeout_sec}s 超时")
+                    browser.close()
+                    return [], 0, list(range(1, 54)), actual_date
+            else:
+                if verbose:
+                    print("FAIL: 第 1 页拿不到数据", file=sys.stderr)
+                _emit("error", message="第 1 页拿不到数据")
+                browser.close()
+                return [], 0, list(range(1, 54)), actual_date
 
         total = data["data"].get("total", 0)
         diff = data["data"].get("diff") or []

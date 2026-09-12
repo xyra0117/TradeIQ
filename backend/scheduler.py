@@ -8,6 +8,7 @@
 任务规划 (各功能注册):
 - 阶段 3 (盘后复盘): register_daily_review - 每个交易日 15:30 自动生成报告
 - 阶段 5 (推送): register_push_jobs - 09:25/11:35/15:05/15:30 定时推送
+- 阶段 6 (大盘资金流落盘): register_market_fflow_after_close - 15:35 拉一次 push2 分钟资金流 → market_fflow 表
 """
 import sys
 import traceback
@@ -47,6 +48,23 @@ def safe_register(func, trigger, id, name=None, replace_existing=True, **kwargs)
 
 
 # ============ 各功能任务注册函数 ============
+
+def register_limitup_collection_intraday():
+    """涨停合集: 盘中每分钟扫全市场 sina 实时行情, 摸过涨停价的收录进 limitup_collection.
+    cron 只粗筛工作日 9-15 点, 精确时段 (9:30-11:35 / 12:55-15:05) + 交易日守卫在函数内部."""
+    trigger = CronTrigger(day_of_week='mon-fri', hour='9-15', minute='*')
+    def _job():
+        try:
+            from app import collect_limitup_snapshot
+            r = collect_limitup_snapshot()
+            if not r.get('skipped'):
+                print(f'[limitup_collection] {r}', flush=True)
+        except Exception as e:
+            print(f'[limitup_collection] 采集失败: {e}', flush=True)
+            traceback.print_exc()
+    safe_register(_job, trigger, id='limitup_collection_intraday',
+                  name='盘中涨停合集采集 (每分钟)')
+
 
 def register_daily_review():
     """阶段 3: 每个交易日 15:30 自动生成盘后复盘报告."""
@@ -131,6 +149,124 @@ def register_stock_daily_backfill():
                 print(f'[{_jid}] {today} sync_stock_daily -> {data}', flush=True)
         safe_register(_job, trigger, id=f'{jid}',
                       name=f'盘后同步 stock_daily ({hh:02d}:{mm:02d})')
+
+
+def register_market_fflow_after_close():
+    """盘后拉两市 push2 分钟资金流 → 落 market_fflow 表.
+    不做盘中实时: 主力净流入 tab 是历史回看, 实时数对决策无意义, 还省一波反爬请求.
+    15:35 主跑 + 16:30 兜底: 15:35 偶尔 push2 临时抽风, 兜底确保不漏今日."""
+    from datetime import datetime
+    from app import _build_market_fflow_payload, _save_market_fflow
+
+    def _job(tag):
+        today = datetime.now().strftime('%Y%m%d')
+        try:
+            payload = _build_market_fflow_payload()
+            if not payload:
+                print(f'[mkt fflow] {today} [{tag}] 拉取失败 (push2 单边或全挂), 跳过本次入库', flush=True)
+                return
+            ok = _save_market_fflow(payload)
+            print(f'[mkt fflow] {today} [{tag}] 落盘 {ok} complete={payload.get("complete")} '
+                  f'times[-1]={payload["times"][-1] if payload["times"] else "?"}', flush=True)
+        except Exception as e:
+            print(f'[mkt fflow] {today} [{tag}] 异常: {e}', flush=True)
+            traceback.print_exc()
+
+    for hh, mm, jid, tag in [
+        (15, 35, 'market_fflow_after_close',     '15:35'),
+        (16, 30, 'market_fflow_after_close_late', '16:30'),
+    ]:
+        trigger = CronTrigger(hour=hh, minute=mm)
+        safe_register(lambda t=tag: _job(t), trigger, id=jid,
+                      name=f'盘后入库大盘资金流 ({tag}, 供历史 tab 回看)')
+
+
+def register_ths_flow_after_close():
+    """盘后抓同花顺个股资金流 (data.10jqka.com.cn/ggzjl) → fund_flow_ths 表.
+    17:05 主跑 + 19:30 兜底: 用户要求自动触发等 17 点后 (同花顺页面数据盘后较晚定格);
+    兜底防一次抓取中途翻车 (翻页超时/Chrome 抽风).
+    幂等: _ths_sync_market_bg(force=False) 自带 skip_if_exists, 已有 ≥4000 行直接跳过,
+    非交易日/已有数据都不会启动 Chrome (守卫在 launch 之前)."""
+    from datetime import datetime
+
+    def _job(tag):
+        from app import _ths_sync_market_bg, _THSSYNC_STATE
+        today = datetime.now().strftime('%Y%m%d')
+        if _THSSYNC_STATE.get('running'):
+            print(f'[ths fflow] {today} [{tag}] 上一次还在跑, 跳过', flush=True)
+            return
+        try:
+            # 同步调用 (job 线程里跑 5-8 分钟没问题, APScheduler 每个 job 独立线程)
+            _ths_sync_market_bg(force=False)
+        except Exception as e:
+            print(f'[ths fflow] {today} [{tag}] 异常: {e}', flush=True)
+            traceback.print_exc()
+
+    for hh, mm, jid, tag in [
+        (17,  5, 'ths_flow_after_close',      '17:05'),
+        (19, 30, 'ths_flow_after_close_late', '19:30'),
+    ]:
+        trigger = CronTrigger(hour=hh, minute=mm)
+        safe_register(lambda t=tag: _job(t), trigger, id=jid,
+                      name=f'盘后抓同花顺个股资金流 ({tag})')
+
+
+def register_ths_picks_resync_after_close():
+    """THS flow 入库后 (17:05/19:30) 立即重算 stock_picks_ths (17:10/19:35).
+    依赖 fund_flow_ths 当日已有数据; 若 fund_flow_ths 还没入库, _compute_picks_ths 会返 0 条, 此任务空转无害.
+    与 picks_resync_after_close (16:00 EM 版本) 错开, 不抢锁."""
+    from datetime import datetime
+    def _job(tag):
+        today = datetime.now().strftime('%Y%m%d')
+        try:
+            from app import _compute_picks_ths, _write_stock_picks_ths_for_date
+            picks = _compute_picks_ths(trade_date=today)
+            if not picks:
+                print(f'[ths_picks_resync] {today} [{tag}] 重算无数据 (fund_flow_ths 可能还没入库)', flush=True)
+                return
+            _write_stock_picks_ths_for_date(today, picks)
+            print(f'[ths_picks_resync] {today} [{tag}] 自动重算完成: {len(picks)} 只', flush=True)
+        except Exception as e:
+            print(f'[ths_picks_resync] {today} [{tag}] 失败: {e}', flush=True)
+            traceback.print_exc()
+
+    for hh, mm, jid, tag in [
+        (17, 10, 'ths_picks_resync',      '17:10'),
+        (19, 35, 'ths_picks_resync_late', '19:35'),
+    ]:
+        trigger = CronTrigger(hour=hh, minute=mm)
+        safe_register(lambda t=tag: _job(t), trigger, id=jid,
+                      name=f'THS 推荐重算 ({tag})')
+
+
+def register_ths_conditional_combined_snapshot():
+    """THS 条件/组合选股快照入库: 17:15 + 19:40 (跟 THS picks 17:10/19:35 错开 5 分钟,
+    让 stock_picks_ths / fund_flow_ths 都稳定再算, 避免盘中同步中途的快照污染).
+    复用 /api/picks/ths/conditional 和 /api/picks/ths/combined 路由 (内部自写快照).
+    与 EM 版 picks_snapshot_after_close (17:00) 错开, 两边独立."""
+    from datetime import datetime
+    def _job(tag):
+        today = datetime.now().strftime('%Y%m%d')
+        try:
+            from flask import current_app
+            with current_app.test_client() as c:
+                r1 = c.get(f'/api/picks/ths/conditional?date={today}')
+                r2 = c.get(f'/api/picks/ths/combined?date={today}')
+                d1 = r1.get_json()
+                d2 = r2.get_json()
+                print(f'[ths_picks_snapshot] {today} [{tag}] 条件选股入库: count={d1.get("count")}, '
+                      f'组合选股: count={d2.get("count")}', flush=True)
+        except Exception as e:
+            print(f'[ths_picks_snapshot] {today} [{tag}] 快照入库失败: {e}', flush=True)
+            traceback.print_exc()
+
+    for hh, mm, jid, tag in [
+        (17, 15, 'ths_picks_snapshot_after_close',      '17:15'),
+        (19, 40, 'ths_picks_snapshot_after_close_late', '19:40'),
+    ]:
+        trigger = CronTrigger(hour=hh, minute=mm)
+        safe_register(lambda t=tag: _job(t), trigger, id=jid,
+                      name=f'THS 条件/组合选股盘后入库 ({tag}, 历史查询复用)')
 
 
 def register_push_jobs():

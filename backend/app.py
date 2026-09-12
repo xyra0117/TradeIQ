@@ -371,6 +371,45 @@ def init_db():
     c.execute('CREATE INDEX IF NOT EXISTS idx_ffr_date ON fund_flow_ranked(trade_date)')
     c.execute('CREATE INDEX IF NOT EXISTS idx_ffr_rn   ON fund_flow_ranked(source, rn)')
     c.execute('CREATE INDEX IF NOT EXISTS idx_ffr_ts   ON fund_flow_ranked(ts_code, trade_date DESC)')
+
+    # ── 大盘实时资金流向 (沪深合计, 东财 push2 分钟K线) ──
+    # scheduler 盘后 15:35 拉一次落表; endpoint 直接查这里, 不做盘中实时.
+    # curves / last / pct 走 JSON 避免 5 档数组拆 5 列.
+    c.execute('''CREATE TABLE IF NOT EXISTS market_fflow (
+        trade_date TEXT PRIMARY KEY,            -- YYYYMMDD
+        times TEXT NOT NULL,                    -- JSON ['09:31', ...]
+        series TEXT NOT NULL,                   -- JSON {main, super, big, mid, small: [..]}
+        amount REAL,                            -- 两市成交额 (元)
+        last TEXT NOT NULL,                     -- JSON {main, super, big, mid, small: float}
+        pct TEXT NOT NULL,                      -- JSON {main, super, big, mid, small: float%}
+        complete INTEGER DEFAULT 0,             -- 1=曲线到 15:00 定格
+        fetched_at TEXT DEFAULT (datetime('now','localtime'))
+    )''')
+
+    # ── 同花顺个股资金流 (data.10jqka.com.cn/funds/ggzjl, fetch_fund_flow_ths.py 抓取) ──
+    # 独立建表不复用 fund_flow: ① fund_flow UNIQUE(trade_date, ts_code) 会让两个源互相覆盖
+    # ② 同花顺特有字段 (流入/流出/换手率/成交额) fund_flow 没有对应列
+    # 注意口径: net = 流入-流出, 是总资金净流入, 不是东财的「主力净流入」(超大单+大单)
+    c.execute('''CREATE TABLE IF NOT EXISTS fund_flow_ths (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        trade_date TEXT NOT NULL,
+        ts_code TEXT NOT NULL,
+        code TEXT NOT NULL,
+        name TEXT,
+        close REAL, change_pct REAL,
+        turnover_pct REAL,                      -- 换手率 %
+        inflow REAL,                            -- 流入资金 (元)
+        outflow REAL,                           -- 流出资金 (元)
+        net REAL,                               -- 净额 (元) = 流入-流出
+        amount REAL,                            -- 成交额 (元)
+        big_inflow REAL,                        -- 大单流入 (元), 页面多数时候没有这列 → NULL
+        updated_at TEXT DEFAULT (datetime('now','localtime')),
+        UNIQUE(trade_date, ts_code)
+    )''')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_ffths_date     ON fund_flow_ths(trade_date)')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_ffths_date_net ON fund_flow_ths(trade_date, net DESC)')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_ffths_ts_code  ON fund_flow_ths(ts_code, trade_date DESC)')
+
     # 兼容早期版本: 同花顺全市场同步曾把万元字段按亿元放大。
     c.execute("""UPDATE fund_flow
         SET main_net_inflow = main_net_inflow / 10000.0,
@@ -424,6 +463,56 @@ def init_db():
     _add_col_if_missing(c, 'stock_picks', 'flow_days_available', 'INTEGER')
     _add_col_if_missing(c, 'stock_picks', 'reasons_json', 'TEXT')  # 旧表可能叫 reasons, 加这个保险
     c.execute('CREATE INDEX IF NOT EXISTS idx_stock_picks_date ON stock_picks(trade_date, score DESC)')
+
+    # 同花顺净额选股推荐 (独立表, 数据源 fund_flow_ths, 口径 = 流入-流出 总资金净流入)
+    c.execute('''CREATE TABLE IF NOT EXISTS stock_picks_ths (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        trade_date TEXT NOT NULL,
+        ts_code TEXT NOT NULL,
+        name TEXT,
+        close REAL,
+        change_pct REAL,
+        -- MA 同 EM
+        ma5 REAL, ma10 REAL, ma20 REAL, ma30 REAL,
+        ma5_slope REAL, ma10_slope REAL, ma20_slope REAL, ma30_slope REAL,
+        -- THS 净额 4 窗口 (今日 + 3d/5d/10d, 跳过 20d 因历史太短)
+        ths_net_today REAL,
+        ths_net_3d REAL,
+        ths_net_5d REAL,
+        ths_net_10d REAL,
+        -- 评分 (THS 算法独立, 没有 main_net_pct 占比维度)
+        score REAL,
+        signal_type TEXT,
+        flow_days_available INTEGER,  -- fund_flow_ths 表可用天数
+        reasons_json TEXT,
+        created_at TEXT DEFAULT (datetime('now','localtime')),
+        UNIQUE(trade_date, ts_code)
+    )''')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_stock_picks_ths_date ON stock_picks_ths(trade_date, score DESC)')
+
+    # ── 同花顺条件选股盘后快照 (独立表, 数据源 fund_flow_ths.net) ──
+    # 跟 EM 版 conditional_picks_snapshot 同结构, 但 sum_* 列只用 ths.net 一列 (无 5 档)
+    c.execute('''CREATE TABLE IF NOT EXISTS conditional_picks_snapshot_ths (
+        trade_date TEXT PRIMARY KEY,
+        count INTEGER NOT NULL,
+        results_json TEXT NOT NULL,
+        next_date TEXT,
+        next_date_2 TEXT,
+        next_date_3 TEXT,
+        next_date_4 TEXT,
+        next_date_5 TEXT,
+        intraday_used INTEGER DEFAULT 0,
+        saved_at TEXT DEFAULT (datetime('now','localtime'))
+    )''')
+
+    # ── 同花顺组合选股盘后快照 (stock_picks_ths ∩ conditional_picks_snapshot_ths) ──
+    c.execute('''CREATE TABLE IF NOT EXISTS combined_picks_snapshot_ths (
+        trade_date TEXT PRIMARY KEY,
+        count INTEGER NOT NULL,
+        results_json TEXT NOT NULL,
+        note TEXT,
+        saved_at TEXT DEFAULT (datetime('now','localtime'))
+    )''')
 
     # 自选股 (单一分组, user 手动维护, 复用 _compute_picks 算法但不入 stock_picks 表)
     c.execute('''CREATE TABLE IF NOT EXISTS user_picks (
@@ -518,6 +607,22 @@ def init_db():
         PRIMARY KEY (trade_date, ts_code)
     )''')
     c.execute('CREATE INDEX IF NOT EXISTS idx_akshare_zt_pool_date ON akshare_zt_pool(trade_date)')
+
+    # 涨停合集 (盘中 scheduler 每分钟扫全市场 sina 实时行情收录: high >= 涨停价 即收录, 曾涨停就保留;
+    # sealed=当前是否封板, broken=曾封板后炸开. 区别于 limitup 表(韭研 OCR, T+1) 和 akshare_zt_pool(盘后快照))
+    c.execute('''CREATE TABLE IF NOT EXISTS limitup_collection (
+        trade_date TEXT NOT NULL,         -- YYYYMMDD
+        ts_code TEXT NOT NULL,            -- 带后缀, e.g. '000001.SZ'
+        name TEXT,
+        market TEXT,                      -- 主板/创业板/科创板/北交所
+        limit_pct REAL,                   -- 涨停档位 10/20/30/5
+        first_limit_time TEXT,            -- 首次被扫到涨停 HH:MM:SS
+        sealed INTEGER DEFAULT 1,         -- 最后一轮扫描时是否封板
+        broken INTEGER DEFAULT 0,         -- 曾封板后打开过
+        last_seen_time TEXT,              -- 最后一轮扫描时间
+        PRIMARY KEY (trade_date, ts_code)
+    )''')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_limitup_collection_date ON limitup_collection(trade_date)')
 
     # 推送配置 (feishu 读阈值用)
     c.execute('''CREATE TABLE IF NOT EXISTS push_config (
@@ -767,7 +872,126 @@ def get_stock_daily():
     })
 
 
+INDEX_CHART_CODES = {
+    '000001.SH': '上证指数',
+    '399001.SZ': '深证成指',
+    '399006.SZ': '创业板指',
+    '000688.SH': '科创50',
+}
+_INDEX_MINLINE_CACHE = {}  # (完整指数代码, 请求日期) -> (抓取时间, 已核验结果)
 _MINLINE_CACHE = {}  # ts_code -> {'_ts', 'rows', 'prev_close', 'name'} (分时数据 10s 缓存)
+
+
+@app.route('/api/index/kline', methods=['GET'])
+def get_index_kline():
+    """全部已入库指数日线；volume 的历史存储口径是成交额（亿元）。"""
+    code = (request.args.get('ts_code') or '').strip()
+    if code not in INDEX_CHART_CODES:
+        return jsonify({'status': 'error', 'message': '不支持的指数代码'}), 400
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = [dict(r) for r in conn.execute(
+            'SELECT date AS trade_date, open, high, low, close, change, volume '
+            'FROM index_daily WHERE name=? ORDER BY date ASC',
+            (INDEX_CHART_CODES[code],)
+        ).fetchall()]
+    finally:
+        conn.close()
+    missing = sum(any(r[k] is None for k in ('open', 'high', 'low', 'close')) for r in rows)
+    return jsonify({
+        'status': 'success', 'ts_code': code, 'name': INDEX_CHART_CODES[code],
+        'rows': rows, 'count': len(rows), 'intraday': False,
+        'start_date': rows[0]['trade_date'] if rows else None,
+        'end_date': rows[-1]['trade_date'] if rows else None,
+        'volume_unit': '亿元', 'volume_label': '成交额', 'missing_ohlc': missing,
+        'message': f'{missing} 个交易日缺少完整开高低收，未绘制对应蜡烛' if missing else '',
+    })
+
+
+def _fetch_sina_minline_rows(sina_code):
+    """共享新浪分钟序列解析；返回分钟量（手），不推断交易日期。"""
+    url = ('https://quotes.sina.cn/cn/api/jsonp_v2.php/var%20_ml='
+           f'/CN_MinlineService.getMinlineData?symbol={sina_code}')
+    response = _requests.get(url, headers={
+        'Referer': 'https://finance.sina.com.cn',
+        'User-Agent': 'Mozilla/5.0',
+    }, timeout=5)
+    response.raise_for_status()
+    text = response.text
+    raw = json.loads(text[text.index('(') + 1:text.rindex(')')])
+    if not isinstance(raw, list):
+        raise ValueError('分时数据格式错误')
+    rows = [{
+        'm': p.get('m', ''),
+        'p': float(p['p']) if p.get('p') not in (None, '') else None,
+        'avg_p': float(p['avg_p']) if p.get('avg_p') not in (None, '') else None,
+        'v': round(float(p.get('v') or 0) / 100, 0),
+    } for p in raw]
+    return [r for r in rows if r['p'] is not None and '09:25:00' <= r['m'] <= '15:00:59']
+
+
+def _fetch_index_chart_quote(code):
+    """读取指数行情的真实日期与时刻，不使用本机日期为分钟数据贴标签。"""
+    sina_code = _sina_code_for_ts(code)
+    response = _requests.get(f'https://hq.sinajs.cn/list={sina_code}', headers={
+        'Referer': 'https://finance.sina.com.cn', 'User-Agent': 'Mozilla/5.0',
+    }, timeout=5)
+    response.raise_for_status()
+    match = re.search(r'var\s+hq_str_' + re.escape(sina_code) + r'="([^"]*)"', response.text)
+    if not match:
+        raise ValueError('无法核验指数行情日期')
+    fields = match.group(1).split(',')
+    if len(fields) < 32:
+        raise ValueError('指数行情缺少日期')
+    quote_date = datetime.strptime(fields[30], '%Y-%m-%d').strftime('%Y%m%d')
+    quote_time = datetime.strptime(fields[31], '%H:%M:%S').strftime('%H:%M:%S')
+    return {'date': quote_date, 'time': quote_time,
+            'open': float(fields[1]), 'prev_close': float(fields[2])}
+
+
+@app.route('/api/index/minline', methods=['GET'])
+def get_index_minline():
+    code = (request.args.get('ts_code') or '').strip()
+    target = (request.args.get('date') or '').strip()
+    if code not in INDEX_CHART_CODES:
+        return jsonify({'status': 'error', 'message': '不支持的指数代码'}), 400
+    try:
+        if not re.fullmatch(r'\d{8}', target):
+            raise ValueError('date')
+        datetime.strptime(target, '%Y%m%d')
+    except ValueError:
+        return jsonify({'status': 'error', 'message': '日期须为有效的 YYYYMMDD'}), 400
+    payload = {
+        'status': 'success', 'ts_code': code, 'name': INDEX_CHART_CODES[code],
+        'requested_date': target, 'trade_date': None, 'count': 0, 'rows': [],
+        'prev_close': None, 'volume_unit': '手', 'message': '',
+    }
+    key = (code, target)
+    cached = _INDEX_MINLINE_CACHE.get(key)
+    if cached and time.time() - cached[0] < 10:
+        return jsonify(cached[1])
+    try:
+        before = _fetch_index_chart_quote(code)
+        if before['date'] != target:
+            payload.update(reason='date_unavailable', message='暂无该日期的分时数据，可切换日 K')
+            return jsonify(payload)
+        if before['open'] <= 0 or before['time'] < '09:30:00':
+            payload.update(reason='not_open', message='该交易日尚无可核验的分时数据，可切换日 K')
+            return jsonify(payload)
+        rows = _fetch_sina_minline_rows(_sina_code_for_ts(code))
+        after = _fetch_index_chart_quote(code)
+        # 分钟接口不含日期：用前后行情日期及末条时刻防止跨日、盘前旧序列混入。
+        if after['date'] != target or not rows or rows[-1]['m'] > after['time']:
+            payload.update(reason='unverified_date', message='无法确认分时数据属于该日期，可切换日 K')
+            return jsonify(payload)
+        payload.update(rows=rows, count=len(rows), trade_date=target,
+                       prev_close=after['prev_close'], start_time=rows[0]['m'], end_time=rows[-1]['m'])
+        _INDEX_MINLINE_CACHE[key] = (time.time(), payload)
+        return jsonify(payload)
+    except Exception:
+        payload.update(status='error', reason='upstream_error', message='分时数据暂时无法获取，请重试')
+        return jsonify(payload), 502
 
 
 @app.route('/api/stock/minline', methods=['GET'])
@@ -788,24 +1012,7 @@ def get_stock_minline():
     if not sc:
         return jsonify({'status': 'success', 'ts_code': ts_code, 'count': 0, 'rows': []})
     try:
-        url = ('https://quotes.sina.cn/cn/api/jsonp_v2.php/var%20_ml='
-               f'/CN_MinlineService.getMinlineData?symbol={sc}')
-        r = _requests.get(url, headers={
-            'Referer': 'https://finance.sina.com.cn',
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-        }, timeout=5)
-        text = r.text
-        # 响应: /*...*/ var _ml=([{...},...]);  → 取括号里的 JSON 数组
-        payload = text[text.index('(') + 1:text.rindex(')')]
-        raw = json.loads(payload)
-        rows = [{
-            'm': p.get('m', ''),
-            'p': float(p['p']) if p.get('p') not in (None, '') else None,
-            'avg_p': float(p['avg_p']) if p.get('avg_p') not in (None, '') else None,
-            'v': round(float(p.get('v') or 0) / 100, 0),  # 股 → 手
-        } for p in raw]
-        rows = [x for x in rows if x['p'] is not None]
-        rows = [x for x in rows if x['m'] <= '15:00:59']  # sina 会带 15:05+ 盘后定价交易噪点, 截到收盘
+        rows = _fetch_sina_minline_rows(sc)
     except Exception as e:
         print(f'[minline] {ts_code} 拉取失败: {e}', flush=True)
         return jsonify({'status': 'success', 'ts_code': ts_code, 'count': 0, 'rows': []})
@@ -1552,11 +1759,28 @@ def get_overview():
 
     limit = request.args.get('limit', 100, type=int)
     rows = c.execute(
-        'SELECT * FROM overview WHERE upCount > 0 ORDER BY date DESC LIMIT ?', (limit,)
+        '''SELECT o.*, m.last AS em_last FROM overview o
+           LEFT JOIN market_fflow m ON m.trade_date = o.date
+           WHERE upCount > 0 ORDER BY date DESC LIMIT ?''', (limit,)
     ).fetchall()
 
     conn.close()
-    return jsonify([dict(r) for r in rows])
+    result = []
+    for r in rows:
+        d = dict(r)
+        em_last = d.pop('em_last', None)
+        # 东财大盘主力/超大单净流入 (元 → 亿); 无数据为 None
+        d['emMain'] = None
+        d['emSuper'] = None
+        if em_last:
+            try:
+                em = json.loads(em_last)
+                d['emMain'] = em.get('main', 0) / 1e8
+                d['emSuper'] = em.get('super', 0) / 1e8
+            except (ValueError, AttributeError):
+                pass
+        result.append(d)
+    return jsonify(result)
 
 
 @app.route('/api/overview/sync', methods=['POST'])
@@ -2026,6 +2250,7 @@ def run_ocr_job(filepath, job_id, trade_date):
         full_data, full_err, full_out, full_errstr, full_attempts = _try_ocr_image(
             filepath, prompt, max_attempts=2, timeout=300, attempt_label='full.')
         results_for_merge = []
+        slice_paths = []  # 阶段 A 成功时不切图, 但结果里要引用 slices, 必须先初始化
         date_image = filepath  # 默认日期识别用原图
         parsed_data = None
         if full_data:
@@ -2313,44 +2538,57 @@ def _load_jiuye_creds():
 
 async def _jiuye_auto_login(context, page, creds):
     """用账号密码自动登录韭研。成功返回 True，失败返回 False。
-    页面 DOM 实测（2026-06）：登录页有"手机快捷登录"和"账号密码登录"两个 tab，
-    默认"手机快捷登录"激活；需点切到"账号密码登录"才会出现密码 input。
-    2026-08: 每个失败点都 print 原因 (原来静默 return False, 排查全靠猜).
+    2026-08-20 改版: 独立的 /login 页面被撤掉 (302 跳首页), 登录改成首页点「登录注册」
+    弹 modal, 弹窗里再切「账号密码登录」tab。旧流程找不到 tab 全部失败。
+    调用前 page 应已在任一 jiuyangongshe.com 页面 (首页/action 页都有顶部「登录注册」按钮)。
+    每个失败点都 print 原因, 排查不靠猜.
     """
     try:
-        await page.goto('https://www.jiuyangongshe.com/login',
-                        wait_until='domcontentloaded', timeout=30000)
-        await page.wait_for_timeout(1200)
-        # 切到"账号密码登录" tab (过滤不可见元素, 避开 hidFont 水印)
-        try:
-            _clicked = False
-            for _cand in await page.locator('text=账号密码登录').all():
-                if await _cand.is_visible():
-                    await _cand.click(timeout=5000)
-                    _clicked = True
-                    break
-            if not _clicked:
-                print('[jiuye-login] 找不到可见的"账号密码登录" tab', flush=True)
-                return False
-            await page.wait_for_timeout(500)
-        except Exception as e:
-            print(f'[jiuye-login] 切"账号密码登录" tab 失败: {e}', flush=True)
+        if 'jiuyangongshe.com' not in page.url:
+            await page.goto('https://www.jiuyangongshe.com/',
+                            wait_until='domcontentloaded', timeout=30000)
+            await page.wait_for_timeout(1500)
+        # 已登录时顶部没有「登录注册」按钮；SESSION 还在就直接算成功
+        login_entries = [c for c in await page.locator('text=登录注册').all() if await c.is_visible()]
+        if not login_entries:
+            cookies = await context.cookies('https://www.jiuyangongshe.com')
+            if any(c.get('name') == 'SESSION' and c.get('value') for c in cookies):
+                print('[jiuye-login] 已是登录态 (无登录注册按钮且 SESSION 在), 跳过', flush=True)
+                return True
+            print('[jiuye-login] 找不到「登录注册」按钮且 SESSION 不在', flush=True)
             return False
-        # 填手机号和密码（密码 input type=password 唯一）
+        # 点「登录注册」开弹窗: 页面 JS 没加载完时点击不生效 (header 是服务端渲染的,
+        # 比 Vue 事件绑定先出现), 所以点完等弹窗, 不出来就再点, 最多 3 次
+        _dialog_up = False
+        for _try in range(3):
+            await login_entries[0].click(timeout=5000)
+            try:
+                await page.wait_for_selector('.el-tabs__item:has-text("账号密码登录")',
+                                             state='visible', timeout=6000)
+                _dialog_up = True
+                break
+            except Exception:
+                pass
+        if not _dialog_up:
+            print('[jiuye-login] 登录弹窗没弹出或弹窗里没有「账号密码登录」tab', flush=True)
+            return False
+        await page.locator('.el-tabs__item:has-text("账号密码登录")').first.click(timeout=5000)
+        await page.wait_for_timeout(600)
+        # 填手机号和密码（弹窗两个 tab 各有一个手机号输入；密码 tab 的在后）
         try:
             phone_inputs = await page.locator('input[placeholder="请输入手机号"]').all()
             if not phone_inputs:
                 print('[jiuye-login] 找不到手机号输入框', flush=True)
                 return False
-            # 切到密码 tab 后，可能两个 tab 的手机号输入都存在；用最后一个（密码 tab 的）
             await phone_inputs[-1].fill(creds['phone'])
             await page.locator('input[type="password"]').first.fill(creds['password'])
         except Exception as e:
             print(f'[jiuye-login] 填账号密码失败: {e}', flush=True)
             return False
-        # 点登录按钮（密码 tab 下的"登录"按钮；多个时取最后一个，密码 tab 通常在后）
+        # 点登录按钮（弹窗里可见的那个）
         try:
-            login_btns = await page.locator('button:has-text("登录")').all()
+            login_btns = [b for b in await page.locator('button:has-text("登录")').all()
+                          if await b.is_visible()]
             if not login_btns:
                 print('[jiuye-login] 找不到登录按钮', flush=True)
                 return False
@@ -2757,64 +2995,6 @@ def dashboard_static(filename):
         resp.headers['Pragma'] = 'no-cache'
         resp.headers['Expires'] = '0'
     return resp
-
-# ============ 分析日报挂载 (用户 18:30/9:30 手动放下 HTML, 前端 iframe 轮询) ============
-
-# folder 白名单 + 文件名前缀 (用户放文件时按这个规律命名, manifest 按前缀提日期)
-_ALLOWED_REPORT_FOLDERS = {'复盘日报': 'A股日报-', '盘前提示': '盘前提示-'}
-
-
-@app.route('/reports/<folder>/<path:filename>')
-def report_static(folder, filename):
-    """挂载 分析日报/<folder>/<filename.html> 给前端 iframe 引用.
-    folder 白名单: 复盘日报 | 盘前提示. send_from_directory 自带防 path traversal."""
-    if folder not in _ALLOWED_REPORT_FOLDERS:
-        return jsonify({'status': 'error', 'message': f'folder 不在白名单: {folder}'}), 404
-    base = os.path.join(os.path.dirname(__file__), '..', '分析日报', folder)
-    if not os.path.isdir(base):
-        return jsonify({'status': 'error', 'message': f'目录不存在: {base}'}), 404
-    resp = send_from_directory(base, filename)
-    if filename.endswith('.html'):
-        resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
-        resp.headers['Pragma'] = 'no-cache'
-        resp.headers['Expires'] = '0'
-    return resp
-
-
-@app.route('/api/reports/manifest')
-def api_reports_manifest():
-    """返回 分析日报/ 下两个白名单文件夹的当日+历史文件清单.
-    前端 iframe 轮询 (60s) 发现今日文件就自动切 src."""
-    today = date.today().isoformat()  # 'YYYY-MM-DD'
-    folders_out = {}
-    for folder, prefix in _ALLOWED_REPORT_FOLDERS.items():
-        base = os.path.join(os.path.dirname(__file__), '..', '分析日报', folder)
-        files_out = []
-        today_file = None
-        if os.path.isdir(base):
-            for name in os.listdir(base):
-                if not name.endswith('.html'):
-                    continue
-                m = re.match(re.escape(prefix) + r'(\d{4}-\d{2}-\d{2})\.html$', name)
-                if not m:
-                    continue
-                d = m.group(1)
-                full = os.path.join(base, name)
-                mtime = int(os.path.getmtime(full))
-                files_out.append({'name': name, 'date': d, 'mtime': mtime})
-                if d == today and today_file is None:
-                    today_file = name
-        files_out.sort(key=lambda x: x['mtime'], reverse=True)
-        folders_out[folder] = {
-            'prefix': prefix,
-            'today_exists': today_file is not None,
-            'today_file': today_file,
-            'files': files_out,
-        }
-    return jsonify({
-        'current_date': today,
-        'folders': folders_out,
-    })
 
 # ============ 健康检查 ============
 
@@ -4419,6 +4599,72 @@ def list_all_trades_summary():
     return jsonify(result)
 
 
+# ============ 交割分析 ============
+
+@app.route('/api/delivery/stocks', methods=['GET'])
+def delivery_stocks():
+    """交割分析: 所有有买卖记录的股票列表 (按最后交易日倒序)"""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute('''SELECT ts_code, MAX(name) AS name,
+        SUM(CASE WHEN direction='buy' THEN 1 ELSE 0 END) AS buys,
+        SUM(CASE WHEN direction='sell' THEN 1 ELSE 0 END) AS sells,
+        MIN(trade_date) AS first_date, MAX(trade_date) AS last_date,
+        MAX(CASE WHEN direction='buy' THEN trade_date END) AS last_buy_date
+        FROM trades
+        WHERE direction IN ('buy','sell') AND applied >= 0
+        GROUP BY ts_code ORDER BY last_buy_date DESC''').fetchall()
+    conn.close()
+    return jsonify({'stocks': [dict(r) for r in rows], 'count': len(rows)})
+
+
+@app.route('/api/delivery/chart', methods=['GET'])
+def delivery_chart():
+    """交割分析单股数据: 日K + 买卖点 + 主力净流入, 一次返回.
+    K线窗口 = 首次交易往前 20 个交易日 → 最新. 全程只读库, 不走外部回补."""
+    raw = (request.args.get('ts_code') or '').strip().upper()
+    if not raw:
+        return jsonify({'error': 'missing ts_code'}), 400
+    if '.' not in raw and raw.isdigit() and len(raw) == 6:
+        suffix = 'SH' if raw[0] == '6' else ('BJ' if raw[0] in '48' else 'SZ')
+        raw = f'{raw}.{suffix}'
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+
+    trades = [dict(r) for r in conn.execute(
+        """SELECT direction, price, shares, amount, trade_date, trade_time
+           FROM trades WHERE ts_code = ? AND direction IN ('buy','sell') AND applied >= 0
+           ORDER BY trade_date, trade_time""", (raw,)).fetchall()]
+    if not trades:
+        conn.close()
+        return jsonify({'error': 'no trades', 'ts_code': raw}), 404
+    name_row = conn.execute(
+        'SELECT name FROM trades WHERE ts_code = ? AND name IS NOT NULL LIMIT 1', (raw,)).fetchone()
+    first = trades[0]['trade_date'].replace('-', '')
+
+    # 起点: 首次交易往前 20 个交易日 (日历不足则就用首日)
+    start_row = conn.execute(
+        """SELECT cal_date FROM trading_dates_cache WHERE cal_date < ?
+           ORDER BY cal_date DESC LIMIT 1 OFFSET 19""", (first,)).fetchone()
+    start = start_row[0] if start_row else first
+
+    daily = [dict(r) for r in conn.execute(
+        """SELECT trade_date, open, high, low, close, volume, amount
+           FROM stock_daily WHERE ts_code = ? AND trade_date >= ?
+           ORDER BY trade_date""", (raw, start)).fetchall()]
+
+    flow = {r['trade_date']: r['main_net_inflow'] for r in conn.execute(
+        'SELECT trade_date, main_net_inflow FROM fund_flow WHERE ts_code = ? AND trade_date >= ?',
+        (raw, start)).fetchall()}
+    conn.close()
+
+    for t in trades:
+        t['trade_date'] = t['trade_date'].replace('-', '')  # 对齐 daily 的 YYYYMMDD
+    return jsonify({'ts_code': raw, 'name': name_row[0] if name_row else '',
+                    'trades': trades, 'daily': daily, 'flow': flow})
+
+
 @app.route('/api/trades/buys', methods=['GET'])
 def list_buy_trades():
     """获取所有买入成交明细 (trades 表 direction='buy'), 给持仓 Tab 的「买入」用
@@ -5589,6 +5835,7 @@ def fetch_sina_quotes(ts_codes, cache_ttl=None):
                 day_open = _f(1)
                 day_low = _f(5)
                 vol_shares = _f(8)  # sina 单位: 股
+                amount_yuan = _f(9)  # sina 单位: 元
                 # 时间: index 30 起始 HHMMSS (不同市场略有差异)
                 quote_time = fields[30] if len(fields) > 30 else ''
                 ts_code = _ts_code_for_sina(sina_code)
@@ -5601,6 +5848,7 @@ def fetch_sina_quotes(ts_codes, cache_ttl=None):
                         'open': day_open,
                         'low': day_low,
                         'volume': round(vol_shares / 100, 2) if vol_shares else None,  # 股 → 手 (对齐 stock_daily)
+                        'amount': amount_yuan,  # 成交额 (元)
                         'name': name,
                         'time': quote_time,
                     }
@@ -5622,6 +5870,222 @@ def fetch_sina_quotes_all(cache_ttl=None):
         conn.close()
     ts_codes = [r[0] for r in rows]
     return fetch_sina_quotes(ts_codes, cache_ttl=cache_ttl)
+
+
+# ============ 涨停合集 (盘中实时收集) ============
+
+def _limit_pct_for(market, status):
+    """涨停档位: 创业板/科创板 20% (ST 也是 20%), 北交所 30%, 主板 ST 5%, 主板正常 10%"""
+    if market in ('创业板', '科创板'):
+        return 20.0
+    if market == '北交所':
+        return 30.0
+    if status in ('st', 'star'):
+        return 5.0
+    return 10.0
+
+
+def _limit_up_price(prev_close, limit_pct):
+    """A股涨停价 = 昨收 × (1+档位), 四舍五入到分 (Decimal 避免 Python round 银行家舍入)"""
+    from decimal import Decimal, ROUND_HALF_UP
+    p = Decimal(str(prev_close)) * (Decimal('1') + Decimal(str(limit_pct)) / Decimal('100'))
+    return float(p.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
+
+
+def _today_is_trading_day():
+    """今天是否交易日: 查 trading_dates_cache, 缓存没覆盖到今天就从 TuShare 补一次"""
+    today = datetime.now().strftime('%Y%m%d')
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        row = conn.execute('SELECT MAX(cal_date) FROM trading_dates_cache').fetchone()
+        if row and row[0] and row[0] >= today:
+            return conn.execute(
+                'SELECT 1 FROM trading_dates_cache WHERE cal_date = ?', (today,)
+            ).fetchone() is not None
+    finally:
+        conn.close()
+    # 缓存没覆盖到今天 → 拉一次 TuShare 补
+    try:
+        pro = get_pro()
+        df = pro.trade_cal(exchange='SSE', start_date=today, end_date=today)
+        is_open = len(df) > 0 and int(df.iloc[0]['is_open']) == 1
+        if is_open:
+            conn = sqlite3.connect(DB_PATH)
+            conn.execute('INSERT OR IGNORE INTO trading_dates_cache (cal_date) VALUES (?)', (today,))
+            conn.commit()
+            conn.close()
+        return is_open
+    except Exception as e:
+        print(f'[lz] 交易日判断失败 (保守跳过): {e}')
+        return False
+
+
+def collect_limitup_snapshot():
+    """盘中扫全市场, 把今天摸过涨停价的股票收录进 limitup_collection.
+
+    判定: high >= 涨停价 → 曾涨停 (收录; high 全天不回落, 漏扫几轮也不丢).
+    状态: price >= 涨停价 → 封板中; 曾封板后打开 → broken=1 (炸板, 不掉出列表).
+    scheduler 盘中每分钟跑一轮; 也可 POST /api/limitup/collection/scan 手动触发.
+    """
+    now = datetime.now()
+    hm = now.hour * 100 + now.minute
+    if not (930 <= hm <= 1135 or 1255 <= hm <= 1505):
+        return {'skipped': '非交易时段'}
+    if not _today_is_trading_day():
+        return {'skipped': '非交易日'}
+    trade_date = now.strftime('%Y%m%d')
+    now_hms = now.strftime('%H:%M:%S')
+
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute(
+        """SELECT ts_code, name, market, status FROM stock_basic
+           WHERE status != 'delisting'
+             AND ts_code NOT LIKE '200%.SZ' AND ts_code NOT LIKE '900%.SH'"""  # 排除 B 股
+    ).fetchall()
+    conn.close()
+    meta = {r['ts_code']: dict(r) for r in rows}
+
+    quotes = fetch_sina_quotes_all(cache_ttl=2)
+
+    hits = []
+    for ts_code, q in quotes.items():
+        prev_close = q.get('prev_close')
+        if not prev_close or prev_close <= 0:
+            continue
+        m = meta.get(ts_code) or {}
+        limit_pct = _limit_pct_for(m.get('market'), m.get('status'))
+        limit_price = _limit_up_price(prev_close, limit_pct)
+        high = q.get('high')
+        price = q.get('price')
+        touched = (high is not None and high >= limit_price - 1e-6) or \
+                  (price is not None and price >= limit_price - 1e-6)
+        if not touched:
+            continue
+        sealed = 1 if (price is not None and price >= limit_price - 1e-6) else 0
+        hits.append((ts_code, m.get('name') or q.get('name') or '',
+                     m.get('market') or '', limit_pct, sealed))
+
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    new_count = 0
+    for ts_code, name, market, limit_pct, sealed in hits:
+        cur = conn.execute('''INSERT OR IGNORE INTO limitup_collection
+            (trade_date, ts_code, name, market, limit_pct, first_limit_time, sealed, broken, last_seen_time)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)''',
+            (trade_date, ts_code, name, market, limit_pct, now_hms, sealed, now_hms))
+        if cur.rowcount:
+            new_count += 1
+        else:
+            conn.execute('''UPDATE limitup_collection SET
+                sealed = ?,
+                broken = CASE WHEN ? = 0 AND sealed = 1 THEN 1 ELSE broken END,
+                last_seen_time = ?
+                WHERE trade_date = ? AND ts_code = ?''',
+                (sealed, sealed, now_hms, trade_date, ts_code))
+    conn.commit()
+    total = conn.execute('SELECT COUNT(*) FROM limitup_collection WHERE trade_date = ?',
+                         (trade_date,)).fetchone()[0]
+    conn.close()
+    return {'date': trade_date, 'new': new_count, 'total': total, 'scanned': len(quotes)}
+
+
+@app.route('/api/limitup/collection/scan', methods=['POST'])
+def scan_limitup_collection():
+    """手动触发一轮涨停合集采集 (scheduler 盘中每分钟自动跑, 这里是测试/兜底入口)"""
+    try:
+        return jsonify({'status': 'success', **collect_limitup_snapshot()})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/limitup/collection', methods=['GET'])
+def get_limitup_collection():
+    """涨停合集查询. ?date=YYYYMMDD 缺省=今天.
+    今天: 叠加 sina 实时价/涨幅/成交额/换手率(成交量÷流通股本), 并按实时价重算封板状态.
+    历史: LEFT JOIN stock_daily 补收盘价/涨跌幅, 封板状态用最后一轮扫描的快照."""
+    date = request.args.get('date') or datetime.now().strftime('%Y%m%d')
+    today = datetime.now().strftime('%Y%m%d')
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute(
+        'SELECT * FROM limitup_collection WHERE trade_date = ? ORDER BY first_limit_time',
+        (date,)).fetchall()
+    items = [dict(r) for r in rows]
+    if not items:
+        conn.close()
+        return jsonify({'date': date, 'items': [],
+                        'stats': {'total': 0, 'sealed': 0, 'broken': 0}})
+    codes = [r['ts_code'] for r in items]
+    ph = ','.join('?' * len(codes))
+
+    # 连板数: 从 date 往前按交易日数, 该 code 在合集里连续出现几天 (数据从上线日起积累, 首日全是首板)
+    prev_rows = conn.execute(
+        f'SELECT ts_code, trade_date FROM limitup_collection WHERE trade_date < ? AND ts_code IN ({ph})',
+        [date] + codes).fetchall()
+    code_dates = {}
+    for r in prev_rows:
+        code_dates.setdefault(r['ts_code'], set()).add(r['trade_date'])
+    cal = [r[0] for r in conn.execute(
+        'SELECT cal_date FROM trading_dates_cache WHERE cal_date < ? ORDER BY cal_date DESC LIMIT 30',
+        (date,)).fetchall()]
+    for item in items:
+        streak = 1
+        ds = code_dates.get(item['ts_code'], set())
+        for d in cal:
+            if d in ds:
+                streak += 1
+            else:
+                break
+        item['streak'] = streak
+
+    if date == today:
+        try:
+            quotes = fetch_sina_quotes(codes, cache_ttl=_quote_cache_ttl_from_request())
+        except Exception as e:
+            print(f'[lz] sina 实时拉取失败 (降级快照状态): {e}')
+            quotes = {}
+        # 流通股本 (换手率用; tushare float_share 单位万股, sina volume 单位手 → 手/万股 直接得换手率%)
+        float_shares = {r[0]: r[1] for r in conn.execute(
+            f'SELECT ts_code, float_share FROM stock_basic WHERE ts_code IN ({ph})', codes).fetchall()}
+        for item in items:
+            q = quotes.get(item['ts_code'])
+            if not q:
+                continue
+            item['price'] = q.get('price')
+            item['change_pct'] = q.get('change_pct')
+            item['volume'] = q.get('volume')
+            item['amount'] = q.get('amount')
+            item['quote_time'] = q.get('time', '')
+            fs = float_shares.get(item['ts_code'])
+            if fs and q.get('volume'):
+                item['turnover_pct'] = round(q['volume'] / fs, 2)
+            # 按实时价重算封板状态 (比上一轮扫描快照更新)
+            pc = q.get('prev_close')
+            if pc and item.get('limit_pct') and q.get('price'):
+                lp = _limit_up_price(pc, item['limit_pct'])
+                item['sealed'] = 1 if q['price'] >= lp - 1e-6 else 0
+                if not item['sealed']:
+                    item['broken'] = 1
+    else:
+        dmap = {r[0]: r for r in conn.execute(
+            f'SELECT ts_code, close, change, volume, amount FROM stock_daily WHERE trade_date = ? AND ts_code IN ({ph})',
+            [date] + codes).fetchall()}
+        for item in items:
+            d = dmap.get(item['ts_code'])
+            if d:
+                item['price'] = d[1]
+                item['change_pct'] = d[2]
+                item['volume'] = d[3]
+                item['amount'] = d[4] * 1000 if d[4] else None  # tushare 千元 → 元, 跟 sina 实时口径一致
+    conn.close()
+
+    # 板块标签 (复用 stock_sector_summary, 韭研涨停板块历史; 无记录的股票显示"近期未涨停")
+    _attach_sector(items)
+
+    sealed_n = sum(1 for i in items if i.get('sealed'))
+    return jsonify({'date': date, 'items': items,
+                    'stats': {'total': len(items), 'sealed': sealed_n, 'broken': len(items) - sealed_n}})
 
 
 def _quote_cache_ttl_from_request():
@@ -5717,6 +6181,50 @@ def api_picks_quote():
         # 用今日实时价替换最后一位
         closes.append(float(q['price']))
         # 算 MA
+        def _ma(arr, n):
+            return sum(arr[-n:]) / n if len(arr) >= n else None
+        result[ts_code] = {
+            'price': float(q['price']),
+            'prev_close': float(q['prev_close']) if q.get('prev_close') else None,
+            'change_pct': float(q['change_pct']) if q.get('change_pct') is not None else None,
+            'ma5': _ma(closes, 5),
+            'ma10': _ma(closes, 10),
+            'ma20': _ma(closes, 20),
+            'ma30': _ma(closes, 30),
+            'name': q.get('name', ''),
+            'time': q.get('time', ''),
+        }
+    conn.close()
+    return jsonify(result)
+
+
+@app.route('/api/picks/ths/quote', methods=['GET'])
+def api_picks_ths_quote():
+    """同花顺选股推荐专用 quote 端点: 行为同 /api/picks/quote (实时价 + 重算 MA).
+    独立路由是为了前端 ths sub-tab 可以按 group 路由, 不污染 EM 数据缓存."""
+    # 共用 sina 全局缓存 (cross-tab 30s 内同股只拉一次, 见 fetch_sina_quotes 实现)
+    codes_param = request.args.get('codes', '')
+    codes = [c.strip() for c in codes_param.split(',') if c.strip()][:200]
+    if not codes:
+        return jsonify({})
+    quotes = fetch_sina_quotes(codes, cache_ttl=_quote_cache_ttl_from_request())
+    if not quotes:
+        return jsonify({})
+
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    result = {}
+    for ts_code, q in quotes.items():
+        if not q or q.get('price') is None:
+            continue
+        rows = conn.execute("""
+            SELECT trade_date, close FROM stock_daily
+            WHERE ts_code = ? ORDER BY trade_date DESC LIMIT 31
+        """, (ts_code,)).fetchall()
+        closes = [r[1] for r in rows[1:31] if r[1] is not None]
+        closes = list(reversed(closes))[-30:]
+        if not closes:
+            continue
+        closes.append(float(q['price']))
         def _ma(arr, n):
             return sum(arr[-n:]) / n if len(arr) >= n else None
         result[ts_code] = {
@@ -5900,6 +6408,230 @@ def _akshare_topn(date, n=200):
 
 
 
+
+
+# ── 大盘实时资金流向 (沪深合计, 东财 push2 分钟K线) ──
+# 与 data.eastmoney.com/zjlx/dpzjlx.html "实时资金流向图(净流入)" 同口径:
+# 上证指数(1.000001) + 深证成指(0.399001) 的分钟资金流按时间对齐相加,
+# 净比 = 净流入 / 两市成交额 (f48). 已验证与网页数值完全一致.
+# 注意: 两市必须都拉到才能出数, 单边数据(如仅上证 -815.91亿)是错的, 宁可 502.
+#
+# 数据流: scheduler 15:35 拉一次 → 落 market_fflow 表 → endpoint 直接查表.
+# 不做盘中实时: 主力净流入 tab 整体是历史回看, 实时数字对决策无意义, 还能省一波反爬请求.
+
+_EM_HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+    'Referer': 'https://data.eastmoney.com/',
+    'Accept': '*/*',
+}
+
+# app.py 顶部全局禁了 requests 代理 (保 AKShare), 所以这里的请求默认全直连.
+# 但本机直连 push2 会被东财反爬掐 (RemoteDisconnected), 走本地代理反而通.
+# 策略: 先直连, 失败兜底走 Clash 代理 (proxies= 参数级覆盖, 不受全局 patch 影响).
+_EM_LOCAL_PROXY = 'http://127.0.0.1:7897'
+
+
+def _em_get_json(url, params, tag=''):
+    """GET json: 直连 2 次 (快速失败) → 本地代理兜底 2 次. 全失败返回 None.
+    直连重试少是有意的: 被反爬掐时重试也通不过, 赶紧转代理, 压住冷缓存延迟."""
+    for attempt in range(2):
+        try:
+            return _requests.get(url, params=params, headers=_EM_HEADERS, timeout=8).json()
+        except Exception as e:
+            print(f'[mkt fflow] {tag} direct attempt {attempt+1}/2 failed: {e}', flush=True)
+        time.sleep(1 + attempt * 2)  # 1s, 3s
+    for attempt in range(2):
+        try:
+            return _requests.get(url, params=params, headers=_EM_HEADERS, timeout=8,
+                                 proxies={'http': _EM_LOCAL_PROXY, 'https': _EM_LOCAL_PROXY}).json()
+        except Exception as e:
+            print(f'[mkt fflow] {tag} proxy attempt {attempt+1}/2 failed: {e}', flush=True)
+        time.sleep(2)
+    return None
+
+
+def _em_fflow_minline(secid, end_date=None):
+    """东财指数分钟资金流 (09:31~15:00 累计净流入). end_date='YYYYMMDD' 拉历史某日, 缺省 = 今天."""
+    url = 'https://push2.eastmoney.com/api/qt/stock/fflow/kline/get'
+    params = dict(secid=secid, klt=1, lmt=0,
+                  fields1='f1,f2,f3,f7', fields2='f51,f52,f53,f54,f55,f56')
+    if end_date:
+        params['end'] = end_date
+    d = _em_get_json(url, params, tag=secid)
+    return d.get('data') if d and d.get('data') and d['data'].get('klines') else None
+
+
+def _em_index_amount(secid, end_date=None):
+    """东财指数当日成交额 f48 (元). 失败返回 0."""
+    d = _em_get_json('https://push2.eastmoney.com/api/qt/stock/get',
+                     dict(secid=secid, fields='f48'), tag=secid + ' amt')
+    try:
+        return float((d.get('data') or {}).get('f48') or 0) if d else 0
+    except (ValueError, TypeError):
+        return 0
+
+
+def _build_market_fflow_payload(end_date=None):
+    """拉两市 push2 分钟资金流 → 合并 → 算 amount/last/pct. 返回 payload dict 或 None.
+    end_date='YYYYMMDD' 拉历史某日 (用于回溯补盘); 缺省 = 今天.
+    两市必须都拉到才出数, 单边是错误口径."""
+    sh = _em_fflow_minline('1.000001', end_date=end_date)
+    sz = _em_fflow_minline('0.399001', end_date=end_date)
+    if not (sh and sz):
+        return None
+
+    # 按时间对齐相加 (两市 bar 数正常一致, dict 对齐兜底单边缺 bar)
+    merged = {}  # 'HH:MM' -> [main, small, mid, big, super]
+    date = ''
+    for d in (sh, sz):
+        for line in d['klines']:
+            p = line.split(',')
+            if len(p) < 6:
+                continue
+            if not date:
+                date = p[0][:10]
+            vals = merged.setdefault(p[0][-5:], [0.0] * 5)
+            for i in range(5):
+                try:
+                    vals[i] += float(p[i + 1] or 0)
+                except ValueError:
+                    pass
+    times = sorted(merged.keys())
+    amount = _em_index_amount('1.000001') + _em_index_amount('0.399001')
+    keys = ['main', 'small', 'mid', 'big', 'super']
+    series = {k: [merged[t][i] for t in times] for i, k in enumerate(keys)}
+    last = {k: (series[k][-1] if series[k] else 0.0) for k in keys}
+    pct = {k: (last[k] / amount * 100 if amount else None) for k in keys}
+
+    return {
+        'date': date,          # 'YYYY-MM-DD'
+        'times': times,        # ['09:31', ..., '15:00']
+        'series': series,      # 单位: 元, 累计值
+        'amount': amount,      # 两市成交额 (元)
+        'last': last,
+        'pct': pct,
+        'complete': bool(times and times[-1] == '15:00'),  # 收盘定格标记
+    }
+
+
+def _save_market_fflow(payload, trade_date=None):
+    """把 payload 写 market_fflow 表 (按 trade_date upsert).
+    trade_date 缺省 = 从 payload['date'] 推 (YYYY-MM-DD → YYYYMMDD)."""
+    if not payload or not payload.get('date'):
+        return False
+    td = (trade_date or payload['date']).replace('-', '')  # 'YYYYMMDD'
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        conn.execute('''INSERT OR REPLACE INTO market_fflow
+            (trade_date, times, series, amount, last, pct, complete, fetched_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'))''',
+            (td,
+             json.dumps(payload['times']),
+             json.dumps(payload['series']),
+             payload['amount'],
+             json.dumps(payload['last']),
+             json.dumps(payload['pct']),
+             1 if payload.get('complete') else 0))
+        conn.commit()
+        return True
+    finally:
+        conn.close()
+
+
+@app.route('/api/market/fflow', methods=['GET'])
+def api_market_fflow():
+    """大盘实时资金流向 (沪深合计). 不做盘中实时, 只读 market_fflow 落盘数据.
+    ?date=YYYYMMDD (默认 = 最新已落盘日期). 表里没数据返 {empty: true}."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        date = (request.args.get('date') or '').strip()
+        if date:
+            row = conn.execute(
+                'SELECT * FROM market_fflow WHERE trade_date = ?', (date,)
+            ).fetchone()
+        else:
+            row = conn.execute(
+                'SELECT * FROM market_fflow ORDER BY trade_date DESC LIMIT 1'
+            ).fetchone()
+        if not row:
+            return jsonify({'empty': True, 'date': date})
+        return jsonify({
+            'date': f"{row['trade_date'][:4]}-{row['trade_date'][4:6]}-{row['trade_date'][6:8]}",
+            'times': json.loads(row['times']),
+            'series': json.loads(row['series']),
+            'amount': row['amount'],
+            'last': json.loads(row['last']),
+            'pct': json.loads(row['pct']),
+            'complete': bool(row['complete']),
+        })
+    finally:
+        conn.close()
+
+
+@app.route('/api/market/fflow/daily', methods=['GET'])
+def api_market_fflow_daily():
+    """大盘 5档资金流向 - 逐日趋势 (沪深合计).
+    入参: ?days=N (默认 60, 范围 7~250).
+    出参: {dates, amount, series{5档}, pct{5档}}. 5档 = 主力/超大单/大单/中单/小单.
+    series[k][i] = 第 i 日 5档净额 (元); pct[k][i] = 该档净额 / 当日两市成交额 * 100 (%).
+    数据源: market_fflow.last (5档) + market_fflow.amount (元). 跨源一致, 都是大盘直推, 不混 fund_flow 全市场聚合."""
+    days = max(7, min(int(request.args.get('days', 60)), 250))
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute('''
+            SELECT trade_date, last, pct, amount
+            FROM market_fflow
+            ORDER BY trade_date DESC LIMIT ?
+        ''', (days,)).fetchall()
+        if not rows:
+            return jsonify({'empty': True})
+        rows = list(reversed(rows))  # 升序返回
+        keys = ['main', 'super', 'big', 'mid', 'small']
+        series, pct, dates, amounts = {}, {}, [], []
+        for r in rows:
+            try:
+                last_obj = json.loads(r['last']) if isinstance(r['last'], str) else (r['last'] or {})
+                pct_obj  = json.loads(r['pct'])  if isinstance(r['pct'],  str) else (r['pct']  or {})
+            except (ValueError, TypeError):
+                continue
+            dates.append(r['trade_date'])
+            amounts.append(r['amount'])
+            for k in keys:
+                series.setdefault(k, []).append(last_obj.get(k))
+                pct.setdefault(k, []).append(pct_obj.get(k))
+        if not dates:
+            return jsonify({'empty': True})
+        return jsonify({
+            'dates': [f"{d[:4]}-{d[4:6]}-{d[6:8]}" for d in dates],
+            'amount': amounts,
+            'series': series,
+            'pct': pct,
+        })
+    finally:
+        conn.close()
+
+
+@app.route('/api/market/fflow/sync', methods=['POST'])
+def api_market_fflow_sync():
+    """手动同步今日大盘资金流. push2 不支持历史 (已验证), 所以只拉 today.
+    失败返 502; 成功返 {trade_date, complete, times_count}.
+    用法: 用户在主力净流入 tab 空状态点"立即刷新"按钮触发."""
+    from datetime import datetime
+    today = datetime.now().strftime('%Y%m%d')
+    try:
+        payload = _build_market_fflow_payload()
+        if not payload:
+            return jsonify({'error': 'push2 unavailable', 'trade_date': today}), 502
+        _save_market_fflow(payload)
+        return jsonify({
+            'trade_date': today,
+            'complete': bool(payload.get('complete')),
+            'times_count': len(payload.get('times') or []),
+        })
+    except Exception as e:
+        return jsonify({'error': str(e), 'trade_date': today}), 500
 
 
 @app.route('/api/flow/latest-date', methods=['GET'])
@@ -6338,6 +7070,9 @@ _AKSYNC_STATE = {
     'total': 0, 'done': 0, 'success': 0, 'failed': 0,
     'errors': [], 'current_code': '', 'elapsed_sec': 0,
     'source': 'eastmoney-push2-jsonp', 'target_date': '',
+    'is_already_synced': False, 'is_holiday': False, 'actual_date': '',
+    # wait_for_user 模式 (2026-08-18): 弹浏览器等用户刷新
+    'waiting_for_user': False, 'wait_elapsed_sec': 0, 'wait_remaining_sec': 0,
 }
 
 
@@ -6531,7 +7266,7 @@ def _save_em_fund_flow_rows(rows, today, source='eastmoney-push2'):
     return count
 
 
-def _em_sync_market_bg(force=False):
+def _em_sync_market_bg(force=False, wait_for_user=False):
     """后台线程: 抓取今日主力净流入 (JSONP + 东财 detail.html).
     数据写入 fund_flow 表, trade_date = 今天. 每天点一次同步即积累一天历史.
     历史日期查询通过前端日历切换 (只是查 DB, 不重新抓).
@@ -6593,15 +7328,29 @@ def _em_sync_market_bg(force=False):
             _AKSYNC_STATE['is_already_synced'] = True
             _AKSYNC_STATE['actual_date'] = ad
             _AKSYNC_STATE['current_code'] = f'✅ {ad} 已有数据 ({cnt} 行), 跳过抓取'
+        elif stage == 'waiting_for_user':
+            # 第 1 页拿不到数据, 等用户在弹出的浏览器里手动刷新 (2026-08-18 加)
+            elapsed = kw.get('elapsed_sec', 0)
+            remaining = kw.get('remaining_sec', 0)
+            _AKSYNC_STATE['waiting_for_user'] = True
+            _AKSYNC_STATE['wait_elapsed_sec'] = elapsed
+            _AKSYNC_STATE['wait_remaining_sec'] = remaining
+            _AKSYNC_STATE['current_code'] = (
+                f'⏳ 浏览器已弹出, 请按 Cmd+R 刷新 (已等 {elapsed}s, 剩 {remaining}s)'
+            )
         elif stage == 'error':
             _AKSYNC_STATE['errors'].append(('eastmoney-push2', kw.get('message', '')))
 
     _AKSYNC_STATE['is_holiday'] = False
     _AKSYNC_STATE['is_already_synced'] = False
+    _AKSYNC_STATE['waiting_for_user'] = False
+    _AKSYNC_STATE['wait_elapsed_sec'] = 0
+    _AKSYNC_STATE['wait_remaining_sec'] = 0
     _AKSYNC_STATE['actual_date'] = today
     try:
         rows, total, failed, actual_date = fetch_today_market(
-            progress_callback=_cb, headless=False, verbose=True, skip_if_exists=not force)
+            progress_callback=_cb, headless=False, verbose=True, skip_if_exists=not force,
+            wait_for_user=wait_for_user)
     except Exception as e:
         err_msg = f'{type(e).__name__}: {str(e)[:200]}'
         _AKSYNC_STATE['errors'].append(('eastmoney-push2', err_msg))
@@ -6669,22 +7418,268 @@ def api_flow_dates():
 def api_flow_sync_market():
     """启动后台抓取今日主力净流入 (JSONP). 立即返回 'started'.
     ?force=1 (或 body.force) → 忽略"已有数据"守卫, 强制重抓覆盖 (手动点同步按钮).
+    ?wait_for_user=1 → 第 1 页拿不到时弹出浏览器窗口让用户手动 Cmd+R 刷新 (手动同步专用, 2026-08-18 加).
     不带 force (页面加载的自动同步) → 幂等, 已有数据就跳过.
     """
     if _AKSYNC_STATE['running']:
         return jsonify({'status': 'already_running', 'state': _AKSYNC_STATE})
     _force = (request.args.get('force') in ('1', 'true', 'True')
               or bool((request.get_json(silent=True) or {}).get('force')))
+    _wait_for_user = (request.args.get('wait_for_user') in ('1', 'true', 'True')
+                      or bool((request.get_json(silent=True) or {}).get('wait_for_user')))
     import threading as _th
-    t = _th.Thread(target=_em_sync_market_bg, args=(_force,), daemon=True)
+    t = _th.Thread(target=_em_sync_market_bg, args=(_force, _wait_for_user), daemon=True)
     t.start()
-    return jsonify({'status': 'started', 'force': _force, 'state': _AKSYNC_STATE})
+    return jsonify({'status': 'started', 'force': _force, 'wait_for_user': _wait_for_user, 'state': _AKSYNC_STATE})
 
 
 @app.route('/api/flow/sync-status', methods=['GET'])
 def api_flow_sync_status():
     """查询 AKShare 全市场拉取状态. 前端 setInterval 轮询."""
     return jsonify(_AKSYNC_STATE)
+
+
+# ── 同花顺个股资金流 (data.10jqka.com.cn/funds/ggzjl) ──
+# 抓取走 fetch_fund_flow_ths.py: 真实 Chrome + 有界面 (藏屏幕外) + 反自动化标记,
+# 同花顺 WAF 检测自动化标记, 无头/JSONP 全部 401/403 (2026-08-20 实测).
+# 每次全量 105 页 ≈ 5-8 分钟, 所以走后台线程 + 状态轮询 (跟东财 _AKSYNC_STATE 一个模式).
+_THSSYNC_STATE = {
+    'running': False, 'started_at': None, 'finished_at': None,
+    'total': 0, 'done': 0, 'success': 0, 'failed': 0,
+    'errors': [], 'current_code': '', 'elapsed_sec': 0,
+    'source': '10jqka-ggzjl', 'target_date': '',
+    'is_already_synced': False, 'actual_date': '',
+}
+
+
+def _ths_sync_market_bg(force=False):
+    """后台线程: 抓同花顺全市场个股资金流 → fund_flow_ths 表."""
+    import time as _t
+    from fetch_fund_flow_ths import fetch_ths_market, write_rows_to_db
+    t0 = _t.time()
+    today = datetime.now().strftime('%Y%m%d')
+
+    _THSSYNC_STATE.update({
+        'running': True, 'started_at': datetime.now().isoformat(),
+        'finished_at': None, 'total': 0, 'done': 0,
+        'success': 0, 'failed': 0, 'errors': [],
+        'current_code': f'准备同步 {today}...',
+        'elapsed_sec': 0, 'target_date': today,
+        'is_already_synced': False, 'actual_date': today,
+    })
+    print(f'[ths-sync] 开始: 同步 {today}' + (' (强制刷新)' if force else ''), flush=True)
+
+    def _cb(stage, **kw):
+        if stage == 'start':
+            ad = kw.get('actual_date', today)
+            _THSSYNC_STATE['actual_date'] = ad
+            if ad != today:
+                _THSSYNC_STATE['current_code'] = f'⏸ {today} 非交易日, 数据将归属到 {ad}'
+        elif stage == 'total':
+            _THSSYNC_STATE['total'] = kw.get('total', 0)
+            _THSSYNC_STATE['current_code'] = f"总 {kw.get('total_pages', 0)} 页, 开始翻页..."
+        elif stage == 'page':
+            _THSSYNC_STATE['done'] = kw.get('rows_count', 0)
+            _THSSYNC_STATE['failed'] = len(kw.get('failed', []))
+            _THSSYNC_STATE['current_code'] = f"pn={kw.get('pn')}/{kw.get('total_pages')} 累计 {kw.get('rows_count')} 行"
+        elif stage == 'done':
+            _THSSYNC_STATE['done'] = kw.get('rows', 0)
+            _THSSYNC_STATE['failed'] = len(kw.get('failed', []))
+            _THSSYNC_STATE['current_code'] = f"抓取完成 {kw.get('rows')} 行"
+        elif stage == 'already_synced':
+            _THSSYNC_STATE['is_already_synced'] = True
+            _THSSYNC_STATE['actual_date'] = kw.get('actual_date', today)
+            _THSSYNC_STATE['current_code'] = f"✅ {_THSSYNC_STATE['actual_date']} 已有数据 ({kw.get('existing_count')} 行), 跳过抓取"
+        elif stage == 'error':
+            _THSSYNC_STATE['errors'].append(('10jqka', kw.get('message', '')))
+
+    try:
+        rows, total, failed, actual_date = fetch_ths_market(
+            progress_callback=_cb, verbose=True, force=force, skip_if_exists=not force)
+    except Exception as e:
+        err_msg = f'{type(e).__name__}: {str(e)[:200]}'
+        _THSSYNC_STATE['errors'].append(('10jqka', err_msg))
+        _THSSYNC_STATE['failed'] = 1
+        _THSSYNC_STATE['running'] = False
+        _THSSYNC_STATE['finished_at'] = datetime.now().isoformat()
+        _THSSYNC_STATE['elapsed_sec'] = round(_t.time() - t0, 1)
+        print(f'[ths-sync] 异常: {err_msg}', flush=True)
+        return
+
+    if not rows and _THSSYNC_STATE.get('is_already_synced'):
+        _THSSYNC_STATE['running'] = False
+        _THSSYNC_STATE['finished_at'] = datetime.now().isoformat()
+        _THSSYNC_STATE['elapsed_sec'] = round(_t.time() - t0, 1)
+        print(f'[ths-sync] ⏭ {actual_date} 已有数据, 跳过', flush=True)
+        return
+
+    if not rows:
+        _THSSYNC_STATE['failed'] = 1
+        if not _THSSYNC_STATE['errors']:
+            _THSSYNC_STATE['errors'].append(('10jqka', '抓取结果为空'))
+    else:
+        try:
+            _THSSYNC_STATE['current_code'] = f'写入 DB {len(rows)} 行 ({actual_date})...'
+            inserted = write_rows_to_db(rows, actual_date)
+            _THSSYNC_STATE['success'] = inserted
+            _THSSYNC_STATE['current_code'] = f'✅ {actual_date} 已写入 {inserted} 行'
+            print(f'[ths-sync] ✅ {actual_date} 写入 {inserted} 行', flush=True)
+        except Exception as e:
+            err_msg = f'写入 DB: {type(e).__name__}: {str(e)[:200]}'
+            _THSSYNC_STATE['errors'].append(('db.write', err_msg))
+            _THSSYNC_STATE['failed'] = 1
+            print(f'[ths-sync] 写 DB 失败: {err_msg}', flush=True)
+
+    _THSSYNC_STATE['elapsed_sec'] = round(_t.time() - t0, 1)
+    _THSSYNC_STATE['running'] = False
+    _THSSYNC_STATE['finished_at'] = datetime.now().isoformat()
+    print(f'[ths-sync] 完成: success={_THSSYNC_STATE["success"]} elapsed={_THSSYNC_STATE["elapsed_sec"]}s', flush=True)
+
+
+@app.route('/api/flow/ths/sync', methods=['POST'])
+def api_flow_ths_sync():
+    """启动后台抓同花顺个股资金流. 立即返回 'started'.
+    ?force=1 → 忽略幂等守卫强制重抓 (手动点同步按钮).
+    """
+    if _THSSYNC_STATE['running']:
+        return jsonify({'status': 'already_running', 'state': _THSSYNC_STATE})
+    _force = (request.args.get('force') in ('1', 'true', 'True')
+              or bool((request.get_json(silent=True) or {}).get('force')))
+    import threading as _th
+    t = _th.Thread(target=_ths_sync_market_bg, args=(_force,), daemon=True)
+    t.start()
+    return jsonify({'status': 'started', 'force': _force, 'state': _THSSYNC_STATE})
+
+
+@app.route('/api/flow/ths/sync-status', methods=['GET'])
+def api_flow_ths_sync_status():
+    """查询同花顺抓取状态. 前端 setInterval 轮询."""
+    return jsonify(_THSSYNC_STATE)
+
+
+@app.route('/api/flow/ths/dates', methods=['GET'])
+def api_flow_ths_dates():
+    """fund_flow_ths 有数据的日期列表 (倒序), 给前端日历导航."""
+    conn = sqlite3.connect(DB_PATH)
+    dates = [r[0] for r in conn.execute(
+        'SELECT DISTINCT trade_date FROM fund_flow_ths ORDER BY trade_date DESC'
+    ).fetchall()]
+    conn.close()
+    return jsonify({'dates': dates, 'count': len(dates), 'source': '10jqka'})
+
+
+@app.route('/api/flow/ths/market', methods=['GET'])
+def api_flow_ths_market():
+    """同花顺全市场资金流排行. 镜像 /api/flow/market, 但读 fund_flow_ths.
+    period=today (单日, 支持 ?date=YYYYMMDD) / 3d/5d/10d/20d (SQL 聚合近 N 个交易日).
+    注意口径: net = 流入-流出 (总资金净流入), 不是东财的主力净流入.
+    close/change_pct/turnover_pct 直接用同花顺页面的值, 不 JOIN stock_daily.
+    """
+    period = request.args.get('period', 'today').lower().strip()
+    period_map = {'today': 1, '3d': 3, '5d': 5, '10d': 10, '20d': 20}
+    if period not in period_map:
+        period = 'today'
+    period_days = period_map[period]
+
+    sort = request.args.get('sort', '').strip()
+    order = 'desc' if request.args.get('order', 'desc').lower() == 'desc' else 'asc'
+    market = request.args.get('market', 'all').lower()
+    search = request.args.get('search', '').strip()
+    limit = min(int(request.args.get('limit', 200)), 10000)
+    date = request.args.get('date', '').strip()  # YYYYMMDD, today 模式才生效
+
+    # 排序白名单: today vs 聚合字段不同
+    if period == 'today':
+        sort_whitelist = {'net', 'inflow', 'outflow', 'amount', 'turnover_pct',
+                          'change_pct', 'close', 'big_inflow'}
+        if not sort or sort not in sort_whitelist:
+            sort = 'net'
+    else:
+        sort_whitelist = {'sum_net', 'sum_inflow', 'sum_outflow', 'sum_amount',
+                          'sum_big_inflow', 'change_pct', 'close', 'flow_days'}
+        if not sort or sort not in sort_whitelist:
+            sort = 'sum_net'
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+
+    if period == 'today':
+        if date:
+            rows = conn.execute("""
+                SELECT trade_date, ts_code, code, name, close, change_pct, turnover_pct,
+                       inflow, outflow, net, amount, big_inflow
+                FROM fund_flow_ths
+                WHERE trade_date = ?
+            """, (date,)).fetchall()
+        else:
+            rows = conn.execute("""
+                SELECT trade_date, ts_code, code, name, close, change_pct, turnover_pct,
+                       inflow, outflow, net, amount, big_inflow
+                FROM fund_flow_ths
+                WHERE trade_date = (SELECT MAX(trade_date) FROM fund_flow_ths)
+            """).fetchall()
+    else:
+        # 聚合近 N 个交易日 (窗口按 trading_dates_cache, 跟东财版一致)
+        rows = conn.execute("""
+            SELECT
+                ts_code, code, name,
+                SUM(net)        AS sum_net,
+                SUM(inflow)     AS sum_inflow,
+                SUM(outflow)    AS sum_outflow,
+                SUM(amount)     AS sum_amount,
+                SUM(big_inflow) AS sum_big_inflow,
+                COUNT(*)        AS flow_days,
+                MIN(trade_date) AS start_date,
+                MAX(trade_date) AS end_date,
+                (SELECT close FROM fund_flow_ths f2
+                 WHERE f2.ts_code = f.ts_code
+                 ORDER BY trade_date DESC LIMIT 1) AS close,
+                (SELECT change_pct FROM fund_flow_ths f2
+                 WHERE f2.ts_code = f.ts_code
+                 ORDER BY trade_date DESC LIMIT 1) AS change_pct
+            FROM fund_flow_ths f
+            WHERE trade_date >= (
+                SELECT cal_date FROM trading_dates_cache
+                WHERE cal_date <= strftime('%Y%m%d', date('now', 'localtime'))
+                ORDER BY cal_date DESC
+                LIMIT 1 OFFSET ?
+            )
+            GROUP BY ts_code
+            ORDER BY sum_net DESC
+            LIMIT ?
+        """, (period_days - 1, limit)).fetchall()
+    conn.close()
+
+    # market 过滤 (按 code 前缀, 跟东财版一致; 北交所 920 归 sh 组之外的独立判断没必要, 保持简单)
+    if market == 'sh':
+        rows = [r for r in rows if r['code'].startswith(('6', '9'))]
+    elif market == 'sz':
+        rows = [r for r in rows if r['code'].startswith(('0', '2', '3'))]
+    elif market == 'cy':
+        rows = [r for r in rows if r['code'].startswith('3')]
+    elif market == 'kcb':
+        rows = [r for r in rows if r['code'].startswith('688')]
+
+    # search 模糊
+    if search:
+        s = search.lower()
+        rows = [r for r in rows if s in (r['name'] or '').lower() or s in r['code']]
+
+    # 排序 (聚合模式 SQL 已按 sum_net desc, 这里尊重用户二次排序)
+    if period == 'today' or sort != 'sum_net':
+        rows.sort(key=lambda r: (r[sort] or 0) if sort in r.keys() else 0, reverse=(order == 'desc'))
+
+    out = [dict(r) for r in rows[:limit]]
+    _attach_sector(out, key='ts_code')  # 补 sector_history, 跟东财版一致
+    return jsonify({
+        'count': len(out),
+        'total_matched': len(rows),
+        'date': date,
+        'period': period,
+        'sort': sort,
+        'order': order,
+        'rows': out,
+    })
 
 
 # ── 补数: 5 日反推缺失日的主力净流入 ──
@@ -6955,6 +7950,33 @@ def _fund_flow_window(ts_code, end_date, window):
     return [r[0] for r in rows]
 
 
+def _fund_flow_window_ths(ts_code, end_date, window):
+    """拉 ts_code 在 end_date 之前 window 个交易日的同花顺资金净额列表 (新→旧).
+    口径: fund_flow_ths.net = 流入-流出 (总资金净流入, 非主力).
+    """
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    rows = conn.execute("""
+        SELECT net FROM fund_flow_ths
+        WHERE ts_code = ? AND trade_date <= ?
+        ORDER BY trade_date DESC LIMIT ?
+    """, (ts_code, end_date, window)).fetchall()
+    conn.close()
+    return [r[0] for r in rows]
+
+
+def _ths_flow_days_available(end_date):
+    """fund_flow_ths 表在 end_date 及之前有多少个有数据的交易日.
+    用 net IS NOT NULL 过滤无效行.
+    """
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    row = conn.execute("""
+        SELECT COUNT(DISTINCT trade_date) FROM fund_flow_ths
+        WHERE trade_date <= ? AND net IS NOT NULL
+    """, (end_date,)).fetchone()
+    conn.close()
+    return row[0] if row else 0
+
+
 def _flow_consecutive_sign(ts_code, end_date, n, want_positive=True):
     """最近 n 日全部主力净流入(>0) 或 净流出(<0). 数据不足返回 False."""
     flows = _fund_flow_window(ts_code, end_date, n)
@@ -6968,6 +7990,23 @@ def _flow_turn(ts_code, end_date, n, want_positive):
     例如 n=3: 前 2 日 <= 0, 最近 1 日 > 0 (want_positive=True).
     """
     flows = _fund_flow_window(ts_code, end_date, n)
+    if len(flows) < n:
+        return False
+    opposite = (lambda v: v <= 0) if want_positive else (lambda v: v >= 0)
+    return all(opposite(v) for v in flows[:-1]) and (flows[-1] > 0 if want_positive else flows[-1] < 0)
+
+
+def _ths_flow_consecutive_sign(ts_code, end_date, n, want_positive=True):
+    """最近 n 日全部 THS 净额为正(>0) 或 负(<0). 数据不足返 False."""
+    flows = _fund_flow_window_ths(ts_code, end_date, n)
+    if len(flows) < n:
+        return False
+    return all(v > 0 for v in flows) if want_positive else all(v < 0 for v in flows)
+
+
+def _ths_flow_turn(ts_code, end_date, n, want_positive):
+    """最近 n 日 THS 净额由反向转正向 (want_positive=True) 或 反之."""
+    flows = _fund_flow_window_ths(ts_code, end_date, n)
     if len(flows) < n:
         return False
     opposite = (lambda v: v <= 0) if want_positive else (lambda v: v >= 0)
@@ -7046,6 +8085,30 @@ def _write_stock_picks_for_date(trade_date, picks):
              p['main_net_3d'], p['main_net_5d'], p['main_net_10d'], p['main_net_20d'],
              p['super_net'], p['super_pct'], p['big_net'], p['big_pct'],
              p['mid_net'], p['mid_pct'], p['small_net'], p['small_pct'],
+             p['score'], p['signal_type'], p['flow_days_available'],
+             json.dumps(p['reasons'], ensure_ascii=False)))
+    conn.commit()
+    conn.close()
+
+
+def _write_stock_picks_ths_for_date(trade_date, picks):
+    """_compute_picks_ths 结果写入 stock_picks_ths 表 (先删当日再插).
+    供 scheduler 的 ths_picks_resync 任务和 /api/picks/ths/sync 共用."""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('DELETE FROM stock_picks_ths WHERE trade_date = ?', (trade_date,))
+    for p in picks:
+        c.execute('''INSERT OR REPLACE INTO stock_picks_ths
+            (trade_date, ts_code, name, close, change_pct,
+             ma5, ma10, ma20, ma30,
+             ma5_slope, ma10_slope, ma20_slope, ma30_slope,
+             ths_net_today, ths_net_3d, ths_net_5d, ths_net_10d,
+             score, signal_type, flow_days_available, reasons_json)
+            VALUES (?,?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?,?)''',
+            (trade_date, p['ts_code'], p['name'], p['close'], p['change_pct'],
+             p['ma5'], p['ma10'], p['ma20'], p['ma30'],
+             p['ma5_slope'], p['ma10_slope'], p['ma20_slope'], p['ma30_slope'],
+             p['ths_net_today'], p['ths_net_3d'], p['ths_net_5d'], p['ths_net_10d'],
              p['score'], p['signal_type'], p['flow_days_available'],
              json.dumps(p['reasons'], ensure_ascii=False)))
     conn.commit()
@@ -7563,6 +8626,451 @@ def _compute_picks(trade_date=None, ts_codes=None, intraday=False):
     return picks[:100]  # 返回 top 100, buy/sell 都包含 (前端 limit=100)
 
 
+# ============ 同花顺选股推荐 (独立 sub-tab, 数据源 fund_flow_ths) ============
+
+def _compute_picks_ths(trade_date=None, ts_codes=None, intraday=False):
+    """同花顺净额选股推荐. 与 _compute_picks 并列但完全独立:
+      - 数据源: fund_flow_ths.net (口径 = 流入-流出, 总资金净流入, 非主力)
+      - 窗口: today / 3d / 5d / 10d (20d 跳过, THS 历史不够)
+      - 没有 5 档分摊, 没有净流入占比 (THS 页面没有这两类数据)
+      - 算法骨架 (均线信号 + 黄金/死亡组合 + 葛兰碧法则) 与 EM 同步演化
+    """
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+
+    # 确定计算日期: 优先 fund_flow_ths 的最新 (THS picks 的核心数据源日期),
+    # 否则 fallback stock_daily 最新.
+    # 区别于 EM: EM 的 trade_date 跟 stock_daily 走 (东财 push2 当日就有), 而 THS 数据通常要等盘后抓
+    if not trade_date:
+        row = conn.execute('SELECT MAX(trade_date) as d FROM fund_flow_ths').fetchone()
+        if row and row['d']:
+            trade_date = row['d']
+        else:
+            row = conn.execute('SELECT MAX(trade_date) as d FROM stock_daily').fetchone()
+            if not row or not row['d']:
+                conn.close()
+                return []
+            trade_date = row['d']
+
+    # 拉最近 35 天日线数据 (够算 MA30 + 斜率 + 各种窗口)
+    dates_30 = [r[0] for r in conn.execute("""
+        SELECT DISTINCT trade_date FROM stock_daily
+        WHERE trade_date <= ? ORDER BY trade_date DESC LIMIT 35
+    """, (trade_date,)).fetchall()]
+    intraday_used = False
+    if trade_date not in dates_30:
+        # THS 与 EM 不同: fund_flow_ths 是盘后抓,日期可能比 stock_daily 当天还新一天
+        # (例: stock_daily 最新 20260820, fund_flow_ths 已经有 20260821 当日数据)
+        # 这里允许 trade_date 暂时无对应 K 线, 直接用 stock_daily 最新一天作为"今天"基点
+        # (资金流用 trade_date 当日的, K 线用 stock_daily 最新一天的, 不冲突)
+        today = datetime.now().strftime('%Y%m%d')
+        if intraday and trade_date == today and dates_30:
+            intraday_used = True
+
+    # fund_flow_ths 可用天数 (决定哪些累计资金流维度能算)
+    flow_days = _ths_flow_days_available(trade_date)
+    can_3d = flow_days >= 3
+    can_5d = flow_days >= 5
+    can_10d = flow_days >= 10
+    # 20d 跳过
+
+    # 拉股票日线 (ts_codes 限定时只算给定代码, 否则全市场)
+    placeholders = ','.join(['?' for _ in dates_30])
+    sql_args = list(dates_30)
+    if ts_codes:
+        codes_ph = ','.join(['?' for _ in ts_codes])
+        rows = conn.execute(f"""
+            SELECT ts_code, name, trade_date, close, change, volume
+            FROM stock_daily
+            WHERE trade_date IN ({placeholders}) AND ts_code IN ({codes_ph})
+            ORDER BY ts_code, trade_date DESC
+        """, sql_args + list(ts_codes)).fetchall()
+    else:
+        rows = conn.execute(f"""
+            SELECT ts_code, name, trade_date, close, change, volume
+            FROM stock_daily
+            WHERE trade_date IN ({placeholders})
+            ORDER BY ts_code, trade_date DESC
+        """, sql_args).fetchall()
+
+    # 按股票分组
+    stock_data = defaultdict(list)
+    for r in rows:
+        stock_data[r['ts_code']].append({
+            'date': r['trade_date'],
+            'close': r['close'],
+            'change': r['change'],
+            'volume': r['volume'],
+            'name': r['name']
+        })
+
+    # 盘中模式: 拉全市场 sina 实时价
+    live_quotes = {}
+    if intraday_used:
+        try:
+            live_quotes = fetch_sina_quotes_all()
+            print(f'[ths picks intraday] {trade_date} sina 实时价 {len(live_quotes)} 只', flush=True)
+        except Exception as e:
+            print(f'[ths picks intraday] sina 拉取异常: {e}', flush=True)
+        if not live_quotes:
+            print(f'[ths picks intraday] 无实时价, 放弃 {trade_date} 盘中计算', flush=True)
+            conn.close()
+            return []
+
+    picks = []
+    for ts_code, data_list in stock_data.items():
+        if len(data_list) < 30:
+            continue
+        data_list.sort(key=lambda x: x['date'], reverse=True)
+
+        if intraday_used:
+            q = live_quotes.get(ts_code)
+            if not q or not q.get('price') or q['price'] <= 0:
+                continue
+            data_list.insert(0, {
+                'date': trade_date,
+                'close': q['price'],
+                'change': None,
+                'volume': None,
+                'name': data_list[0]['name'],
+            })
+
+        latest = data_list[0]
+        if not latest['close'] or latest['close'] <= 0:
+            continue
+        if not intraday_used and (not latest['volume'] or latest['volume'] == 0):
+            continue
+        if latest['name'] and ('*ST' in latest['name'] or 'ST' in latest['name']):
+            continue
+
+        # ===== 均线 (同 EM) =====
+        closes = [d['close'] for d in reversed(data_list)]
+        ma5 = _calc_ma(closes, 5)
+        ma10 = _calc_ma(closes, 10)
+        ma20 = _calc_ma(closes, 20)
+        ma30 = _calc_ma(closes, 30)
+        if not all([ma5, ma10, ma20, ma30]):
+            continue
+
+        ma5_slope = _calc_ma_slope(closes, 5)
+        ma10_slope = _calc_ma_slope(closes, 10)
+        ma20_slope = _calc_ma_slope(closes, 20)
+        ma30_slope = _calc_ma_slope(closes, 30)
+
+        # ===== THS 资金流 (4 窗口) =====
+        flows = {}
+        if can_3d:
+            flows['3d'] = sum(_fund_flow_window_ths(ts_code, trade_date, 3))
+        if can_5d:
+            flows['5d'] = sum(_fund_flow_window_ths(ts_code, trade_date, 5))
+        if can_10d:
+            flows['10d'] = sum(_fund_flow_window_ths(ts_code, trade_date, 10))
+        # 当日 THS 净额
+        flow_today_row = conn.execute("""
+            SELECT net FROM fund_flow_ths
+            WHERE ts_code = ? AND trade_date = ?
+        """, (ts_code, trade_date)).fetchone()
+        ths_net_today = flow_today_row['net'] if flow_today_row else None
+
+        # 涨跌幅
+        change_pct = 0
+        if len(data_list) >= 2:
+            prev_close = data_list[1]['close']
+            if prev_close and prev_close > 0:
+                change_pct = (latest['close'] - prev_close) / prev_close * 100
+
+        # ===== 评分 =====
+        # 与 EM 同骨架, 资金流维度全部走 THS; 占比类验证去掉 (THS 没有 net_pct 维度);
+        # 净流入绝对值验证保留 (用 ths_net_today / flows[...] 替代 main_net)
+        score = 0
+        reasons = []
+        buy_signals = 0
+        sell_signals = 0
+
+        # ---------- 均线信号 ----------
+        if ma5 > ma10 > ma20 > ma30:
+            score += 30
+            reasons.append('多头排列 MA5>MA10>MA20>MA30')
+        elif ma5 > ma10 > ma20:
+            score += 18
+            reasons.append('短中期多头排列 (MA5>MA10>MA20)')
+        if ma5 < ma10 < ma20 < ma30:
+            score -= 20
+            reasons.append('空头排列 MA5<MA10<MA20<MA30')
+            sell_signals += 1
+
+        if latest['close'] > ma5: score += 5; reasons.append('站上MA5')
+        if latest['close'] > ma10: score += 5; reasons.append('站上MA10')
+        if latest['close'] > ma20: score += 5; reasons.append('站上MA20')
+        if latest['close'] > ma30: score += 5; reasons.append('站上MA30')
+
+        if ma5_slope is not None and ma5_slope > 45:
+            score += 8
+            reasons.append(f'MA5陡峭向上 ({ma5_slope:.1f}°>45°)')
+        elif ma5_slope is not None and ma5_slope > 30:
+            score += 3
+            reasons.append(f'MA5向上 ({ma5_slope:.1f}°)')
+
+        # ---------- 金叉死叉 (无占比验证, 改用 THS 净流入绝对值验证) ----------
+        prev_ma5 = sum(closes[-6:-1]) / 5
+        prev_ma10 = sum(closes[-11:-1]) / 10
+        prev_ma30 = sum(closes[-31:-1]) / 30
+
+        # 5日上穿10日 +15 (验证: THS 当日净流入 > 1亿)
+        if prev_ma5 <= prev_ma10 and ma5 > ma10:
+            if ths_net_today is not None and ths_net_today > 1e8:
+                score += 15; reasons.append('5日金叉10日 ★ THS当日净流入>1亿'); buy_signals += 1
+            else:
+                score += 8; reasons.append('5日金叉10日 (资金验证待 THS 当日数据)')
+
+        # 10日上穿30日 +20 (验证: 30日拐头 + 10日 THS 累计>5000万)
+        if prev_ma10 <= prev_ma30 and ma10 > ma30:
+            if ma30_slope is not None and ma30_slope > 0 and can_10d and flows.get('10d', 0) > 5e7:
+                score += 20; reasons.append('10日金叉30日 ★★★ (30日拐头+10日 THS 净额>5000万)'); buy_signals += 1
+            elif can_10d:
+                score += 10; reasons.append('10日金叉30日 (资金验证待 THS N≥10天数据)')
+
+        # 10日下穿30日 (死叉) -30 (无 20d 验证, 改用 10d THS 由正转负)
+        if prev_ma10 >= prev_ma30 and ma10 < ma30:
+            if can_10d and flows.get('10d', 0) < 0:
+                score -= 30; reasons.append('10日死叉30日 ★★★ (10日 THS 净额<0)'); sell_signals += 1
+            elif can_10d:
+                score -= 18; reasons.append('10日死叉30日 (THS 资金验证待 N≥10天数据)')
+            else:
+                score -= 10; reasons.append('10日死叉30日 (THS 数据待积累)')
+
+        # ---------- 黄金组合 ----------
+        # 黄金 1: 突破20日线 + 20日线拐头 + 连续 3 日 THS 净额为正
+        if (latest['close'] > ma20 and ma20_slope is not None and ma20_slope > 0
+            and can_3d and _ths_flow_consecutive_sign(ts_code, trade_date, 3, want_positive=True)):
+            score += 25
+            reasons.append('黄金1: 突破20日线+连续3日 THS 净额为正 ★★★')
+            buy_signals += 1
+        elif latest['close'] > ma20 and ma20_slope is not None and ma20_slope > 0:
+            reasons.append('黄金1部分: 突破20日线+拐头向上 (需 N≥3天连续 THS 数据)')
+
+        # 黄金 2: 回踩 MA10 + THS 由流出转流入
+        near_ma10 = abs(latest['close'] - ma10) / ma10 < 0.02
+        if near_ma10 and can_3d and _ths_flow_turn(ts_code, trade_date, 3, want_positive=True):
+            score += 20
+            reasons.append('黄金2: 回踩MA10+THS 流出转流入 ★★')
+            buy_signals += 1
+        elif near_ma10:
+            reasons.append('黄金2部分: 回踩MA10 (资金由流出转流入需 N≥3天数据)')
+
+        # 黄金 3: 10日金叉30日 + 30日拐头 + 10日 THS 净额 > 0 (信号, 不重复加分)
+        if (prev_ma10 <= prev_ma30 and ma10 > ma30
+            and ma30_slope is not None and ma30_slope > 0
+            and can_10d and flows.get('10d', 0) > 0):
+            reasons.append('黄金3: 10日金叉30日+30日拐头+10日 THS>0 ★★★')
+
+        # 黄金 4: 跌破 MA5 但 MA10 支撑 + THS 当日净流入 > 0
+        if (latest['close'] < ma5 and latest['close'] > ma10
+            and ths_net_today is not None and ths_net_today > 0):
+            score += 15
+            reasons.append('黄金4: 跌破MA5但MA10支撑+THS 当日>0 ★★ (洗盘结束)')
+            buy_signals += 1
+
+        # ---------- 死亡组合 ----------
+        # 死亡 1: 跌破 MA10 + 5 日内 THS 由正转负
+        if latest['close'] < ma10 and can_5d and _ths_flow_turn(ts_code, trade_date, 3, want_positive=False):
+            score -= 25
+            reasons.append('死亡1: 跌破MA10+5日内THS由正转负 ★★★')
+            sell_signals += 1
+        elif latest['close'] < ma10:
+            reasons.append('死亡1部分: 跌破MA10 (THS 验证需 N≥5天数据)')
+
+        # 死亡 2: 10 日死叉30日 + 10 日 THS < 0 (跟前面死叉合并处理, 这里补信号标注)
+        if (prev_ma10 >= prev_ma30 and ma10 < ma30
+            and can_10d and flows.get('10d', 0) < 0):
+            reasons.append('死亡2: 10日死叉30日+10日 THS<0 ★★★')
+
+        # 死亡 3: 创新高 + 连续 3 日 THS 净流出 (顶背离)
+        if (change_pct > 0 and _is_new_high(closes, 60)
+            and can_3d and _ths_flow_consecutive_sign(ts_code, trade_date, 3, want_positive=False)):
+            score -= 20
+            reasons.append('死亡3: 创新高+连续3日 THS 净流出 ★★★ (顶背离)')
+            sell_signals += 1
+        elif _is_new_high(closes, 60):
+            reasons.append('死亡3部分: 创新高 (连续3日 THS 流出需 N≥3天数据)')
+
+        # 死亡 4: 多头排列但 10 日 THS 开始流出 (20d 跳过)
+        if (ma5 > ma10 > ma20 > ma30
+            and can_10d
+            and flows.get('10d', 0) < 0):
+            score -= 15
+            reasons.append('死亡4: 多头排列但10日 THS<0 ★★ (趋势即将反转)')
+            sell_signals += 1
+        elif ma5 > ma10 > ma20 > ma30 and not can_10d:
+            reasons.append('死亡4待验证: 多头排列 (10日 THS 验证需 N≥10天数据)')
+
+        # ---------- 真假突破 (无占比验证) ----------
+        is_breakout, brk_level = _is_breakout_confirmed(closes, 20)
+        if is_breakout and ths_net_today is not None and ths_net_today > 5e7:
+            score += 20
+            reasons.append(f'真突破确认: 站稳3日+THS 当日>{5e7/1e8:.1f}亿 ★★★')
+            buy_signals += 1
+        elif is_breakout:
+            reasons.append('突破中: 站稳3日 (THS 当日 < 5000万, 验证待积累)')
+
+        # ---------- 真洗盘识别 (THS 5 日累计 > 0) ----------
+        if latest['close'] < ma10 and can_5d and flows.get('5d', 0) > 0:
+            score += 8
+            reasons.append('真洗盘: 跌破MA10但5日 THS 累计仍>0 (承接)')
+
+        # ---------- 葛兰碧八大法则 (净流入绝对值, 无占比) ----------
+        bias = (latest['close'] - ma5) / ma5 * 100 if ma5 else 0
+        bias10 = (latest['close'] - ma10) / ma10 * 100 if ma10 else 0
+        bias20 = (latest['close'] - ma20) / ma20 * 100 if ma20 else 0
+        bias30 = (latest['close'] - ma30) / ma30 * 100 if ma30 else 0
+
+        volumes = [d['volume'] for d in reversed(data_list) if d['volume'] is not None]
+        vol_ratio = _volume_ratio(volumes) if len(volumes) >= 6 else None
+
+        # 1. 突破买入
+        if (latest['close'] > ma20 and prev_ma5 <= prev_ma10 and ma5 > ma10
+            and vol_ratio is not None and vol_ratio > 1.5
+            and ths_net_today is not None and ths_net_today > 1e8):
+            score += 18
+            reasons.append(f'葛兰碧突破买入: 突破MA20+量>50%+THS 当日>1亿 ★★')
+            buy_signals += 1
+
+        # 2. 回踩不破
+        if ((abs(bias10) < 3 and latest['close'] > ma10)
+            and ths_net_today is not None and ths_net_today > 0):
+            score += 12
+            reasons.append(f'葛兰碧回踩不破: 回踩MA10不破+THS 当日>0 ★')
+            buy_signals += 1
+
+        # 3. 假跌破买入
+        if (latest['close'] < ma5 * 1.005 and latest['close'] > ma5 * 0.99
+            and ths_net_today is not None and ths_net_today > 0):
+            reasons.append('葛兰碧假跌破: 触及MA5后收回+THS>0 (洗盘结束信号) ★')
+
+        # 4. 超跌反弹
+        if bias < -15 and ths_net_today is not None and ths_net_today > 0:
+            score += 10
+            reasons.append(f'葛兰碧超跌反弹: 偏离MA5 {bias:.1f}%+THS>0 ★')
+            buy_signals += 1
+
+        # 5. 跌破卖出
+        if ((latest['close'] < ma20 or latest['close'] < ma30)
+            and ths_net_today is not None and ths_net_today < 0):
+            score -= 15
+            reasons.append(f'葛兰碧跌破卖出: 跌破MA20/MA30+THS<0 ★★')
+            sell_signals += 1
+
+        # 6. 反弹不过
+        if ((abs(bias10) < 2 or abs(bias20) < 2)
+            and latest['close'] < ma10
+            and ths_net_today is not None and ths_net_today < 0):
+            score -= 10
+            reasons.append(f'葛兰碧反弹不过: 反弹至MA10/MA20受阻+THS<0 ★')
+            sell_signals += 1
+
+        # 7. 假突破卖出 (THS 无占比, 简化为 ths_net_today < 0)
+        if is_breakout and ths_net_today is not None and ths_net_today < 0:
+            score -= 15
+            reasons.append(f'葛兰碧假突破: 突破但 THS 当日<0 (诱多嫌疑) ★★')
+            sell_signals += 1
+
+        # 8. 超涨卖出
+        if bias > 15 and ths_net_today is not None and ths_net_today < 0:
+            score -= 10
+            reasons.append(f'葛兰碧超涨: 偏离MA5 {bias:.1f}%+THS<0 ★')
+            sell_signals += 1
+
+        # ---------- 资金流累计信号 ----------
+        # THS 无净流入占比, 用绝对值
+        if ths_net_today is not None and ths_net_today > 1e8:
+            score += 15
+            reasons.append(f'当日 THS 净额 {ths_net_today/1e8:.2f}亿 (>1亿 启动信号)')
+            buy_signals += 1
+        if ths_net_today is not None and ths_net_today < -5e7:
+            score -= 15
+            reasons.append(f'当日 THS 净流出 {-ths_net_today/1e8:.2f}亿 (短线走弱)')
+            sell_signals += 1
+
+        # 3 日累计
+        if can_3d:
+            v = flows['3d']
+            if v > 5e7:
+                score += 8
+                reasons.append(f'3日累计 THS 净额 {v/1e8:.2f}亿 (波段健康)')
+            elif v < -5e7:
+                score -= 8
+                reasons.append(f'3日累计 THS 净流出 {-v/1e8:.2f}亿 (波段走坏)')
+                sell_signals += 1
+        else:
+            reasons.append(f'3日累计 THS 净额: 待 N≥3天数据 (当前 {flow_days}天)')
+
+        # 5 日累计
+        if can_5d:
+            v = flows['5d']
+            if v > 5e7:
+                score += 10
+                reasons.append(f'5日累计 THS 净额 {v/1e8:.2f}亿 (波段健康)')
+            else:
+                score -= 10
+                reasons.append(f'5日累计 THS 净流出 {-v/1e8:.2f}亿 (波段走坏)')
+                sell_signals += 1
+        else:
+            reasons.append(f'5日累计 THS 净额: 待 N≥5天数据 (当前 {flow_days}天)')
+
+        # 10 日累计
+        if can_10d:
+            v = flows['10d']
+            if v > 0:
+                score += 12
+                reasons.append(f'10日累计 THS 净额 {v/1e8:.2f}亿 (中期强势)')
+            else:
+                score -= 12
+                reasons.append(f'10日累计 THS 净流出 {-v/1e8:.2f}亿 (中期转弱)')
+                sell_signals += 1
+        else:
+            reasons.append(f'10日累计 THS 净额: 待 N≥10天数据 (当前 {flow_days}天)')
+
+        # ---------- 量价信号 ----------
+        if 0 < change_pct <= 5:
+            score += 5; reasons.append(f'温和上涨 {change_pct:.2f}%')
+        elif 5 < change_pct <= 9.5:
+            score += 3; reasons.append(f'强势上涨 {change_pct:.2f}%')
+
+        # ---------- 信号类型 ----------
+        if sell_signals > buy_signals:
+            signal_type = 'sell'
+        elif buy_signals > 0 and score > 0:
+            signal_type = 'buy'
+        else:
+            signal_type = 'hold'
+
+        picks.append({
+            'ts_code': ts_code,
+            'name': latest['name'] or ts_code.split('.')[0],
+            'trade_date': trade_date,
+            'close': latest['close'],
+            'change_pct': round(change_pct, 2),
+            'ma5': round(ma5, 2), 'ma10': round(ma10, 2),
+            'ma20': round(ma20, 2), 'ma30': round(ma30, 2),
+            'ma5_slope': round(ma5_slope, 1) if ma5_slope is not None else None,
+            'ma10_slope': round(ma10_slope, 1) if ma10_slope is not None else None,
+            'ma20_slope': round(ma20_slope, 1) if ma20_slope is not None else None,
+            'ma30_slope': round(ma30_slope, 1) if ma30_slope is not None else None,
+            'ths_net_today': ths_net_today,
+            'ths_net_3d': flows.get('3d'),
+            'ths_net_5d': flows.get('5d'),
+            'ths_net_10d': flows.get('10d'),
+            'score': round(score, 1),
+            'signal_type': signal_type,
+            'flow_days_available': flow_days,
+            'reasons': reasons,
+        })
+
+    conn.close()
+    picks.sort(key=lambda x: x['score'], reverse=True)
+    return picks[:100]
+
+
 @app.route('/api/picks/sync', methods=['POST'])
 def api_picks_sync():
     """触发选股推荐计算。支持 ?date=YYYYMMDD 指定日期。
@@ -7656,6 +9164,69 @@ def api_picks_sync():
             'date': trade_date,
             'intraday_used': intraday_used,
             'flow_synced': flow_synced
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)})
+
+
+@app.route('/api/picks/ths/sync', methods=['POST'])
+def api_picks_ths_sync():
+    """触发同花顺选股推荐计算。支持 body.date=YYYYMMDD 指定日期。
+    body.intraday=1: 用 sina 实时价参与计算 (盘中模式, 与 EM 同思路).
+
+    注意: 不会自动触发 fetch_ths_market (数据抓取是 5-8 分钟重活, 由 scheduler 17:05/19:30 + 手动触发管).
+    若 fund_flow_ths 当日还没入库, 计算会返 0 条, 用户等定时跑完即可.
+    """
+    try:
+        req_date = request.json.get('date', '') if request.is_json else ''
+        req_intraday = bool(request.json.get('intraday')) if request.is_json else False
+
+        picks = _compute_picks_ths(req_date or None, intraday=req_intraday)
+
+        if not picks:
+            return jsonify({'status': 'success', 'message': '无推荐股票', 'count': 0, 'intraday_used': False})
+
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+
+        # trade_date 优先用 req_date (请求指定), 否则用 picks 自带的 (与 _compute_picks_ths 计算口径一致,
+        # THS flow 日期可能领先 stock_daily, 不能 fallback stock_daily 否则日期错乱)
+        if req_date:
+            trade_date = req_date
+        else:
+            trade_date = picks[0]['trade_date']
+
+        intraday_used = False
+        if req_intraday:
+            has_daily = c.execute(
+                'SELECT 1 FROM stock_daily WHERE trade_date = ? LIMIT 1', (trade_date,)).fetchone()
+            intraday_used = not has_daily
+
+        c.execute('DELETE FROM stock_picks_ths WHERE trade_date = ?', (trade_date,))
+
+        for p in picks:
+            c.execute('''INSERT OR REPLACE INTO stock_picks_ths
+                (trade_date, ts_code, name, close, change_pct,
+                 ma5, ma10, ma20, ma30,
+                 ma5_slope, ma10_slope, ma20_slope, ma30_slope,
+                 ths_net_today, ths_net_3d, ths_net_5d, ths_net_10d,
+                 score, signal_type, flow_days_available, reasons_json)
+                VALUES (?,?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?,?)''',
+                (trade_date, p['ts_code'], p['name'], p['close'], p['change_pct'],
+                 p['ma5'], p['ma10'], p['ma20'], p['ma30'],
+                 p['ma5_slope'], p['ma10_slope'], p['ma20_slope'], p['ma30_slope'],
+                 p['ths_net_today'], p['ths_net_3d'], p['ths_net_5d'], p['ths_net_10d'],
+                 p['score'], p['signal_type'], p['flow_days_available'],
+                 json.dumps(p['reasons'], ensure_ascii=False)))
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            'status': 'success',
+            'count': len(picks),
+            'date': trade_date,
+            'intraday_used': intraday_used,
         })
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)})
@@ -7755,6 +9326,100 @@ def api_picks():
                         p['post_pick_change_pct'] = round((cur - ref) / ref * 100, 2)
             except Exception as e:
                 print(f'[api_picks] sina 拉取失败 (不影响主流程): {e}')
+
+    return jsonify({
+        'picks': picks,
+        'date': rows[0]['trade_date'] if rows else '',
+        'count': len(picks)
+    })
+
+
+@app.route('/api/picks/ths', methods=['GET'])
+def api_picks_ths():
+    """同花顺选股推荐列表 (镜像 api_picks 但读 stock_picks_ths).
+    走 sina 实时价算入选后涨幅, 共用 fetch_sina_quotes 全局缓存.
+    """
+    limit = min(int(request.args.get('limit', 30)), 100)
+    date = request.args.get('date', '').strip()
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+
+    if date:
+        rows = conn.execute(
+            'SELECT * FROM stock_picks_ths WHERE trade_date = ? ORDER BY score DESC LIMIT ?',
+            (date, limit)
+        ).fetchall()
+    else:
+        latest = conn.execute('SELECT MAX(trade_date) as d FROM stock_picks_ths').fetchone()
+        if latest and latest['d']:
+            rows = conn.execute(
+                'SELECT * FROM stock_picks_ths WHERE trade_date = ? ORDER BY score DESC LIMIT ?',
+                (latest['d'], limit)
+            ).fetchall()
+        else:
+            rows = []
+    conn.close()
+
+    picks = []
+    for r in rows:
+        raw_reasons = r['reasons_json'] if 'reasons_json' in r.keys() else (
+            r['reasons'] if 'reasons' in r.keys() else ''
+        )
+        try:
+            reasons = json.loads(raw_reasons) if raw_reasons else []
+        except Exception:
+            reasons = []
+
+        def _f(v):
+            return v if v is not None else None
+
+        picks.append({
+            'ts_code': r['ts_code'],
+            'name': r['name'],
+            'trade_date': r['trade_date'],
+            'close': r['close'],
+            'change_pct': r['change_pct'],
+            # MA
+            'ma5': _f(r['ma5']) if 'ma5' in r.keys() else None,
+            'ma10': _f(r['ma10']) if 'ma10' in r.keys() else None,
+            'ma20': _f(r['ma20']) if 'ma20' in r.keys() else None,
+            'ma30': _f(r['ma30']) if 'ma30' in r.keys() else None,
+            'ma5_slope': _f(r['ma5_slope']) if 'ma5_slope' in r.keys() else None,
+            'ma10_slope': _f(r['ma10_slope']) if 'ma10_slope' in r.keys() else None,
+            'ma20_slope': _f(r['ma20_slope']) if 'ma20_slope' in r.keys() else None,
+            'ma30_slope': _f(r['ma30_slope']) if 'ma30_slope' in r.keys() else None,
+            # THS 资金流 (4 窗口)
+            'ths_net_today': _f(r['ths_net_today']) if 'ths_net_today' in r.keys() else None,
+            'ths_net_3d': _f(r['ths_net_3d']) if 'ths_net_3d' in r.keys() else None,
+            'ths_net_5d': _f(r['ths_net_5d']) if 'ths_net_5d' in r.keys() else None,
+            'ths_net_10d': _f(r['ths_net_10d']) if 'ths_net_10d' in r.keys() else None,
+            # 评分
+            'score': r['score'],
+            'signal_type': r['signal_type'] if 'signal_type' in r.keys() else 'hold',
+            'flow_days_available': r['flow_days_available'] if 'flow_days_available' in r.keys() else 0,
+            'reasons': reasons,
+        })
+
+    # 板块历史
+    _attach_sector(picks, key='ts_code')
+
+    # 入选后涨幅: sina 实时价对比入选当日 close
+    if picks:
+        codes = [p['ts_code'] for p in picks if p.get('ts_code')]
+        if codes:
+            try:
+                quotes = fetch_sina_quotes(codes)
+                for p in picks:
+                    q = quotes.get(p['ts_code'])
+                    if q and p.get('close') and q.get('price'):
+                        cur = q['price']
+                        ref = p['close']
+                        p['current_price'] = cur
+                        p['quote_time'] = q.get('time', '')
+                        p['post_pick_change_pct'] = round((cur - ref) / ref * 100, 2)
+            except Exception as e:
+                print(f'[api_picks_ths] sina 拉取失败 (不影响主流程): {e}')
 
     return jsonify({
         'picks': picks,
@@ -7897,6 +9562,220 @@ def _apply_cond_threshold(rows, threshold_amt):
 def _filter_conditional(rows, threshold_yi=THRESHOLD_3YI):
     """应用条件选股规则 (基础规则 + 门槛), 返回命中行 (附 used_bucket / hit_threshold)."""
     return _apply_cond_threshold(_filter_conditional_base(rows), threshold_yi)
+
+
+# ============ 同花顺条件选股 (独立口径, 用 fund_flow_ths.net) ============
+# 跟 EM 版最大区别:
+#   ① THS 没有 5 档分摊, 全部只看 net (净额), 无 close<200/≥200 价格桶
+#   ② THS 历史太短 (2026-08-20 才开始), 只算 3d/5d/10d 累计, 跳过 20d
+#   ③ 没有 sum_mid_small_* (THS 无中小单字段)
+# 触发: api_picks_ths_conditional + api_picks_ths_combined, 复用 _compute_conditional_picks_internal_ths
+
+
+def _filter_conditional_base_ths(rows):
+    """THS 条件选股基础规则 (无价格桶, 无中小单维度):
+      - 当日涨跌幅必须 < 0
+      - 3 项 net 累计 (3d/5d/10d) 必须 > 0
+    附 used_bucket='net' (统一口径, 前端档位列固定显示), 不设 hit_threshold.
+    """
+    hits = []
+    for r in rows:
+        cp = r.get('change_pct')
+        close = r.get('close')
+        if cp is None or close is None:
+            continue
+        if cp >= 0:
+            continue
+        a = r.get('sum_net_3d') or 0
+        b = r.get('sum_net_5d') or 0
+        c = r.get('sum_net_10d') or 0
+        if not (a > 0 and b > 0 and c > 0):
+            continue
+        r['used_bucket'] = 'net'
+        r['sum_3d'] = a
+        r['sum_5d'] = b
+        r['sum_10d'] = c
+        r['sum_20d'] = None  # THS 历史太短没 20d, 前端 _fmtCondFlow 会渲染成 —
+        hits.append(r)
+    return hits
+
+
+def _apply_cond_threshold_ths(rows, threshold_amt):
+    """THS 版门槛过滤: 至少 1 项 (3d/5d/10d) ≥ threshold_amt."""
+    out = []
+    for r in rows:
+        a = r.get('sum_3d') or 0
+        b = r.get('sum_5d') or 0
+        c = r.get('sum_10d') or 0
+        max_v = max(a, b, c)
+        if max_v < threshold_amt:
+            continue
+        hit = None
+        if a >= threshold_amt: hit = '3d'
+        elif b >= threshold_amt: hit = '5d'
+        elif c >= threshold_amt: hit = '10d'
+        r['hit_threshold'] = hit
+        out.append(r)
+    return out
+
+
+def _compute_conditional_picks_internal_ths(date, intraday_close=False):
+    """THS 条件选股 raw 数据管道 (SQL+后处理).
+    直接读 fund_flow_ths (不走 ranked 物化表 — THS 单源, 没 5 档, ranked 物化没意义).
+
+    Returns:
+        (data, next_dates) tuple.
+        data: list[dict] 含 sum_net_3d/5d/10d + next_1..5_close/change_pct/high.
+        next_dates: list[NEXT_DAYS] T+1..T+5 trade_date.
+        交易日窗口 < 3 天时返回 (None, [None]*NEXT_DAYS).
+    """
+    NEXT_DAYS = 5
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+
+    # 1) window_dates: 入选日及入选日前 19 个交易日 (10d 累计需要)
+    window_dates = [r[0] for r in conn.execute(
+        'SELECT DISTINCT trade_date FROM fund_flow_ths WHERE trade_date <= ? '
+        'ORDER BY trade_date DESC LIMIT 19',
+        (date,)).fetchall()]
+    if len(window_dates) < 3:
+        conn.close()
+        return None, [None] * NEXT_DAYS
+
+    # 2) 入选日 T 的下 1..5 个交易日 (工作日历推算)
+    next_dates = []
+    try:
+        from datetime import date as _d2, timedelta as _td2
+        _cur = _d2(int(date[:4]), int(date[4:6]), int(date[6:8]))
+        for _ in range(NEXT_DAYS):
+            _cur = _cur + _td2(days=1)
+            while _cur.weekday() >= 5:
+                _cur = _cur + _td2(days=1)
+            next_dates.append(_cur.strftime('%Y%m%d'))
+    except Exception as _e:
+        print(f'[ths cond] next_dates 工作日历计算失败: {_e}', flush=True)
+        cur_lower = date
+        for _ in range(NEXT_DAYS):
+            row = conn.execute(
+                'SELECT MIN(trade_date) AS d FROM stock_daily WHERE trade_date > ?',
+                (cur_lower,)).fetchone()
+            nd = row['d'] if row and row['d'] else None
+            if not nd:
+                nd = (conn.execute(
+                    'SELECT MIN(trade_date) AS d FROM fund_flow_ths WHERE trade_date > ?',
+                    (cur_lower,)).fetchone() or {}).get('d')
+            next_dates.append(nd)
+            if not nd:
+                next_dates += [None] * (NEXT_DAYS - len(next_dates))
+                break
+            cur_lower = nd
+
+    placeholders = ','.join(['?' for _ in window_dates])
+    # next_day CTE
+    cte_parts = []
+    for i, d in enumerate(next_dates, start=1):
+        if d:
+            cte_parts.append(f"""
+                next_day_{i} AS (
+                    SELECT ts_code AS next_{i}_ts,
+                           MAX(close) AS next_{i}_close,
+                           MAX(change) AS next_{i}_change_pct,
+                           MAX(high) AS next_{i}_high
+                    FROM stock_daily
+                    WHERE trade_date = ?
+                    GROUP BY ts_code
+                )""")
+        else:
+            cte_parts.append(f"""
+                next_day_{i} AS (
+                    SELECT NULL AS next_{i}_ts, NULL AS next_{i}_close,
+                           NULL AS next_{i}_change_pct, NULL AS next_{i}_high
+                    WHERE 0
+                )""")
+    ctes_sql = ','.join(cte_parts)
+    select_next_cols = ', '.join(
+        f'n{i}.next_{i}_close, n{i}.next_{i}_change_pct, n{i}.next_{i}_high'
+        for i in range(1, NEXT_DAYS + 1)
+    )
+    join_parts = ' '.join(f'LEFT JOIN next_day_{i} n{i} ON a.ts_code = n{i}.next_{i}_ts'
+                          for i in range(1, NEXT_DAYS + 1))
+
+    sql = f"""
+        WITH target_d AS (
+            SELECT ts_code, close, change_pct
+            FROM fund_flow_ths WHERE trade_date = ?
+        ),
+        ranked AS (
+            SELECT f.ts_code, f.trade_date, f.close, f.change_pct, f.net,
+                   ROW_NUMBER() OVER (PARTITION BY f.ts_code ORDER BY f.trade_date DESC) AS window_rn
+            FROM fund_flow_ths f
+            WHERE f.trade_date IN ({placeholders})
+        ),
+        agg AS (
+            SELECT r.ts_code,
+                   MAX(td.close)      AS close,
+                   MAX(td.change_pct) AS change_pct,
+                   MAX(r.trade_date)  AS trade_date,
+                   SUM(CASE WHEN window_rn <= 3  THEN net END) AS sum_net_3d,
+                   SUM(CASE WHEN window_rn <= 5  THEN net END) AS sum_net_5d,
+                   SUM(CASE WHEN window_rn <= 10 THEN net END) AS sum_net_10d
+            FROM ranked r
+            INNER JOIN target_d td ON td.ts_code = r.ts_code
+            GROUP BY r.ts_code
+        )
+        {ctes_sql}
+        SELECT a.ts_code, a.close, a.change_pct, a.trade_date,
+               a.sum_net_3d, a.sum_net_5d, a.sum_net_10d,
+               {select_next_cols}
+        FROM agg a
+        {join_parts}
+    """
+    sql_args = [date] + list(window_dates)
+    for d in next_dates:
+        if d:
+            sql_args += [d]
+    rows = conn.execute(sql, sql_args).fetchall()
+    conn.close()
+
+    data = [dict(r) for r in rows]
+    # 入选日=今天但 fund_flow_ths.close 还没入库: 用 sina 实时价补齐 (30s 全局缓存)
+    today = datetime.now().strftime('%Y%m%d')
+    if date == today and any(d.get('close') is None or d.get('change_pct') is None for d in data):
+        try:
+            _quotes = fetch_sina_quotes([d['ts_code'] for d in data])
+            _filled = 0
+            for d in data:
+                if d.get('close') is not None and d.get('change_pct') is not None:
+                    continue
+                q = _quotes.get(d['ts_code'])
+                if q and q.get('price') and q['price'] > 0:
+                    d['close'] = q['price']
+                    d['change_pct'] = q['change_pct']
+                    d['_selday_live'] = True
+                    _filled += 1
+        except Exception as _e:
+            print(f'[ths cond] 入选日实时价补齐失败: {_e}', flush=True)
+    data = [d for d in data if d.get('close') is not None and d.get('change_pct') is not None]
+    # T+1..T+N 涨幅
+    def _daily_or_fallback(d, i):
+        i = str(i)
+        cp = d.get(f'next_{i}_change_pct')
+        if cp is not None:
+            return round(cp, 2)
+        nc = d.get(f'next_{i}_close')
+        if nc is not None and d.get('close'):
+            return round((nc - d['close']) / d['close'] * 100, 2)
+        return None
+    for d in data:
+        for i in range(1, NEXT_DAYS + 1):
+            if i == 1:
+                d['post_pick_next_change_pct'] = _daily_or_fallback(d, i)
+            else:
+                d[f'post_pick_next{i}_change_pct'] = _daily_or_fallback(d, i)
+        for i in range(1, NEXT_DAYS + 1):
+            if next_dates[i - 1] is None:
+                d[f'max_high_t{i}'] = None
+    return data, next_dates
 
 
 def _compute_conditional_picks_internal(date, source, intraday_close=False):
@@ -8550,8 +10429,219 @@ def _conditional_picks_payload(date, source, intraday_flag, threshold_yi):
     }
 
 
+def _conditional_picks_payload_ths(date, intraday_flag, threshold_yi):
+    """api_picks_ths_conditional 的数据部分 (THS 版).
+
+    规则 (无价格桶, 无中小单):
+      - change_pct < 0
+      - 3d / 5d / 10d 累计 (fund_flow_ths.net) 必须 > 0
+      - 至少 1 项 ≥ threshold
+    """
+    threshold_amt = threshold_yi * 1e8
+
+    # 1) 选定 trade_date (不传 = 用最新可用日; THS 单源, 直接 MAX)
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    if date:
+        row = conn.execute(
+            'SELECT MIN(trade_date) AS d FROM fund_flow_ths WHERE trade_date = ?',
+            (date,)).fetchone()
+        if not row or not row['d']:
+            conn.close()
+            return {
+                'status': 'success', 'date': date, 'count': 0, 'results': [],
+                'snapshot_saved': False, 'snapshot_count': None,
+                'note': f'该日 ({date}) 无同花顺资金流数据'
+            }
+    else:
+        row = conn.execute(
+            'SELECT MAX(trade_date) AS d FROM fund_flow_ths WHERE net IS NOT NULL'
+        ).fetchone()
+        if not row or not row['d']:
+            conn.close()
+            return {'status': 'success', 'date': '', 'count': 0, 'results': [],
+                    'snapshot_saved': False, 'snapshot_count': None, 'note': 'fund_flow_ths 表无数据'}
+        date = row['d']
+    conn.close()
+
+    # 2-3) raw 数据 (SQL+next_dates)
+    data, next_dates = _compute_conditional_picks_internal_ths(date, intraday_close=intraday_flag)
+    if data is None:
+        return {'status': 'success', 'date': date, 'count': 0, 'results': [],
+                'note': f'交易日窗口不足 3 天'}
+
+    # 4) 基础规则 + 板块; 门槛等快照入库之后再套
+    base_hits = _filter_conditional_base_ths(data)
+    _attach_sector(base_hits, key='ts_code')
+    _th_yi_str = ('%.1f' % threshold_yi).rstrip('0').rstrip('.') if threshold_yi != int(threshold_yi) else str(int(threshold_yi))
+    _intraday_used = _apply_intraday_next(base_hits, next_dates)
+    if any(h.get('_selday_live') for h in base_hits):
+        _intraday_used = True
+    from datetime import datetime as _dt2
+    _next_1_is_today = bool(next_dates and next_dates[0] == _dt2.now().strftime('%Y%m%d'))
+    # 写入盘后快照库 (跟 EM 同款: 计算完即入库)
+    _snapshot_saved = True
+    try:
+        _conn = sqlite3.connect(DB_PATH)
+        if not base_hits:
+            _old = _conn.execute(
+                'SELECT count FROM conditional_picks_snapshot_ths WHERE trade_date = ?',
+                (date,)).fetchone()
+            if _old and _old[0]:
+                _snapshot_saved = False
+                print(f'[ths cond snapshot] {date} 本次 0 命中, 保留已有非空快照 ({_old[0]} 条), 不覆盖', flush=True)
+        if _snapshot_saved:
+            _conn.execute(
+                'INSERT OR REPLACE INTO conditional_picks_snapshot_ths '
+                '(trade_date, count, results_json, next_date, next_date_2, next_date_3, next_date_4, next_date_5, intraday_used) '
+                'VALUES (?,?,?,?,?,?,?,?,?)',
+                (date, len(base_hits), json.dumps(base_hits, ensure_ascii=False),
+                 next_dates[0] if len(next_dates) > 0 else None,
+                 next_dates[1] if len(next_dates) > 1 else None,
+                 next_dates[2] if len(next_dates) > 2 else None,
+                 next_dates[3] if len(next_dates) > 3 else None,
+                 next_dates[4] if len(next_dates) > 4 else None,
+                 1 if _intraday_used else 0))
+            _conn.commit()
+        _conn.close()
+    except Exception as _e:
+        print(f'[ths cond snapshot] 入库失败 {date}: {_e}', flush=True)
+    hits = _apply_cond_threshold_ths(base_hits, threshold_amt)
+    hits.sort(key=lambda r: max(r['sum_3d'], r['sum_5d'], r['sum_10d']), reverse=True)
+    return {
+        'status': 'success',
+        'date': date,
+        'next_date':   next_dates[0] if len(next_dates) > 0 else None,
+        'next_date_2': next_dates[1] if len(next_dates) > 1 else None,
+        'next_date_3': next_dates[2] if len(next_dates) > 2 else None,
+        'next_date_4': next_dates[3] if len(next_dates) > 3 else None,
+        'next_date_5': next_dates[4] if len(next_dates) > 4 else None,
+        'next_1_is_today': _next_1_is_today,
+        'intraday_used': _intraday_used,
+        'snapshot_saved': _snapshot_saved,
+        'snapshot_count': len(hits),
+        'count': len(hits),
+        'results': hits,
+        'filter': {
+            'change_pct_required': '< 0',
+            'price_bucket': '无 (THS 只有 net, 不分主力/超大单)',
+            'threshold_yi': threshold_yi,
+            'cumulative_window': '3d / 5d / 10d (THS 历史太短, 跳过 20d) 必须 > 0',
+            'threshold': f'至少 1 项累计 ≥ {_th_yi_str} 亿'
+        }
+    }
+
+
+def _read_conditional_snapshot_ths(date, threshold_yi):
+    """THS 条件选股盘后快照直读 (跟 EM 同模式)."""
+    today = datetime.now().strftime('%Y%m%d')
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    if not date:
+        row = conn.execute('SELECT MAX(trade_date) AS d FROM conditional_picks_snapshot_ths').fetchone()
+        date = (row['d'] or '') if row else ''
+    if not date:
+        conn.close()
+        return None
+    row = conn.execute(
+        'SELECT count, results_json, next_date, next_date_2, next_date_3, next_date_4, next_date_5, intraday_used '
+        'FROM conditional_picks_snapshot_ths WHERE trade_date = ?', (date,)).fetchone()
+    if not row or not (row['count'] or 0):
+        conn.close()
+        return None
+    if date >= today or row['next_date'] == today:
+        conn.close()
+        return None
+    try:
+        results = json.loads(row['results_json'] or '[]')
+    except Exception:
+        results = []
+    if not results:
+        conn.close()
+        return None
+    next_dates = [row['next_date'], row['next_date_2'], row['next_date_3'],
+                  row['next_date_4'], row['next_date_5']]
+    if not any(next_dates):
+        next_dates = _next_workdays(date, 5)
+    stale_i = _snapshot_tn_stale(conn, results, next_dates)
+    conn.close()
+    if stale_i:
+        print(f'[ths cond snapshot] {date} T+{stale_i} 已收盘但快照缺数据, 回落实时算自愈', flush=True)
+        return None
+    threshold_amt = threshold_yi * 1e8
+    hits = _apply_cond_threshold_ths(results, threshold_amt)
+    hits.sort(key=lambda r: max(r['sum_3d'], r['sum_5d'], r['sum_10d']), reverse=True)
+    _th_yi_str = ('%.1f' % threshold_yi).rstrip('0').rstrip('.') if threshold_yi != int(threshold_yi) else str(int(threshold_yi))
+    return {
+        'status': 'success',
+        'date': date,
+        'next_date':   next_dates[0] if len(next_dates) > 0 else None,
+        'next_date_2': next_dates[1] if len(next_dates) > 1 else None,
+        'next_date_3': next_dates[2] if len(next_dates) > 2 else None,
+        'next_date_4': next_dates[3] if len(next_dates) > 3 else None,
+        'next_date_5': next_dates[4] if len(next_dates) > 4 else None,
+        'next_1_is_today': False,
+        'intraday_used': bool(row['intraday_used']),
+        'snapshot_saved': True,
+        'snapshot_count': len(hits),
+        'count': len(hits),
+        'results': hits,
+        'filter': {
+            'change_pct_required': '< 0',
+            'price_bucket': '无 (THS 只有 net, 不分主力/超大单)',
+            'threshold_yi': threshold_yi,
+            'cumulative_window': '3d / 5d / 10d (THS 历史太短, 跳过 20d) 必须 > 0',
+            'threshold': f'至少 1 项累计 ≥ {_th_yi_str} 亿'
+        },
+        'note': '快照库直读',
+    }
+
+
+@app.route('/api/picks/ths/conditional', methods=['GET'])
+def api_picks_ths_conditional():
+    """同花顺条件选股: 用 fund_flow_ths.net 筛选全市场.
+    Args:
+        date: 选股交易日期 (YYYYMMDD), 不传 = 最新有数据的交易日
+        threshold_yi: 累计净流入门槛, 默认 3 亿
+        intraday: 1/true 强制实时算 (跳过盘后快照直读)
+    """
+    date = (request.args.get('date') or '').strip()
+    intraday_flag = request.args.get('intraday') in ('1', 'true', 'True')
+    try:
+        threshold_yi = float(request.args.get('threshold_yi') or '3')
+        if threshold_yi < 0 or threshold_yi > 100:
+            threshold_yi = 3
+    except Exception:
+        threshold_yi = 3
+    return jsonify(_conditional_picks_payload_ths(date, intraday_flag, threshold_yi))
+
+
+@app.route('/api/picks/ths/conditional/snapshot', methods=['GET'])
+def api_picks_ths_conditional_snapshot():
+    """同花顺条件选股盘后快照: 优先直读 conditional_picks_snapshot_ths;
+    无快照 / 今日 / T+1 是今天 / T+N 数据缺口 → 回落实时算 (算完自动重写快照)."""
+    date = (request.args.get('date') or '').strip()
+    try:
+        threshold_yi = float(request.args.get('threshold_yi') or '3')
+        if threshold_yi < 0 or threshold_yi > 100:
+            threshold_yi = 3
+    except Exception:
+        threshold_yi = 3
+    payload = _read_conditional_snapshot_ths(date, threshold_yi)
+    if payload is not None:
+        return jsonify(payload)
+    return jsonify(_conditional_picks_payload_ths(date, False, threshold_yi))
+
+
 @app.route('/api/conditional-picks', methods=['GET'])
 def api_conditional_picks():
+    """条件选股: 按固定规则筛选 fund_flow 全市场 (不依赖 stock_picks / _compute_picks)
+
+    Args:
+        date: 选股交易日期 (YYYYMMDD), 不传 = 最新交易日
+              (fund_flow 主源 eastmoney-push2, 且 main_net_inflow != 0, 防 ifind 空壳)
+        source: 数据源, 默认 eastmoney-push2
+    """
     """条件选股: 按固定规则筛选 fund_flow 全市场 (不依赖 stock_picks / _compute_picks)
 
     Args:
@@ -8574,10 +10664,10 @@ def api_conditional_picks():
     return jsonify(_conditional_picks_payload(date, source, intraday_flag, threshold_yi))
 
 
-# ===== 条件选股预览图: 手动生成 PNG 长图存 分析日报/条件选股/ =====
+# ===== 条件选股预览图: 手动生成 PNG 长图存 backend/previews/ =====
 import html as _html_mod
 
-PREVIEW_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '分析日报', '条件选股'))
+PREVIEW_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), 'previews'))
 
 
 @app.route('/previews/<path:filename>')
@@ -8791,6 +10881,196 @@ def api_combined_picks():
         },
         'note': '' if displayed else f'{date} 系统推荐与条件选股无交集 (同日两边都命中的票为 0)'
     })
+
+
+def _combined_picks_payload_ths(date, intraday_flag, threshold_yi):
+    """api_picks_ths_combined 的数据部分 (THS 版).
+    交集: 同日 stock_picks_ths (系统推荐) ∩ conditional_picks_snapshot_ths (条件选股) 命中."""
+    threshold_amt = threshold_yi * 1e8
+
+    # 1) 选定 date: 不传 -> stock_picks_ths 最新 trade_date
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    if not date:
+        row = conn.execute('SELECT MAX(trade_date) AS d FROM stock_picks_ths').fetchone()
+        if not row or not row['d']:
+            conn.close()
+            return {
+                'status': 'success', 'date': '', 'count': 0, 'results': [],
+                'note': '同花顺系统推荐未同步, 请先在「系统推荐」tab 点击同步今日'
+            }
+        date = row['d']
+
+    # 2) stock_picks_ths (系统推荐) 全量
+    system_rows = conn.execute(
+        'SELECT * FROM stock_picks_ths WHERE trade_date = ? ORDER BY score DESC', (date,)
+    ).fetchall()
+    system_codes = {r['ts_code'] for r in system_rows}
+
+    # 3) 同日 THS 条件选股 raw
+    cond_data, _comb_next_dates = _compute_conditional_picks_internal_ths(date, intraday_close=intraday_flag)
+    cond_base = _filter_conditional_base_ths(cond_data) if cond_data else []
+    cond_by_code = {r['ts_code']: dict(r) for r in cond_base}
+    conn.close()
+
+    # 4) 交集: stock_picks_ths (主体) ∩ cond_by_code; 合并 cond 字段
+    _THS_COND_RENDER_KEYS = (
+        'close', 'change_pct',
+        'used_bucket', 'hit_threshold',
+        'sum_3d', 'sum_5d', 'sum_10d', 'sum_20d',
+        'next_1_close', 'next_1_change_pct', 'next_1_high',
+        'next_2_close', 'next_2_change_pct', 'next_2_high',
+        'next_3_close', 'next_3_change_pct', 'next_3_high',
+        'next_4_close', 'next_4_change_pct', 'next_4_high',
+        'next_5_close', 'next_5_change_pct', 'next_5_high',
+        'max_high_t1', 'max_high_t2', 'max_high_t3', 'max_high_t4', 'max_high_t5',
+        'post_pick_next_change_pct',
+        'post_pick_next2_change_pct', 'post_pick_next3_change_pct',
+        'post_pick_next4_change_pct', 'post_pick_next5_change_pct',
+    )
+    intersected = []
+    for r in system_rows:
+        cond_row = cond_by_code.get(r['ts_code'])
+        if not cond_row:
+            continue
+        merged = dict(r)  # system: score / signal_type / ma* / ths_net_* / etc
+        for k in _THS_COND_RENDER_KEYS:
+            if k in cond_row:
+                merged[k] = cond_row[k]
+        intersected.append(merged)
+    _attach_sector(intersected, key='ts_code')
+    _apply_intraday_next(intersected, _comb_next_dates)
+
+    if not system_rows:
+        return {
+            'status': 'success', 'date': date, 'count': 0, 'results': [],
+            'note': f'{date} 当日同花顺系统推荐未同步, 无交集'
+        }
+
+    # 5) 写入盘后快照
+    try:
+        _c = sqlite3.connect(DB_PATH)
+        _skip = False
+        if not intersected:
+            _old = _c.execute(
+                'SELECT count FROM combined_picks_snapshot_ths WHERE trade_date = ?',
+                (date,)).fetchone()
+            _skip = bool(_old and _old[0])
+            if _skip:
+                print(f'[ths combined] {date} 本次 0 命中, 保留已有非空快照 ({_old[0]} 条), 不覆盖', flush=True)
+        if not _skip:
+            _c.execute(
+                'INSERT OR REPLACE INTO combined_picks_snapshot_ths '
+                '(trade_date, count, results_json, note) VALUES (?,?,?,?)',
+                (date, len(intersected), json.dumps(intersected, ensure_ascii=False),
+                 '' if intersected else f'{date} 同花顺系统推荐与条件选股无交集'))
+            _c.commit()
+        _c.close()
+    except Exception as _e:
+        print(f'[ths combined] 快照入库失败 (不影响返回): {_e}', flush=True)
+
+    _th_yi_str = ('%.1f' % threshold_yi).rstrip('0').rstrip('.') if threshold_yi != int(threshold_yi) else str(int(threshold_yi))
+    displayed = _apply_cond_threshold_ths(intersected, threshold_amt)
+    from datetime import datetime as _dt3
+    _comb_next_1_is_today = bool(_comb_next_dates and _comb_next_dates[0] == _dt3.now().strftime('%Y%m%d'))
+    return {
+        'status': 'success',
+        'date': date,
+        'count': len(displayed),
+        'results': displayed,
+        'next_1_is_today': _comb_next_1_is_today,
+        'filter': {
+            'cumulative_window': '3d / 5d / 10d (THS 历史太短, 跳过 20d) 必须 > 0',
+            'threshold_yi': threshold_yi,
+            'threshold': f'至少 1 项累计 ≥ {_th_yi_str} 亿'
+        },
+        'note': '' if displayed else f'{date} 同花顺系统推荐与条件选股无交集 (同日两边都命中的票为 0)'
+    }
+
+
+def _read_combined_snapshot_ths(date, threshold_yi):
+    """THS 组合选股盘后快照直读."""
+    today = datetime.now().strftime('%Y%m%d')
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    if not date:
+        row = conn.execute('SELECT MAX(trade_date) AS d FROM combined_picks_snapshot_ths').fetchone()
+        date = (row['d'] or '') if row else ''
+    if not date:
+        conn.close()
+        return None
+    row = conn.execute(
+        'SELECT count, results_json, note FROM combined_picks_snapshot_ths WHERE trade_date = ?',
+        (date,)).fetchone()
+    if not row or not (row['count'] or 0):
+        conn.close()
+        return None
+    if date >= today:
+        conn.close()
+        return None
+    try:
+        results = json.loads(row['results_json'] or '[]')
+    except Exception:
+        results = []
+    if not results:
+        conn.close()
+        return None
+    next_dates = _next_workdays(date, 5)
+    if next_dates[0] == today:
+        conn.close()
+        return None
+    stale_i = _snapshot_tn_stale(conn, results, next_dates)
+    conn.close()
+    if stale_i:
+        print(f'[ths combined snapshot] {date} T+{stale_i} 已收盘但快照缺数据, 回落实时算自愈', flush=True)
+        return None
+    threshold_amt = threshold_yi * 1e8
+    hits = _apply_cond_threshold_ths(results, threshold_amt)
+    _th_yi_str = ('%.1f' % threshold_yi).rstrip('0').rstrip('.') if threshold_yi != int(threshold_yi) else str(int(threshold_yi))
+    return {
+        'status': 'success',
+        'date': date,
+        'count': len(hits),
+        'results': hits,
+        'next_1_is_today': False,
+        'filter': {
+            'cumulative_window': '3d / 5d / 10d (THS 历史太短, 跳过 20d) 必须 > 0',
+            'threshold_yi': threshold_yi,
+            'threshold': f'至少 1 项累计 ≥ {_th_yi_str} 亿'
+        },
+        'note': ((row['note'] or '') + ' · ' if row['note'] else '') + '快照库直读',
+    }
+
+
+@app.route('/api/picks/ths/combined', methods=['GET'])
+def api_picks_ths_combined():
+    """同花顺组合选股: 同日 stock_picks_ths (系统推荐) ∩ conditional_picks_snapshot_ths (条件选股) 命中."""
+    date = (request.args.get('date') or '').strip()
+    intraday_flag = request.args.get('intraday') in ('1', 'true', 'True')
+    try:
+        threshold_yi = float(request.args.get('threshold_yi') or '3')
+        if threshold_yi < 0 or threshold_yi > 100:
+            threshold_yi = 3
+    except Exception:
+        threshold_yi = 3
+    return jsonify(_combined_picks_payload_ths(date, intraday_flag, threshold_yi))
+
+
+@app.route('/api/picks/ths/combined/snapshot', methods=['GET'])
+def api_picks_ths_combined_snapshot():
+    """同花顺组合选股盘后快照: 优先直读 combined_picks_snapshot_ths;
+    无快照 / 今日 / T+1 是今天 / T+N 数据缺口 → 回落实时算."""
+    date = (request.args.get('date') or '').strip()
+    try:
+        threshold_yi = float(request.args.get('threshold_yi') or '3')
+        if threshold_yi < 0 or threshold_yi > 100:
+            threshold_yi = 3
+    except Exception:
+        threshold_yi = 3
+    payload = _read_combined_snapshot_ths(date, threshold_yi)
+    if payload is not None:
+        return jsonify(payload)
+    return jsonify(_combined_picks_payload_ths(date, False, threshold_yi))
 
 
 @app.route('/api/picks/sync-date', methods=['POST'])
@@ -10651,10 +12931,20 @@ if __name__ == '__main__':
     try:
         from scheduler import (start_scheduler, register_daily_review, register_push_jobs,
                                register_stock_daily_backfill, register_picks_resync_after_close,
-                               register_conditional_combined_snapshot)
+                               register_conditional_combined_snapshot,
+                               register_market_fflow_after_close,
+                               register_ths_flow_after_close,
+                               register_ths_picks_resync_after_close,
+                               register_ths_conditional_combined_snapshot,
+                               register_limitup_collection_intraday)
+        register_limitup_collection_intraday() # 盘中涨停合集采集 (每分钟, 函数内有时段/交易日守卫)
         register_stock_daily_backfill()          # 盘后同步日线 (15:35 抢跑 / 16:30 兜底)
         register_picks_resync_after_close()      # 收盘口径重算系统推荐 (16:00)
         register_conditional_combined_snapshot() # 盘后写条件/组合选股快照 (17:00)
+        register_market_fflow_after_close()      # 盘后落盘大盘资金流 (15:35)
+        register_ths_flow_after_close()          # 盘后抓同花顺个股资金流 (17:05 / 19:30 兜底)
+        register_ths_picks_resync_after_close()  # THS 资金流入库后重算 THS 推荐 (17:10 / 19:35)
+        register_ths_conditional_combined_snapshot()  # THS 条件/组合选股快照入库 (17:15 / 19:40)
         register_daily_review()          # 盘后复盘
         register_push_jobs()             # 定时推送
         start_scheduler()

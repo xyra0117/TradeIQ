@@ -38,3 +38,11 @@ env/
 
 # SQLite 数据库 (本地开发数据, 不入库)
 backend/market_data.db
+backend/index_daily_backup_*.json
+
+# 工具/本地杂项
+.mimocode/
+backend/scripts/__pycache__/
+*.db-wal
+*.db-shm
+backend/tradeiq-backend.log

@@ -6613,6 +6613,65 @@ def api_market_fflow_daily():
         conn.close()
 
 
+@app.route('/api/stock/<ts_code>/fflow/daily', methods=['GET'])
+def api_stock_fflow_daily(ts_code):
+    """个股 5档资金流向 - 逐日趋势. 出参格式跟大盘版一致 (dates/series/pct),
+    额外带 name/code/amount/close/change_pct 给弹窗标题和 tooltip 用.
+    数据源: fund_flow (东财 push2 个股资金流). 同花顺表 fund_flow_ths 没 5档, 不接.
+    days 默认 60 (fund_flow 最早 0420, 满打满算 ~100 天, 默认窗口仍设 60)."""
+    days = max(7, min(int(request.args.get('days', 60)), 250))
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute('''
+            SELECT f.trade_date, f.name, f.code,
+                   d.close, d.change, d.amount,
+                   f.main_net_inflow  AS main,  f.main_net_pct  AS main_pct,
+                   f.super_net        AS super, f.super_pct    AS super_pct,
+                   f.big_net          AS big,   f.big_pct      AS big_pct,
+                   f.mid_net          AS mid,   f.mid_pct      AS mid_pct,
+                   f.small_net        AS small, f.small_pct    AS small_pct
+            FROM fund_flow f
+            LEFT JOIN stock_daily d
+              ON d.ts_code = f.ts_code AND d.trade_date = f.trade_date
+            WHERE f.ts_code = ?
+            ORDER BY f.trade_date DESC LIMIT ?
+        ''', (ts_code, days)).fetchall()
+        if not rows:
+            return jsonify({'empty': True, 'ts_code': ts_code})
+        rows = list(reversed(rows))  # 升序
+        keys = ['main', 'super', 'big', 'mid', 'small']
+        series, pct, amounts, closes, changes = {}, {}, [], [], []
+        dates, name = [], rows[0]['name']
+        # 算 change_pct: tushare 的 d.change 是绝对涨幅(元), change_pct = (close-pre_close)/pre_close
+        # 前一日 close 要从下一行拿 (row 是升序, i-1 是前一天)
+        for i, r in enumerate(rows):
+            dates.append(r['trade_date'])
+            amounts.append(r['amount'])           # 元
+            closes.append(r['close'])
+            if r['change'] is not None and r['close'] is not None:
+                pre_close = r['close'] - r['change']
+                changes.append(round(r['change'] / pre_close * 100, 2) if pre_close else None)
+            else:
+                changes.append(None)
+            for k in keys:
+                series.setdefault(k, []).append(r[k])
+                pct.setdefault(k, []).append(r[k + '_pct'])
+        return jsonify({
+            'ts_code': ts_code,
+            'code': rows[0]['code'] or ts_code.split('.')[0],
+            'name': name,
+            'dates': [f"{d[:4]}-{d[4:6]}-{d[6:8]}" for d in dates],
+            'amount': amounts,     # 元
+            'close': closes,
+            'change_pct': changes,
+            'series': series,      # 元
+            'pct': pct,            # 百分数 (已是 *100 后的 %)
+        })
+    finally:
+        conn.close()
+
+
 @app.route('/api/market/fflow/sync', methods=['POST'])
 def api_market_fflow_sync():
     """手动同步今日大盘资金流. push2 不支持历史 (已验证), 所以只拉 today.
@@ -9559,6 +9618,142 @@ def _apply_cond_threshold(rows, threshold_amt):
     return out
 
 
+def _filter_conditional_new(rows, trade_date, volume_ratio_pct=80, conn=None):
+    """在既有条件选股结果上叠加收盘价/MA10 与成交量缩量规则。"""
+    stats = {
+        'base_count': len(rows),
+        'missing_current_daily': 0,
+        'insufficient_history': 0,
+        'invalid_volume': 0,
+        'below_ma10': 0,
+        'volume_not_shrunk': 0,
+        'matched': 0,
+    }
+    if not rows:
+        return [], stats
+
+    codes = list(dict.fromkeys(r.get('ts_code') for r in rows if r.get('ts_code')))
+    if not codes:
+        stats['missing_current_daily'] = len(rows)
+        return [], stats
+
+    owns_conn = conn is None
+    if owns_conn:
+        conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    # stock_daily 的唯一索引是 (ts_code, trade_date)。逐代码 LIMIT 10 能直接走索引，
+    # 比在 220 万行上执行 ROW_NUMBER 窗口排序快两个数量级。
+    daily_rows = []
+    for code in codes:
+        daily_rows.extend(conn.execute('''
+            SELECT ts_code, trade_date, close, volume
+            FROM stock_daily
+            WHERE ts_code = ? AND trade_date <= ? AND close IS NOT NULL
+            ORDER BY trade_date DESC LIMIT 10
+        ''', (code, trade_date)).fetchall())
+    if owns_conn:
+        conn.close()
+
+    by_code = defaultdict(list)
+    for daily in daily_rows:
+        by_code[daily['ts_code']].append(daily)
+
+    ratio_limit = float(volume_ratio_pct) / 100
+    hits = []
+    for source_row in rows:
+        history = by_code.get(source_row.get('ts_code'), [])
+        if not history or history[0]['trade_date'] != trade_date:
+            stats['missing_current_daily'] += 1
+            continue
+        if len(history) < 10:
+            stats['insufficient_history'] += 1
+            continue
+        current, previous = history[0], history[1]
+        try:
+            current_close = float(current['close'])
+            closes = [float(item['close']) for item in history[:10]]
+            current_volume = float(current['volume'])
+            previous_volume = float(previous['volume'])
+        except (TypeError, ValueError):
+            stats['invalid_volume'] += 1
+            continue
+        if current_volume <= 0 or previous_volume <= 0:
+            stats['invalid_volume'] += 1
+            continue
+        ma10 = sum(closes) / 10
+        if current_close < ma10:
+            stats['below_ma10'] += 1
+            continue
+        actual_ratio_pct = current_volume / previous_volume * 100
+        if current_volume > previous_volume * ratio_limit:
+            stats['volume_not_shrunk'] += 1
+            continue
+        item = dict(source_row)
+        item.update({
+            'close': round(current_close, 4),
+            'ma10': round(ma10, 4),
+            'volume': round(current_volume, 4),
+            'prev_volume': round(previous_volume, 4),
+            'volume_ratio_pct': round(actual_ratio_pct, 2),
+            'volume_shrink_pct': round((1 - current_volume / previous_volume) * 100, 2),
+        })
+        hits.append(item)
+    stats['matched'] = len(hits)
+    return hits, stats
+
+
+def _resolve_conditional_new_date(date_value, source):
+    """按条件选股的资金流口径确定目标交易日。"""
+    if date_value:
+        return date_value
+    conn = sqlite3.connect(DB_PATH)
+    row = conn.execute(
+        'SELECT MAX(trade_date) FROM fund_flow '
+        'WHERE source = ? AND main_net_inflow IS NOT NULL AND main_net_inflow != 0',
+        (source,)
+    ).fetchone()
+    conn.close()
+    return row[0] if row and row[0] else ''
+
+
+def _conditional_new_daily_ready(trade_date, now=None, conn=None):
+    """确认目标日已存在收盘日线；今日还要求已收市且入库规模基本完整。"""
+    if not trade_date:
+        return False, 'missing_date'
+    now = now or datetime.now()
+    today = now.strftime('%Y%m%d')
+    if trade_date > today:
+        return False, 'future_date'
+    if trade_date == today and (now.hour, now.minute) < (15, 5):
+        return False, 'market_not_closed'
+
+    owns_conn = conn is None
+    if owns_conn:
+        conn = sqlite3.connect(DB_PATH)
+    current_count = conn.execute(
+        'SELECT COUNT(*) FROM stock_daily WHERE trade_date = ? AND close IS NOT NULL',
+        (trade_date,)
+    ).fetchone()[0]
+    if current_count <= 0:
+        if owns_conn:
+            conn.close()
+        return False, 'daily_not_loaded'
+    if trade_date == today:
+        previous = conn.execute(
+            'SELECT trade_date, COUNT(*) AS c FROM stock_daily '
+            'WHERE trade_date < ? AND close IS NOT NULL GROUP BY trade_date '
+            'ORDER BY trade_date DESC LIMIT 1',
+            (trade_date,)
+        ).fetchone()
+        if previous and previous[1] and current_count < previous[1] * 0.9:
+            if owns_conn:
+                conn.close()
+            return False, 'daily_incomplete'
+    if owns_conn:
+        conn.close()
+    return True, 'ready'
+
+
 def _filter_conditional(rows, threshold_yi=THRESHOLD_3YI):
     """应用条件选股规则 (基础规则 + 门槛), 返回命中行 (附 used_bucket / hit_threshold)."""
     return _apply_cond_threshold(_filter_conditional_base(rows), threshold_yi)
@@ -10664,6 +10859,67 @@ def api_conditional_picks():
     return jsonify(_conditional_picks_payload(date, source, intraday_flag, threshold_yi))
 
 
+@app.route('/api/conditional-picks/new', methods=['GET'])
+def api_conditional_picks_new():
+    """条件选股新：既有东方财富条件 + 收盘价不低于 MA10 + 成交量缩量。"""
+    date_value = (request.args.get('date') or '').strip()
+    source = (request.args.get('source') or 'eastmoney-push2').strip() or 'eastmoney-push2'
+    try:
+        threshold_yi = float(request.args.get('threshold_yi') or '3')
+        if threshold_yi < 0 or threshold_yi > 100:
+            threshold_yi = 3
+    except Exception:
+        threshold_yi = 3
+    try:
+        volume_ratio_pct = float(request.args.get('volume_ratio_pct') or '80')
+        if volume_ratio_pct < 1 or volume_ratio_pct > 100:
+            volume_ratio_pct = 80
+    except Exception:
+        volume_ratio_pct = 80
+
+    trade_date = _resolve_conditional_new_date(date_value, source)
+    daily_ready, readiness_reason = _conditional_new_daily_ready(trade_date)
+    rule_meta = {
+        'base': '复用条件选股全部规则及资金门槛',
+        'close_vs_ma10': '收盘价 ≥ MA10（含当天最近 10 个有效收盘价）',
+        'max_volume_ratio_pct': volume_ratio_pct,
+        'volume_rule': f'当天成交量 ≤ 前一有效交易记录成交量 × {volume_ratio_pct:g}%',
+        'completed_daily_only': True,
+    }
+    if not daily_ready:
+        messages = {
+            'missing_date': '暂无可用资金流日期',
+            'future_date': '目标日期尚未到来',
+            'market_not_closed': '等待收盘数据',
+            'daily_not_loaded': '等待收盘日线入库',
+            'daily_incomplete': '等待收盘日线完整入库',
+        }
+        return jsonify({
+            'status': 'success', 'date': trade_date, 'count': 0, 'results': [],
+            'daily_ready': False, 'readiness_reason': readiness_reason,
+            'exclusions': {'base_count': 0, 'matched': 0},
+            'filter': rule_meta, 'note': messages.get(readiness_reason, '等待收盘数据'),
+        })
+
+    payload = _read_conditional_snapshot(trade_date, threshold_yi)
+    if payload is None:
+        payload = _conditional_picks_payload(trade_date, source, False, threshold_yi)
+    hits, exclusions = _filter_conditional_new(
+        payload.get('results') or [], trade_date, volume_ratio_pct
+    )
+    payload.update({
+        'count': len(hits),
+        'results': hits,
+        'daily_ready': True,
+        'readiness_reason': 'ready',
+        'exclusions': exclusions,
+        'filter': {**(payload.get('filter') or {}), **rule_meta},
+    })
+    base_note = payload.get('note')
+    payload['note'] = (base_note + ' · ' if base_note else '') + '收盘日线已就绪'
+    return jsonify(payload)
+
+
 # ===== 条件选股预览图: 手动生成 PNG 长图存 backend/previews/ =====
 import html as _html_mod
 
@@ -10678,7 +10934,8 @@ def serve_preview(filename):
 
 def _build_conditional_preview_html(payload):
     """把条件选股结果渲染成精简 HTML (只有名称+代码, 深色风), 供 playwright 截图.
-    多列网格排布, 避免票多时拉成超长图."""
+    多列网格排布, 避免票多时拉成超长图.
+    title='条件选股新' 时标题显示「新」(条件选股新带缩量过滤), 默认显示「条件选股」."""
     date = payload['date']
     rows = payload.get('results') or []
     cols = 4
@@ -10694,12 +10951,13 @@ def _build_conditional_preview_html(payload):
     if not cells:
         cells.append('<div style="padding:40px;text-align:center;color:#4a5568;grid-column:1/-1">'
                      '无命中 (该日没有满足全部规则的股票)</div>')
+    title_label = '条件选股新' if payload.get('title_kind') == 'new' else '条件选股'
     return f'''<!DOCTYPE html>
 <html><head><meta charset="utf-8"><style>
   body {{ margin:0; background:#0a0e17; font-family:'PingFang SC','Helvetica Neue',Arial,sans-serif; color:#e2e8f0; }}
 </style></head><body>
 <div id="capture" style="display:inline-block;padding:24px 28px;background:#0a0e17">
-  <div style="font-size:18px;font-weight:700">📋 条件选股 · {date[:4]}年{date[4:6]}月{date[6:8]}日
+  <div style="font-size:18px;font-weight:700">📋 {title_label} · {date[:4]}年{date[4:6]}月{date[6:8]}日
     <span style="font-size:12px;font-weight:400;color:#8892a4">命中 {payload["count"]} 只</span>
   </div>
   <div style="margin-top:14px;display:grid;grid-template-columns:repeat({cols},max-content);column-gap:24px">
@@ -10746,7 +11004,61 @@ def api_conditional_picks_preview_image():
     out_name = f"条件选股_{payload['date']}_{_th_str}亿.png"
     out_path = os.path.join(PREVIEW_DIR, out_name)
     try:
-        asyncio.run(_render_html_to_png(_build_conditional_preview_html(payload), out_path))
+        # 标题显示「条件选股」(不带新)
+        asyncio.run(_render_html_to_png(_build_conditional_preview_html({**payload, 'title_kind': 'old'}), out_path))
+    except Exception as e:
+        return jsonify({'status': 'error', 'note': f'截图失败: {e}'}), 500
+    return jsonify({
+        'status': 'success', 'date': payload['date'], 'count': payload['count'],
+        'url': '/previews/' + out_name, 'path': out_path
+    })
+
+
+@app.route('/api/conditional-picks-new/preview-image', methods=['POST'])
+def api_conditional_picks_new_preview_image():
+    """手动生成条件选股新预览图: body {date?, threshold_yi?, volume_ratio_pct?} → PNG 存 PREVIEW_DIR, 返回 url.
+    复用 /api/conditional-picks/new 的完整链路 (含 volume_ratio 缩量过滤), HTML 复用老 builder (只看 results+date+count)."""
+    body = request.get_json(silent=True) or {}
+    date = str(body.get('date') or '').strip()
+    try:
+        threshold_yi = float(body.get('threshold_yi') or 3)
+        if threshold_yi < 0 or threshold_yi > 100:
+            threshold_yi = 3
+    except Exception:
+        threshold_yi = 3
+    try:
+        volume_ratio_pct = float(body.get('volume_ratio_pct') or 80)
+        if volume_ratio_pct < 1 or volume_ratio_pct > 100:
+            volume_ratio_pct = 80
+    except Exception:
+        volume_ratio_pct = 80
+
+    # 跟 /api/conditional-picks/new 完全一致: 先解析 trade_date, 跑 base 命中, 再套 volume_ratio 过滤
+    source = 'eastmoney-push2'
+    trade_date = _resolve_conditional_new_date(date, source)
+    daily_ready, readiness_reason = _conditional_new_daily_ready(trade_date)
+    if not daily_ready:
+        return jsonify({'status': 'error', 'note': f'当前不满足生成条件 ({readiness_reason})'}), 400
+
+    payload = _read_conditional_snapshot(trade_date, threshold_yi)
+    if payload is None:
+        payload = _conditional_picks_payload(trade_date, source, False, threshold_yi)
+    hits, exclusions = _filter_conditional_new(
+        payload.get('results') or [], trade_date, volume_ratio_pct
+    )
+    payload.update({'count': len(hits), 'results': hits})
+    if not payload.get('date'):
+        return jsonify({'status': 'error', 'note': payload.get('note') or '无可用数据日期'}), 400
+
+    os.makedirs(PREVIEW_DIR, exist_ok=True)
+    _th_str = ('%.1f' % threshold_yi).rstrip('0').rstrip('.') if threshold_yi != int(threshold_yi) else str(int(threshold_yi))
+    _vr_str = ('%.0f' % volume_ratio_pct)
+    # 文件名带门槛 + 缩量: 条件选股新_20260913_3亿_缩量80%.png — 不同门槛/缩量各存各的
+    out_name = f"条件选股新_{payload['date']}_{_th_str}亿_缩量{_vr_str}%.png"
+    out_path = os.path.join(PREVIEW_DIR, out_name)
+    try:
+        # 标题显示「条件选股新」(区分条件选股老的预览图)
+        asyncio.run(_render_html_to_png(_build_conditional_preview_html({**payload, 'title_kind': 'new'}), out_path))
     except Exception as e:
         return jsonify({'status': 'error', 'note': f'截图失败: {e}'}), 500
     return jsonify({

@@ -1311,20 +1311,6 @@
       <div class="mkt-flow-stats" id="mktFlowStats"></div>
     </div>
 
-    <!-- ── 大盘资金流向 5档走势详情弹窗 (点 stats 行触发) ── -->
-    <div class="pos-modal-mask" id="mktFlowDetailMask" style="display:none" onclick="if(event.target===this)closeMktFlowDetail()">
-      <div class="pos-modal" style="min-width:880px;max-width:960px;padding:20px 22px">
-        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;gap:12px">
-          <h3 id="mktFlowDetailTitle" style="margin:0;font-size:15px">5档资金流向走势 (沪深合计 · 逐日)</h3>
-          <button onclick="closeMktFlowDetail()" style="background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;line-height:1;margin-left:auto">×</button>
-        </div>
-        <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">💰 每日净流入 (元)</div>
-        <div id="mktFlowDetailChartAmt" style="height:280px"></div>
-        <div style="font-size:12px;color:var(--text-muted);margin:12px 0 4px">📊 每日净占比 = 该档合计 ÷ 当日两市成交额 (%)</div>
-        <div id="mktFlowDetailChartPct" style="height:240px"></div>
-      </div>
-    </div>
-
     <!-- ── 补数区: 缺口检测 + 手动补 + 进度 + 健康检查 ── -->
     <style>
       .bf-bar { display:flex; align-items:center; gap:12px; flex-wrap:wrap;
@@ -1463,6 +1449,42 @@
       <div class="flow-empty-icon">📊</div>
       <div class="flow-empty-text">还没有主力净流入数据</div>
       <div class="flow-empty-text" style="font-size:11px;margin-top:8px">点上方"同步数据"按钮，等 1-2 分钟抓取完成</div>
+    </div>
+  </div>
+
+  <!-- ── 大盘资金流向 5档走势详情弹窗 (点 stats 行触发, 提到 body 下避免被 tab-panel display:none 隐藏) ── -->
+  <div class="pos-modal-mask" id="mktFlowDetailMask" style="display:none" onclick="if(event.target===this)closeMktFlowDetail()">
+    <div class="pos-modal" style="min-width:880px;max-width:960px;padding:20px 22px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;gap:12px">
+        <h3 id="mktFlowDetailTitle" style="margin:0;font-size:15px">5档资金流向走势 (沪深合计 · 逐日)</h3>
+        <button onclick="closeMktFlowDetail()" style="background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;line-height:1;margin-left:auto">×</button>
+      </div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">💰 每日净流入 (元)</div>
+      <div id="mktFlowDetailChartAmt" style="height:280px"></div>
+      <div style="font-size:12px;color:var(--text-muted);margin:12px 0 4px">📊 每日净占比 = 该档合计 ÷ 当日两市成交额 (%)</div>
+      <div id="mktFlowDetailChartPct" style="height:240px"></div>
+    </div>
+  </div>
+
+  <!-- ── 个股资金流向 5档走势详情弹窗 (主力净流入 / 选股推荐 tab 点资金列触发, 提到 body 下避免被 tab-panel display:none 隐藏) ── -->
+  <div class="pos-modal-mask" id="stockFlowDetailMask" style="display:none" onclick="if(event.target===this)closeStockFlowDetail()">
+    <div class="pos-modal" style="width:960px;max-width:96vw;padding:20px 22px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;gap:12px">
+        <h3 id="stockFlowDetailTitle" style="margin:0;font-size:15px">个股5档资金流向走势 · 逐日</h3>
+        <button onclick="closeStockFlowDetail()" style="background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;line-height:1;margin-left:auto">×</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;font-size:12px;color:var(--text-muted);margin-bottom:4px">
+        <span>📈 日 K · 成交量</span>
+        <span id="stockFlowKlineLegend" style="font-family:'JetBrains Mono',monospace;font-size:11px"></span>
+      </div>
+      <div style="position:relative">
+        <div id="stockFlowDetailChartKline" style="height:360px"></div>
+        <div id="stockFlowKlineStatus" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:12px;pointer-events:none">加载中…</div>
+      </div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">💰 每日净流入 (元) · 悬浮查看截至当日的 1/3/5/10/20 日累计</div>
+      <div id="stockFlowDetailChartAmt" style="height:280px"></div>
+      <div style="font-size:12px;color:var(--text-muted);margin:12px 0 4px">📊 每日净占比 · 悬浮查看同期累计净额 ÷ 累计成交额 (%)</div>
+      <div id="stockFlowDetailChartPct" style="height:240px"></div>
     </div>
   </div>
 
@@ -1720,9 +1742,16 @@
           <button id="picksThresholdApply" style="background:var(--bg-secondary);color:var(--text);border:1px solid var(--border);border-radius:3px;padding:2px 8px;font-family:inherit;font-size:11px;cursor:pointer">应用</button>
           <span id="picksThresholdCurrent" style="color:var(--text-muted);font-size:11px"></span>
         </span>
+        <span id="picksVolumeRatioGroup" style="display:none;align-items:center;gap:6px;color:var(--text);font-size:12px">
+          当天量 ≤ 昨日量
+          <input type="number" id="picksVolumeRatioInput" min="1" max="100" step="1" value="80"
+                 style="width:58px;background:var(--bg-secondary);color:var(--text);border:1px solid var(--border);border-radius:3px;padding:2px 6px;font-family:inherit;font-size:12px">
+          <span>%</span>
+        </span>
         <button class="date-sync-btn" id="picksSyncDateBtn" style="display:none" title="对当前选中日期跑完整同步链: 补日线 → 重建资金流表 → 补系统推荐 → 重算条件/组合选股">🔄 同步数据</button>
         <button class="date-sync-btn" id="condBackfillBtn" style="display:none" title="扫描最近 60 天历史日期, 把没入库的全部补上 (约 2-3 分钟)">📥 补入库</button>
         <button class="date-sync-btn" id="condPreviewBtn" style="display:none" title="把当前日期的条件选股结果生成一张 PNG 长图, 存到 backend/previews/">🖼 生成预览图</button>
+        <button class="date-sync-btn" id="condNewPreviewBtn" style="display:none" title="把当前日期的条件选股新结果 (含缩量) 生成一张 PNG 长图, 存到 backend/previews/">🖼 生成预览图</button>
         <button class="date-sync-btn" id="combinedBackfillBtn" style="display:none" title="扫描最近 60 天历史日期, 把没入库的全部补上 (约 2-3 分钟)">📥 补入库</button>
       </div>
     </div>
@@ -1930,6 +1959,60 @@
           </thead>
           <tbody id="conditionalPicksBody">
             <tr><td colspan="18" style="text-align:center;color:var(--text-muted);padding:30px 0">加载中…</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 条件选股新: 既有条件 + 收盘价不低于 MA10 + 成交量缩量 -->
+      <div id="conditionalNewPicksContainer" style="display:none">
+        <div style="padding:10px 14px;background:rgba(0,230,118,0.045);border-bottom:1px solid var(--border);font-size:12px">
+          <div style="margin-bottom:6px;color:#63d6a0;font-weight:600">📌 条件选股新 · 收盘确认</div>
+          <div style="font-family:'JetBrains Mono',monospace;color:var(--text-secondary);font-size:11px;line-height:1.7">
+            • 满足“条件选股”全部资金流、当日下跌和资金门槛规则 &nbsp;|&nbsp;
+            收盘价 ≥ MA10 &nbsp;|&nbsp;
+            当天成交量 ≤ 前一有效交易日成交量 × <span id="conditionalNewRuleRatio" style="color:#63d6a0">80%</span>
+          </div>
+        </div>
+        <div style="padding:8px 14px;border-bottom:1px solid var(--border);font-family:'JetBrains Mono',monospace;font-size:12px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+          <div style="flex:1;display:flex;align-items:center;flex-wrap:wrap;gap:3px">
+            命中: <span id="conditionalNewCount" style="color:#63d6a0;font-weight:600">—</span> 只 ·
+            主力: <span id="conditionalNewMainCount" style="font-weight:600">0</span> 只 ·
+            超大单: <span id="conditionalNewSuperCount" style="font-weight:600">0</span> 只 ·
+            评估日期: <span id="conditionalNewDate">—</span>
+            <span id="conditionalNewDataStatus" style="font-size:11px;padding:1px 7px;border-radius:4px;margin:0 2px">—</span> ·
+            T+1: <span id="conditionalNewNextDate" style="color:var(--text-secondary)">—</span> ·
+            T+2: <span id="conditionalNewNextDate2" style="color:var(--text-secondary)">—</span> ·
+            T+3: <span id="conditionalNewNextDate3" style="color:var(--text-secondary)">—</span> ·
+            T+4: <span id="conditionalNewNextDate4" style="color:var(--text-secondary)">—</span> ·
+            T+5: <span id="conditionalNewNextDate5" style="color:var(--text-secondary)">—</span>
+          </div>
+          <span id="conditionalNewNote" style="font-size:11px;color:var(--text-muted)"></span>
+        </div>
+        <table id="conditionalNewPicksTable" style="width:100%;font-family:'JetBrains Mono',monospace;font-size:12px;border-collapse:collapse">
+          <thead><tr>
+            <th style="width:50px;text-align:center;color:var(--text-muted)">排名</th>
+            <th>名称 / 代码</th>
+            <th style="text-align:right">收盘价</th>
+            <th style="text-align:right">MA10</th>
+            <th style="text-align:right">成交量比</th>
+            <th style="text-align:right">当日涨幅</th>
+            <th style="text-align:center">档位</th>
+            <th style="text-align:right">3 日累计</th>
+            <th style="text-align:right">5 日累计</th>
+            <th style="text-align:right">10 日累计</th>
+            <th style="text-align:right">20 日累计</th>
+            <th style="text-align:right;border-left:1px dashed var(--border)">3 日中小单</th>
+            <th style="text-align:right">5 日中小单</th>
+            <th style="text-align:right">10 日中小单</th>
+            <th style="text-align:right">20 日中小单</th>
+            <th style="text-align:right;border-left:1px dashed var(--border)">T+1</th>
+            <th style="text-align:right">T+2</th>
+            <th style="text-align:right">T+3</th>
+            <th style="text-align:right">T+4</th>
+            <th style="text-align:right">T+5</th>
+          </tr></thead>
+          <tbody id="conditionalNewPicksBody">
+            <tr><td colspan="20" style="text-align:center;color:var(--text-muted);padding:30px 0">加载中…</td></tr>
           </tbody>
         </table>
       </div>
@@ -7499,10 +7582,44 @@ async function generateConditionalPreview() {
   }
 }
 
+// 生成条件选股新预览图 (含 volume_ratio 缩量过滤, 复用同款 HTML builder)
+async function generateConditionalNewPreview() {
+  const btn = document.getElementById('condNewPreviewBtn');
+  const origText = btn.textContent;
+  btn.disabled = true; btn.textContent = '⏳ 生成中...';
+  showToast('⏳ 正在生成预览图 (含缩量过滤, 约 5 秒)...');
+  try {
+    const r = await fetch('/api/conditional-picks-new/preview-image', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        date: picksSelDate || undefined,
+        threshold_yi: _picksThresholdYI(),
+        volume_ratio_pct: _picksVolumeRatioPct(),
+      }),
+    });
+    const d = await r.json();
+    if (d.status === 'success' && d.url) {
+      showToast(`✅ 预览图已生成: ${d.count} 只 · ${fmtDate(d.date)}`);
+      window.open(encodeURI(d.url), '_blank');
+    } else {
+      showToast(`❌ ${d.note || d.message || '生成失败'}`);
+    }
+  } catch (e) {
+    showToast(`❌ 请求失败: ${e.message}`);
+  } finally {
+    btn.disabled = false; btn.textContent = origText;
+  }
+}
+
 // ── 条件选股 (sub-tab: 固定规则筛选全市场, 不入库) ──
 let conditionalPicksCache = [];
 // 按 日期|门槛 缓存整个响应 (仅盘后口径), 切回已看过的日期秒出, 不再每次全量重算
 const _condRespCache = {};
+
+// ── 条件选股新 (条件选股 + MA10 + 缩量；独立缓存避免比例/Tab 串数据) ──
+let conditionalNewPicksCache = [];
+const _condNewRespCache = {};
+let _conditionalNewRequestId = 0;
 
 // ── 组合选股 (sub-tab: 系统推荐 ∩ 条件选股 同日同时命中) ──
 let combinedPicksCache = [];
@@ -7522,6 +7639,7 @@ function _loadCurrentPicksSub() {
   if (currentPicksGroup === 'user') return loadUserPicks();
   if (currentPicksGroup === 'ths') return loadPicksThs();
   if (currentPicksGroup === 'conditional') return loadConditionalPicks();
+  if (currentPicksGroup === 'conditionalNew') return loadConditionalNewPicks();
   if (currentPicksGroup === 'combined') return loadCombinedPicks();
   if (currentPicksGroup === 'conditionalThs') return loadConditionalPicksThs();
   if (currentPicksGroup === 'combinedThs') return loadCombinedPicksThs();
@@ -7532,6 +7650,7 @@ function _getCurrentPicksCache() {
   if (currentPicksGroup === 'user') return userPicksCache;
   if (currentPicksGroup === 'ths') return thsPicksCache;
   if (currentPicksGroup === 'conditional') return conditionalPicksCache;
+  if (currentPicksGroup === 'conditionalNew') return conditionalNewPicksCache;
   if (currentPicksGroup === 'combined') return combinedPicksCache;
   if (currentPicksGroup === 'conditionalThs') return conditionalPicksThsCache;
   if (currentPicksGroup === 'combinedThs') return combinedPicksThsCache;
@@ -7556,9 +7675,26 @@ function _applyPicksThreshold() {
   const tag = document.getElementById('picksThresholdCurrent');
   if (tag) tag.textContent = `当前 ≥ ${yi} 亿`;
   loadConditionalPicks();
+  if (currentPicksGroup === 'conditionalNew') loadConditionalNewPicks();
   loadCombinedPicks();
   loadConditionalPicksThs();
   loadCombinedPicksThs();
+}
+
+const CONDITIONAL_NEW_RATIO_KEY = 'tradeiq.conditionalNew.volumeRatioPct';
+function _picksVolumeRatioPct() {
+  const input = document.getElementById('picksVolumeRatioInput');
+  const value = parseFloat(input && input.value);
+  return (isFinite(value) && value >= 1 && value <= 100) ? value : 80;
+}
+function _applyPicksVolumeRatio() {
+  const input = document.getElementById('picksVolumeRatioInput');
+  const value = _picksVolumeRatioPct();
+  if (input) input.value = String(value);
+  try { localStorage.setItem(CONDITIONAL_NEW_RATIO_KEY, String(value)); } catch (_) {}
+  const ruleRatio = document.getElementById('conditionalNewRuleRatio');
+  if (ruleRatio) ruleRatio.textContent = `${value}%`;
+  if (currentPicksGroup === 'conditionalNew') loadConditionalNewPicks();
 }
 function _bindPicksThresholdControl() {
   const sel = document.getElementById('picksThresholdSel');
@@ -7571,6 +7707,15 @@ function _bindPicksThresholdControl() {
   if (inp) inp.addEventListener('change', () => _applyPicksThreshold());
   if (btn) btn.addEventListener('click', () => _applyPicksThreshold());
   if (sel) sel.addEventListener('change', () => { if (sel.value !== 'custom' && inp) inp.value = sel.value; });
+  const ratioInput = document.getElementById('picksVolumeRatioInput');
+  if (ratioInput) {
+    try {
+      const saved = parseFloat(localStorage.getItem(CONDITIONAL_NEW_RATIO_KEY));
+      if (isFinite(saved) && saved >= 1 && saved <= 100) ratioInput.value = String(saved);
+    } catch (_) {}
+    ratioInput.addEventListener('change', _applyPicksVolumeRatio);
+    _applyPicksVolumeRatio();
+  }
 }
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', _bindPicksThresholdControl);
@@ -7657,6 +7802,69 @@ function _applyConditionalPayload(data, useSnapshot, targetDate) {
     _lastNext1IsToday = !!data.next_1_is_today;
     renderConditionalPicksTable(conditionalPicksCache);
     startPicksAutoRefresh();
+}
+
+async function loadConditionalNewPicks(force = false) {
+  const requestId = ++_conditionalNewRequestId;
+  const threshold = _picksThresholdYI();
+  const volumeRatio = _picksVolumeRatioPct();
+  const cacheKey = `${picksSelDate || 'latest'}|${threshold}|${volumeRatio}`;
+  const dateEl = document.getElementById('conditionalNewDate');
+  const body = document.getElementById('conditionalNewPicksBody');
+  if (!force && _condNewRespCache[cacheKey]) {
+    _applyConditionalNewPayload(JSON.parse(JSON.stringify(_condNewRespCache[cacheKey])));
+    return;
+  }
+  if (dateEl) dateEl.textContent = picksSelDate ? fmtDate(picksSelDate) : '…';
+  if (body) body.innerHTML = '<tr><td colspan="20" style="text-align:center;color:var(--text-muted);padding:40px 0">加载中…</td></tr>';
+  try {
+    const query = new URLSearchParams({
+      source: 'eastmoney-push2',
+      threshold_yi: String(threshold),
+      volume_ratio_pct: String(volumeRatio),
+    });
+    if (picksSelDate) query.set('date', picksSelDate);
+    const response = await fetch('/api/conditional-picks/new?' + query.toString());
+    if (requestId !== _conditionalNewRequestId) return;
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    if (requestId !== _conditionalNewRequestId) return;
+    if (data.daily_ready) {
+      _condNewRespCache[cacheKey] = data;
+      if (data.date) _condNewRespCache[`${data.date}|${threshold}|${volumeRatio}`] = data;
+    }
+    _applyConditionalNewPayload(data);
+  } catch (error) {
+    if (requestId !== _conditionalNewRequestId) return;
+    if (body) body.innerHTML = `<tr><td colspan="20" style="text-align:center;color:var(--accent-red);padding:40px 0">加载失败: ${error.message}</td></tr>`;
+  }
+}
+
+function _applyConditionalNewPayload(data) {
+  conditionalNewPicksCache = data.results || [];
+  const setText = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
+  setText('conditionalNewCount', data.count || 0);
+  setText('conditionalNewDate', data.date ? fmtDate(data.date) : '—');
+  setText('conditionalNewMainCount', conditionalNewPicksCache.filter(row => row.used_bucket === 'main').length);
+  setText('conditionalNewSuperCount', conditionalNewPicksCache.filter(row => row.used_bucket === 'super').length);
+  for (let index = 1; index <= 5; index++) {
+    const key = index === 1 ? 'next_date' : `next_date_${index}`;
+    setText(`conditionalNewNextDate${index === 1 ? '' : index}`, data[key] ? fmtDateMD(data[key]) : '—');
+  }
+  const ratio = data.filter?.max_volume_ratio_pct ?? _picksVolumeRatioPct();
+  setText('conditionalNewRuleRatio', `${ratio}%`);
+  const status = document.getElementById('conditionalNewDataStatus');
+  if (status) {
+    status.textContent = data.daily_ready ? '✓ 收盘日线已就绪' : '⏳ 等待收盘数据';
+    status.style.background = data.daily_ready ? 'rgba(0,230,118,0.12)' : 'rgba(255,200,0,0.12)';
+    status.style.color = data.daily_ready ? '#63d6a0' : '#e8b84f';
+  }
+  const excluded = data.exclusions || {};
+  const excludedCount = Math.max(0, (excluded.base_count || 0) - (excluded.matched || 0));
+  setText('conditionalNewNote', `${data.note || ''}${data.daily_ready ? ` · 基础命中 ${excluded.base_count || 0} 只，技术条件排除 ${excludedCount} 只` : ''}`);
+  _lastNext1IsToday = !!data.next_1_is_today;
+  renderConditionalNewPicksTable(conditionalNewPicksCache, data.daily_ready !== false);
+  if (data.daily_ready) startPicksAutoRefresh();
 }
 
 // 组合选股: 字段同条件选股 18 列 + 多一列评分, 容器独立 (#combinedPicksContainer)
@@ -7899,8 +8107,8 @@ function renderConditionalPicksThsTable(list) {
       <tr data-ts-code="${r.ts_code}">
         <td style="text-align:center;color:var(--text-muted);vertical-align:middle">${i + 1}</td>
         <td style="vertical-align:middle;white-space:nowrap">
-          <div style="cursor:pointer" onclick="showKlineModal('${r.ts_code}','${name}')">${name}</div>
-          <div style="margin-top:2px"><a href="${link}" target="_blank" style="color:var(--text-muted);text-decoration:none;font-size:11px;font-family:'JetBrains Mono',monospace" onclick="event.preventDefault();event.stopPropagation();showKlineModal('${r.ts_code}','${name}')">${code}</a></div>
+          <div style="cursor:pointer" onclick="showKlineModal('${r.ts_code}','${name}',{pickDate:'${r.trade_date || picksSelDate || ''}'})">${name}</div>
+          <div style="margin-top:2px"><a href="${link}" target="_blank" style="color:var(--text-muted);text-decoration:none;font-size:11px;font-family:'JetBrains Mono',monospace" onclick="event.preventDefault();event.stopPropagation();showKlineModal('${r.ts_code}','${name}',{pickDate:'${r.trade_date || picksSelDate || ''}'})">${code}</a></div>
           <div style="margin-top:3px">${renderSectorPills(r)}</div>
         </td>
         <td style="text-align:right;vertical-align:middle">${r.close != null ? r.close.toFixed(2) : '—'}</td>
@@ -8000,8 +8208,8 @@ function renderCombinedPicksThsTable(list) {
       <tr data-ts-code="${r.ts_code}">
         <td style="text-align:center;color:var(--text-muted);vertical-align:middle">${i + 1}</td>
         <td style="vertical-align:middle;white-space:nowrap">
-          <div style="cursor:pointer" onclick="showKlineModal('${r.ts_code}','${name}')">${name}</div>
-          <div style="margin-top:2px"><a href="${link}" target="_blank" style="color:var(--text-muted);text-decoration:none;font-size:11px;font-family:'JetBrains Mono',monospace" onclick="event.preventDefault();event.stopPropagation();showKlineModal('${r.ts_code}','${name}')">${code}</a></div>
+          <div style="cursor:pointer" onclick="showKlineModal('${r.ts_code}','${name}',{pickDate:'${r.trade_date || picksSelDate || ''}'})">${name}</div>
+          <div style="margin-top:2px"><a href="${link}" target="_blank" style="color:var(--text-muted);text-decoration:none;font-size:11px;font-family:'JetBrains Mono',monospace" onclick="event.preventDefault();event.stopPropagation();showKlineModal('${r.ts_code}','${name}',{pickDate:'${r.trade_date || picksSelDate || ''}'})">${code}</a></div>
           <div style="margin-top:3px">${renderSectorPills(r)}</div>
         </td>
         <td style="text-align:right;color:${scoreColor};vertical-align:middle;font-weight:600">${score != null ? score.toFixed(1) : '—'}</td>
@@ -8019,6 +8227,20 @@ function renderCombinedPicksThsTable(list) {
       </tr>`;
   }).join('');
   tbody.innerHTML = rows;
+}
+
+function _bindPicksFlowDelegation(tbody) {
+  if (!tbody || tbody._picksFlowDelegated) return;
+  tbody._picksFlowDelegated = true;
+  tbody.addEventListener('click', (event) => {
+    const cell = event.target.closest('.picks-flow-cell');
+    if (!cell || !tbody.contains(cell)) return;
+    const row = cell.closest('tr');
+    const tsCode = row?.dataset?.tsCode || '';
+    if (!tsCode) return;
+    event.stopPropagation();
+    openStockFlowDetail(tsCode, row.dataset.stockName || tsCode, 'main');
+  });
 }
 
 function renderConditionalPicksTable(list) {
@@ -8042,24 +8264,24 @@ function renderConditionalPicksTable(list) {
       : 'background:rgba(180,140,255,0.15);color:#c89cff';
     const hit = r.hit_threshold || '';  // '3d' / '5d' / '10d' / '20d'
     return `
-      <tr data-ts-code="${r.ts_code}">
+      <tr data-ts-code="${r.ts_code}" data-stock-name="${escapeHtml(name)}">
         <td style="text-align:center;color:var(--text-muted);vertical-align:middle">${i + 1}</td>
         <td style="vertical-align:middle;white-space:nowrap">
-          <div style="cursor:pointer" onclick="showKlineModal('${r.ts_code}','${name}')">${name}</div>
-          <div style="margin-top:2px"><a href="${link}" target="_blank" style="color:var(--text-muted);text-decoration:none;font-size:11px;font-family:'JetBrains Mono',monospace" onclick="event.preventDefault();event.stopPropagation();showKlineModal('${r.ts_code}','${name}')">${code}</a></div>
+          <div style="cursor:pointer" onclick="showKlineModal('${r.ts_code}','${name}',{pickDate:'${r.trade_date || picksSelDate || ''}'})">${name}</div>
+          <div style="margin-top:2px"><a href="${link}" target="_blank" style="color:var(--text-muted);text-decoration:none;font-size:11px;font-family:'JetBrains Mono',monospace" onclick="event.preventDefault();event.stopPropagation();showKlineModal('${r.ts_code}','${name}',{pickDate:'${r.trade_date || picksSelDate || ''}'})">${code}</a></div>
           <div style="margin-top:3px">${renderSectorPills(r)}</div>
         </td>
         <td style="text-align:right;vertical-align:middle">${r.close != null ? r.close.toFixed(2) : '—'}</td>
         <td style="text-align:right;color:${cpColor};vertical-align:middle">${cpStr}</td>
         <td style="text-align:center;vertical-align:middle"><span style="font-size:11px;padding:2px 8px;border-radius:3px;${bucketStyle}">${bucketLabel}</span></td>
-        <td style="text-align:right;vertical-align:middle">${_fmtCondFlow(r.sum_3d, hit === '3d')}</td>
-        <td style="text-align:right;vertical-align:middle">${_fmtCondFlow(r.sum_5d, hit === '5d')}</td>
-        <td style="text-align:right;vertical-align:middle">${_fmtCondFlow(r.sum_10d, hit === '10d')}</td>
-        <td style="text-align:right;vertical-align:middle">${_fmtCondFlow(r.sum_20d, hit === '20d')}</td>
-        <td style="text-align:right;vertical-align:middle;border-left:1px dashed var(--border)">${_fmtCondFlow(r.sum_mid_small_3d, false)}</td>
-        <td style="text-align:right;vertical-align:middle">${_fmtCondFlow(r.sum_mid_small_5d, false)}</td>
-        <td style="text-align:right;vertical-align:middle">${_fmtCondFlow(r.sum_mid_small_10d, false)}</td>
-        <td style="text-align:right;vertical-align:middle">${_fmtCondFlow(r.sum_mid_small_20d, false)}</td>
+        <td class="picks-flow-cell" style="text-align:right;vertical-align:middle;cursor:pointer" title="点击查看个股资金流向弹窗">${_fmtCondFlow(r.sum_3d, hit === '3d')}</td>
+        <td class="picks-flow-cell" style="text-align:right;vertical-align:middle;cursor:pointer" title="点击查看个股资金流向弹窗">${_fmtCondFlow(r.sum_5d, hit === '5d')}</td>
+        <td class="picks-flow-cell" style="text-align:right;vertical-align:middle;cursor:pointer" title="点击查看个股资金流向弹窗">${_fmtCondFlow(r.sum_10d, hit === '10d')}</td>
+        <td class="picks-flow-cell" style="text-align:right;vertical-align:middle;cursor:pointer" title="点击查看个股资金流向弹窗">${_fmtCondFlow(r.sum_20d, hit === '20d')}</td>
+        <td class="picks-flow-cell" style="text-align:right;vertical-align:middle;border-left:1px dashed var(--border);cursor:pointer" title="点击查看个股资金流向弹窗">${_fmtCondFlow(r.sum_mid_small_3d, false)}</td>
+        <td class="picks-flow-cell" style="text-align:right;vertical-align:middle;cursor:pointer" title="点击查看个股资金流向弹窗">${_fmtCondFlow(r.sum_mid_small_5d, false)}</td>
+        <td class="picks-flow-cell" style="text-align:right;vertical-align:middle;cursor:pointer" title="点击查看个股资金流向弹窗">${_fmtCondFlow(r.sum_mid_small_10d, false)}</td>
+        <td class="picks-flow-cell" style="text-align:right;vertical-align:middle;cursor:pointer" title="点击查看个股资金流向弹窗">${_fmtCondFlow(r.sum_mid_small_20d, false)}</td>
         <td style="text-align:right;vertical-align:middle;border-left:1px dashed var(--border)">${_fmtPostPickAndCum(r.post_pick_next_change_pct, r.next_1_close, r.max_high_t1, r.close, { liveT1: _lastNext1IsToday })}</td>
         <td style="text-align:right;vertical-align:middle">${_fmtPostPickAndCum(r.post_pick_next2_change_pct, r.next_2_close, r.max_high_t2, r.close)}</td>
         <td style="text-align:right;vertical-align:middle">${_fmtPostPickAndCum(r.post_pick_next3_change_pct, r.next_3_close, r.max_high_t3, r.close)}</td>
@@ -8069,17 +8291,71 @@ function renderConditionalPicksTable(list) {
     `;
   }).join('');
   tbody.innerHTML = rows;
+  _bindPicksFlowDelegation(tbody);
 }
 
-// 跟随 sub-tab 切换容器显示 (system/user → 系统推荐表; ths → 同花顺表; conditional → 条件选股表; combined → 组合选股表)
+function renderConditionalNewPicksTable(list, dailyReady = true) {
+  const tbody = document.getElementById('conditionalNewPicksBody');
+  if (!tbody) return;
+  if (!dailyReady) {
+    tbody.innerHTML = '<tr><td colspan="20" style="text-align:center;color:#e8b84f;padding:40px 0">等待收盘数据：仅使用完整收盘日线判断 MA10 和缩量</td></tr>';
+    return;
+  }
+  if (!list || list.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="20" style="text-align:center;color:var(--text-muted);padding:40px 0">无命中（收盘日线已就绪，该日没有满足全部规则的股票）</td></tr>';
+    return;
+  }
+  tbody.innerHTML = list.map((r, index) => {
+    const code = (r.ts_code || '').replace(/\.SH|\.SZ|\.BJ/, '');
+    const name = r.name || code;
+    const change = Number(r.change_pct) || 0;
+    const changeColor = change >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
+    const bucketLabel = r.used_bucket === 'main' ? '主力' : '超大单';
+    const bucketStyle = r.used_bucket === 'main'
+      ? 'background:rgba(120,200,255,0.15);color:#7ac8ff'
+      : 'background:rgba(180,140,255,0.15);color:#c89cff';
+    const hit = r.hit_threshold || '';
+    const flowClick = `onclick="event.stopPropagation();openStockFlowDetail('${r.ts_code}','${name}','main')"`;
+    return `<tr data-ts-code="${r.ts_code}">
+      <td style="text-align:center;color:var(--text-muted);vertical-align:middle">${index + 1}</td>
+      <td style="vertical-align:middle;white-space:nowrap">
+        <div style="cursor:pointer" onclick="showKlineModal('${r.ts_code}','${name}',{pickDate:'${r.trade_date || picksSelDate || ''}'})">${name}</div>
+        <div style="margin-top:2px;color:var(--text-muted);font-size:11px;cursor:pointer" onclick="showKlineModal('${r.ts_code}','${name}',{pickDate:'${r.trade_date || picksSelDate || ''}'})">${code}</div>
+        <div style="margin-top:3px">${renderSectorPills(r)}</div>
+      </td>
+      <td style="text-align:right">${r.close != null ? Number(r.close).toFixed(2) : '—'}</td>
+      <td style="text-align:right;color:#63d6a0">${r.ma10 != null ? Number(r.ma10).toFixed(2) : '—'}</td>
+      <td style="text-align:right;color:#63d6a0" title="当日 ${r.volume ?? '—'} / 前一日 ${r.prev_volume ?? '—'}">${r.volume_ratio_pct != null ? Number(r.volume_ratio_pct).toFixed(1) + '%' : '—'}</td>
+      <td style="text-align:right;color:${changeColor}">${change >= 0 ? '+' : ''}${change.toFixed(2)}%</td>
+      <td style="text-align:center"><span style="font-size:11px;padding:2px 8px;border-radius:3px;${bucketStyle}">${bucketLabel}</span></td>
+      <td class="picks-flow-cell" style="text-align:right;cursor:pointer" ${flowClick}>${_fmtCondFlow(r.sum_3d, hit === '3d')}</td>
+      <td class="picks-flow-cell" style="text-align:right;cursor:pointer" ${flowClick}>${_fmtCondFlow(r.sum_5d, hit === '5d')}</td>
+      <td class="picks-flow-cell" style="text-align:right;cursor:pointer" ${flowClick}>${_fmtCondFlow(r.sum_10d, hit === '10d')}</td>
+      <td class="picks-flow-cell" style="text-align:right;cursor:pointer" ${flowClick}>${_fmtCondFlow(r.sum_20d, hit === '20d')}</td>
+      <td class="picks-flow-cell" style="text-align:right;border-left:1px dashed var(--border);cursor:pointer" ${flowClick}>${_fmtCondFlow(r.sum_mid_small_3d, false)}</td>
+      <td class="picks-flow-cell" style="text-align:right;cursor:pointer" ${flowClick}>${_fmtCondFlow(r.sum_mid_small_5d, false)}</td>
+      <td class="picks-flow-cell" style="text-align:right;cursor:pointer" ${flowClick}>${_fmtCondFlow(r.sum_mid_small_10d, false)}</td>
+      <td class="picks-flow-cell" style="text-align:right;cursor:pointer" ${flowClick}>${_fmtCondFlow(r.sum_mid_small_20d, false)}</td>
+      <td style="text-align:right;border-left:1px dashed var(--border)">${_fmtPostPickAndCum(r.post_pick_next_change_pct, r.next_1_close, r.max_high_t1, r.close, { liveT1: _lastNext1IsToday })}</td>
+      <td style="text-align:right">${_fmtPostPickAndCum(r.post_pick_next2_change_pct, r.next_2_close, r.max_high_t2, r.close)}</td>
+      <td style="text-align:right">${_fmtPostPickAndCum(r.post_pick_next3_change_pct, r.next_3_close, r.max_high_t3, r.close)}</td>
+      <td style="text-align:right">${_fmtPostPickAndCum(r.post_pick_next4_change_pct, r.next_4_close, r.max_high_t4, r.close)}</td>
+      <td style="text-align:right">${_fmtPostPickAndCum(r.post_pick_next5_change_pct, r.next_5_close, r.max_high_t5, r.close)}</td>
+    </tr>`;
+  }).join('');
+}
+
+// 跟随 sub-tab 切换容器显示
 function _showBucketContainer(group) {
   const isSystem = group === 'system' || group === 'user';
   const isThs = group === 'ths';
   const isConditional = group === 'conditional';
+  const isConditionalNew = group === 'conditionalNew';
   const isCombined = group === 'combined';
   const isConditionalThs = group === 'conditionalThs';
   const isCombinedThs = group === 'combinedThs';
   document.getElementById('conditionalPicksContainer').style.display = isConditional ? '' : 'none';
+  document.getElementById('conditionalNewPicksContainer').style.display = isConditionalNew ? '' : 'none';
   document.getElementById('combinedPicksContainer').style.display = isCombined ? '' : 'none';
   document.getElementById('conditionalPicksThsContainer').style.display = isConditionalThs ? '' : 'none';
   document.getElementById('combinedPicksThsContainer').style.display = isCombinedThs ? '' : 'none';
@@ -8117,25 +8393,25 @@ function renderCombinedPicksTable(list) {
     const score = r.score;
     const scoreColor = score >= 120 ? '#e8a45a' : score >= 100 ? '#7ac8ff' : 'var(--text-secondary)';
     return `
-      <tr data-ts-code="${r.ts_code}">
+      <tr data-ts-code="${r.ts_code}" data-stock-name="${escapeHtml(name)}">
         <td style="text-align:center;color:var(--text-muted);vertical-align:middle">${i + 1}</td>
         <td style="vertical-align:middle;white-space:nowrap">
-          <div style="cursor:pointer" onclick="showKlineModal('${r.ts_code}','${name}')">${name}</div>
-          <div style="margin-top:2px"><a href="${link}" target="_blank" style="color:var(--text-muted);text-decoration:none;font-size:11px;font-family:'JetBrains Mono',monospace" onclick="event.preventDefault();event.stopPropagation();showKlineModal('${r.ts_code}','${name}')">${code}</a></div>
+          <div style="cursor:pointer" onclick="showKlineModal('${r.ts_code}','${name}',{pickDate:'${r.trade_date || picksSelDate || ''}'})">${name}</div>
+          <div style="margin-top:2px"><a href="${link}" target="_blank" style="color:var(--text-muted);text-decoration:none;font-size:11px;font-family:'JetBrains Mono',monospace" onclick="event.preventDefault();event.stopPropagation();showKlineModal('${r.ts_code}','${name}',{pickDate:'${r.trade_date || picksSelDate || ''}'})">${code}</a></div>
           <div style="margin-top:3px">${renderSectorPills(r)}</div>
         </td>
         <td style="text-align:right;color:${scoreColor};vertical-align:middle;font-weight:600">${score != null ? score.toFixed(1) : '—'}</td>
         <td style="text-align:right;vertical-align:middle">${r.close != null ? r.close.toFixed(2) : '—'}</td>
         <td style="text-align:right;color:${cpColor};vertical-align:middle">${cpStr}</td>
         <td style="text-align:center;vertical-align:middle"><span style="font-size:11px;padding:2px 8px;border-radius:3px;${bucketStyle}">${bucketLabel}</span></td>
-        <td style="text-align:right;vertical-align:middle">${_fmtCondFlow(r.sum_3d, hit === '3d')}</td>
-        <td style="text-align:right;vertical-align:middle">${_fmtCondFlow(r.sum_5d, hit === '5d')}</td>
-        <td style="text-align:right;vertical-align:middle">${_fmtCondFlow(r.sum_10d, hit === '10d')}</td>
-        <td style="text-align:right;vertical-align:middle">${_fmtCondFlow(r.sum_20d, hit === '20d')}</td>
-        <td style="text-align:right;vertical-align:middle;border-left:1px dashed var(--border)">${_fmtCondFlow(r.sum_mid_small_3d, false)}</td>
-        <td style="text-align:right;vertical-align:middle">${_fmtCondFlow(r.sum_mid_small_5d, false)}</td>
-        <td style="text-align:right;vertical-align:middle">${_fmtCondFlow(r.sum_mid_small_10d, false)}</td>
-        <td style="text-align:right;vertical-align:middle">${_fmtCondFlow(r.sum_mid_small_20d, false)}</td>
+        <td class="picks-flow-cell" style="text-align:right;vertical-align:middle;cursor:pointer" title="点击查看个股资金流向弹窗">${_fmtCondFlow(r.sum_3d, hit === '3d')}</td>
+        <td class="picks-flow-cell" style="text-align:right;vertical-align:middle;cursor:pointer" title="点击查看个股资金流向弹窗">${_fmtCondFlow(r.sum_5d, hit === '5d')}</td>
+        <td class="picks-flow-cell" style="text-align:right;vertical-align:middle;cursor:pointer" title="点击查看个股资金流向弹窗">${_fmtCondFlow(r.sum_10d, hit === '10d')}</td>
+        <td class="picks-flow-cell" style="text-align:right;vertical-align:middle;cursor:pointer" title="点击查看个股资金流向弹窗">${_fmtCondFlow(r.sum_20d, hit === '20d')}</td>
+        <td class="picks-flow-cell" style="text-align:right;vertical-align:middle;border-left:1px dashed var(--border);cursor:pointer" title="点击查看个股资金流向弹窗">${_fmtCondFlow(r.sum_mid_small_3d, false)}</td>
+        <td class="picks-flow-cell" style="text-align:right;vertical-align:middle;cursor:pointer" title="点击查看个股资金流向弹窗">${_fmtCondFlow(r.sum_mid_small_5d, false)}</td>
+        <td class="picks-flow-cell" style="text-align:right;vertical-align:middle;cursor:pointer" title="点击查看个股资金流向弹窗">${_fmtCondFlow(r.sum_mid_small_10d, false)}</td>
+        <td class="picks-flow-cell" style="text-align:right;vertical-align:middle;cursor:pointer" title="点击查看个股资金流向弹窗">${_fmtCondFlow(r.sum_mid_small_20d, false)}</td>
         <td style="text-align:right;vertical-align:middle;border-left:1px dashed var(--border)">${_fmtPostPickAndCum(r.post_pick_next_change_pct, r.next_1_close, r.max_high_t1, r.close, { liveT1: _lastNext1IsToday })}</td>
         <td style="text-align:right;vertical-align:middle">${_fmtPostPickAndCum(r.post_pick_next2_change_pct, r.next_2_close, r.max_high_t2, r.close)}</td>
         <td style="text-align:right;vertical-align:middle">${_fmtPostPickAndCum(r.post_pick_next3_change_pct, r.next_3_close, r.max_high_t3, r.close)}</td>
@@ -8145,6 +8421,7 @@ function renderCombinedPicksTable(list) {
     `;
   }).join('');
   tbody.innerHTML = rows;
+  _bindPicksFlowDelegation(tbody);
 }
 
 function renderPicksTable(list, opts = {}) {
@@ -8205,11 +8482,11 @@ function renderPicksTable(list, opts = {}) {
     }).join('');
     const flow3 = p.main_net_3d, flow5 = p.main_net_5d, flow10 = p.main_net_10d, flow20 = p.main_net_20d;
     return `
-      <tr data-ts-code="${p.ts_code}">
+      <tr data-ts-code="${p.ts_code}" data-stock-name="${escapeHtml(name)}">
         <td style="text-align:center;color:var(--text-muted);vertical-align:middle">${i + 1}</td>
         <td style="vertical-align:middle;white-space:nowrap">
-          <div style="cursor:pointer" onclick="showKlineModal('${p.ts_code}','${name}')">${name}</div>
-          <div style="margin-top:2px"><a href="${link}" target="_blank" style="color:var(--text-muted);text-decoration:none;font-size:11px;font-family:'JetBrains Mono',monospace" onclick="event.preventDefault();event.stopPropagation();showKlineModal('${p.ts_code}','${name}')">${code}</a></div>
+          <div style="cursor:pointer" onclick="showKlineModal('${p.ts_code}','${name}',{pickDate:'${p.trade_date || picksSelDate || ''}'})">${name}</div>
+          <div style="margin-top:2px"><a href="${link}" target="_blank" style="color:var(--text-muted);text-decoration:none;font-size:11px;font-family:'JetBrains Mono',monospace" onclick="event.preventDefault();event.stopPropagation();showKlineModal('${p.ts_code}','${name}',{pickDate:'${p.trade_date || picksSelDate || ''}'})">${code}</a></div>
           ${addedAtHtml}
         </td>
         <td style="vertical-align:middle">${renderSectorPills(p)}</td>
@@ -8221,11 +8498,11 @@ function renderPicksTable(list, opts = {}) {
         <td class="hide-ma-col" style="text-align:right;vertical-align:middle">${p.ma20?.toFixed(2) ?? '—'}</td>
         <td class="hide-ma-col" style="text-align:right;vertical-align:middle">${p.ma30?.toFixed(2) ?? '—'}</td>
         <td style="text-align:center;vertical-align:middle">${_fmtSignal(p.signal_type || 'hold')}</td>
-        <td style="text-align:right;vertical-align:middle" title="${p.main_net_pct_today ? '主力净流入占比 ' + p.main_net_pct_today.toFixed(2) + '%' : ''}">${_fmtFlow(p.main_net_today)}</td>
-        <td style="text-align:right;vertical-align:middle">${flow3 != null ? _fmtFlow(flow3) : _flowPlaceholder(3)}</td>
-        <td style="text-align:right;vertical-align:middle">${flow5 != null ? _fmtFlow(flow5) : _flowPlaceholder(5)}</td>
-        <td style="text-align:right;vertical-align:middle">${flow10 != null ? _fmtFlow(flow10) : _flowPlaceholder(10)}</td>
-        <td style="text-align:right;vertical-align:middle" data-col="20日累计">${flow20 != null ? _fmtFlow(flow20) : _flowPlaceholder(20)}</td>
+        <td class="picks-flow-cell" style="text-align:right;vertical-align:middle;cursor:pointer" title="${p.main_net_pct_today ? '主力净流入占比 ' + p.main_net_pct_today.toFixed(2) + '% · ' : ''}点击查看主力净流入逐日走势">${_fmtFlow(p.main_net_today)}</td>
+        <td class="picks-flow-cell" style="text-align:right;vertical-align:middle;cursor:pointer" title="点击查看主力净流入逐日走势">${flow3 != null ? _fmtFlow(flow3) : _flowPlaceholder(3)}</td>
+        <td class="picks-flow-cell" style="text-align:right;vertical-align:middle;cursor:pointer" title="点击查看主力净流入逐日走势">${flow5 != null ? _fmtFlow(flow5) : _flowPlaceholder(5)}</td>
+        <td class="picks-flow-cell" style="text-align:right;vertical-align:middle;cursor:pointer" title="点击查看主力净流入逐日走势">${flow10 != null ? _fmtFlow(flow10) : _flowPlaceholder(10)}</td>
+        <td class="picks-flow-cell" style="text-align:right;vertical-align:middle;cursor:pointer" data-col="20日累计" title="点击查看主力净流入逐日走势">${flow20 != null ? _fmtFlow(flow20) : _flowPlaceholder(20)}</td>
         <td class="picks-cell-post-pick-change" data-col="入选后涨幅" style="text-align:right;font-weight:600;vertical-align:middle" title="${p.post_pick_change_pct != null ? `入选日 ${p.trade_date} 收盘 ${(p.close ?? 0).toFixed(2)} → 当前 ${(p.current_price ?? 0).toFixed(2)}` : ''}">${p.post_pick_change_pct != null ? (p.post_pick_change_pct >= 0 ? '+' : '') + p.post_pick_change_pct.toFixed(2) + '%' : '—'}</td>
         ${showDeleteButton ? `<td style="text-align:center;vertical-align:middle"><button class="user-pick-del" data-ts="${p.ts_code}" title="从我的选股删除" style="background:transparent;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:2px 8px;cursor:pointer">✕</button></td>` : ''}
       </tr>
@@ -8246,6 +8523,7 @@ function renderPicksTable(list, opts = {}) {
       });
     });
   }
+  _bindPicksFlowDelegation(tbody);
 }
 
 let picksSort = { col: 'score', dir: 'desc' };
@@ -8389,11 +8667,11 @@ function renderPicksThsTable(list) {
     }).join('');
     const flow3 = p.ths_net_3d, flow5 = p.ths_net_5d, flow10 = p.ths_net_10d;
     return `
-      <tr data-ts-code="${p.ts_code}">
+      <tr data-ts-code="${p.ts_code}" data-stock-name="${escapeHtml(name)}">
         <td style="text-align:center;color:var(--text-muted);vertical-align:middle">${i + 1}</td>
         <td style="vertical-align:middle;white-space:nowrap">
-          <div style="cursor:pointer" onclick="showKlineModal('${p.ts_code}','${name}')">${name}</div>
-          <div style="margin-top:2px"><a href="${link}" target="_blank" style="color:var(--text-muted);text-decoration:none;font-size:11px;font-family:'JetBrains Mono',monospace" onclick="event.preventDefault();event.stopPropagation();showKlineModal('${p.ts_code}','${name}')">${code}</a></div>
+          <div style="cursor:pointer" onclick="showKlineModal('${p.ts_code}','${name}',{pickDate:'${p.trade_date || picksSelDate || ''}'})">${name}</div>
+          <div style="margin-top:2px"><a href="${link}" target="_blank" style="color:var(--text-muted);text-decoration:none;font-size:11px;font-family:'JetBrains Mono',monospace" onclick="event.preventDefault();event.stopPropagation();showKlineModal('${p.ts_code}','${name}',{pickDate:'${p.trade_date || picksSelDate || ''}'})">${code}</a></div>
         </td>
         <td style="vertical-align:middle">${renderSectorPills(p)}</td>
         <td style="text-align:right;font-weight:bold;color:var(--accent-blue);vertical-align:middle">${(p.score ?? 0).toFixed(1)}</td>
@@ -8404,10 +8682,10 @@ function renderPicksThsTable(list) {
         <td class="hide-ma-col" style="text-align:right;vertical-align:middle">${p.ma20?.toFixed(2) ?? '—'}</td>
         <td class="hide-ma-col" style="text-align:right;vertical-align:middle">${p.ma30?.toFixed(2) ?? '—'}</td>
         <td style="text-align:center;vertical-align:middle">${_fmtSignal(p.signal_type || 'hold')}</td>
-        <td style="text-align:right;vertical-align:middle" data-col="THS今日净额">${_fmtFlow(p.ths_net_today)}</td>
-        <td style="text-align:right;vertical-align:middle">${flow3 != null ? _fmtFlow(flow3) : _flowPlaceholder(3)}</td>
-        <td style="text-align:right;vertical-align:middle">${flow5 != null ? _fmtFlow(flow5) : _flowPlaceholder(5)}</td>
-        <td style="text-align:right;vertical-align:middle">${flow10 != null ? _fmtFlow(flow10) : _flowPlaceholder(10)}</td>
+        <td class="picks-flow-cell" style="text-align:right;vertical-align:middle;cursor:pointer" data-col="THS今日净额" title="点击查看个股资金流向弹窗">${_fmtFlow(p.ths_net_today)}</td>
+        <td class="picks-flow-cell" style="text-align:right;vertical-align:middle;cursor:pointer" title="点击查看个股资金流向弹窗">${flow3 != null ? _fmtFlow(flow3) : _flowPlaceholder(3)}</td>
+        <td class="picks-flow-cell" style="text-align:right;vertical-align:middle;cursor:pointer" title="点击查看个股资金流向弹窗">${flow5 != null ? _fmtFlow(flow5) : _flowPlaceholder(5)}</td>
+        <td class="picks-flow-cell" style="text-align:right;vertical-align:middle;cursor:pointer" title="点击查看个股资金流向弹窗">${flow10 != null ? _fmtFlow(flow10) : _flowPlaceholder(10)}</td>
         <td class="picks-cell-post-pick-change" data-col="入选后涨幅" style="text-align:right;font-weight:600;vertical-align:middle" title="${p.post_pick_change_pct != null ? `入选日 ${p.trade_date} 收盘 ${(p.close ?? 0).toFixed(2)} → 当前 ${(p.current_price ?? 0).toFixed(2)}` : ''}">${p.post_pick_change_pct != null ? (p.post_pick_change_pct >= 0 ? '+' : '') + p.post_pick_change_pct.toFixed(2) + '%' : '—'}</td>
       </tr>
       <tr class="picks-reasons-row" data-ts-code="${p.ts_code}">
@@ -8418,6 +8696,7 @@ function renderPicksThsTable(list) {
     `;
   }).join('');
   tbody.innerHTML = rows;
+  _bindPicksFlowDelegation(tbody);
 }
 
 // 选股推荐实时刷新 (跟持仓 posAutoRefresh 模式一致)
@@ -8426,7 +8705,7 @@ async function refreshPicksQuotes() {
   const cache = _getCurrentPicksCache();
   console.log('[picks-refresh] start, cache size:', cache.length, 'group:', currentPicksGroup);
   if (!cache.length) return;
-  if (currentPicksGroup === 'conditional' || currentPicksGroup === 'combined' ||
+  if (currentPicksGroup === 'conditional' || currentPicksGroup === 'conditionalNew' || currentPicksGroup === 'combined' ||
       currentPicksGroup === 'conditionalThs' || currentPicksGroup === 'combinedThs') {
     return _refreshBucketT1Quotes(cache);
   }
@@ -8512,6 +8791,7 @@ async function _refreshBucketT1Quotes(cache) {
     const quotes = await r.json();
     // 当前 sub-tab 对应的 tbody id (EM + THS 都按同一套占位刷新, 容器不同而已)
     const tbodyId = currentPicksGroup === 'combined' ? 'combinedPicksBody'
+                  : currentPicksGroup === 'conditionalNew' ? 'conditionalNewPicksBody'
                   : currentPicksGroup === 'combinedThs' ? 'combinedPicksThsBody'
                   : currentPicksGroup === 'conditionalThs' ? 'conditionalPicksThsBody'
                   : 'conditionalPicksBody';
@@ -8546,7 +8826,7 @@ async function _refreshBucketT1Quotes(cache) {
   }
 }
 
-// ===== 个股日K线弹窗 (ECharts candlestick + MA5/10/20/60 + 成交量副图) =====
+// ===== 日K线弹窗 (ECharts candlestick + MA5/10/20/30/60 + 成交量 + MACD) =====
 // 配色用字面 hex: 涨 #ff5252 跌 #00e676 (A股红涨绿跌; 项目 CSS 变量 --accent-green 实为红色, 反直觉不敢用)
 const KLINE_UP = '#ff5252', KLINE_DOWN = '#00e676';
 const KLINE_MA_COLORS = { 5: '#7ac8ff', 10: '#e8a45a', 20: '#c89cff', 30: '#4dd0e1', 60: '#6fbf73' };
@@ -8562,6 +8842,30 @@ function _klineMA(values, n) {
     out.push(i >= n - 1 && values.slice(i - n + 1, i + 1).every(Number.isFinite) ? +(sum / n).toFixed(2) : null);
   }
   return out;
+}
+
+function _klineEMA(values, period) {
+  const out = [];
+  const alpha = 2 / (period + 1);
+  let ema = null;
+  for (const value of values) {
+    if (!Number.isFinite(value)) {
+      out.push(null);
+      continue;
+    }
+    ema = ema == null ? value : value * alpha + ema * (1 - alpha);
+    out.push(+ema.toFixed(4));
+  }
+  return out;
+}
+
+function _klineMACD(values) {
+  const ema12 = _klineEMA(values, 12);
+  const ema26 = _klineEMA(values, 26);
+  const dif = values.map((_, i) => Number.isFinite(ema12[i]) && Number.isFinite(ema26[i]) ? +(ema12[i] - ema26[i]).toFixed(4) : null);
+  const dea = _klineEMA(dif, 9);
+  const macd = dif.map((value, i) => Number.isFinite(value) && Number.isFinite(dea[i]) ? +(2 * (value - dea[i])).toFixed(4) : null);
+  return { dif, dea, macd };
 }
 
 function _klineEscHandler(e) { if (e.key === 'Escape') closeKlineModal(); }
@@ -8615,7 +8919,14 @@ function closeKlineModal() {
 
 async function showKlineModal(tsCode, name, options = {}) {
   closeKlineModal();  // 去重: 已开着就先关 (连带 dispose 旧图表)
-  _klineCurrent = { tsCode, name, kind: options.kind || 'stock', date: options.date || '', tab: 'min', loadedMin: false, loadedDaily: false };
+  _klineCurrent = {
+    tsCode, name,
+    kind: options.kind || 'stock',
+    date: options.date || '',
+    markDate: options.pickDate || '',
+    markDateAvailable: null,
+    tab: 'min', loadedMin: false, loadedDaily: false,
+  };
   const code6 = (tsCode || '').replace(/\.SH|\.SZ|\.BJ/, '');
   const btnStyle = "background:var(--bg-secondary);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:3px 10px;font-size:12px;cursor:pointer;font-family:inherit";
   const tabStyle = "background:transparent;border:none;border-bottom:2px solid transparent;color:var(--text-muted);padding:2px 10px;font-size:13px;cursor:pointer;font-family:inherit";
@@ -8768,7 +9079,7 @@ async function _loadKlineMinline() {
   });
 }
 
-// 日K: candlestick + MA5/10/20/30/60 + 成交量副图 (intraday=1 → 盘中补一根今日实时K)
+// 日K: candlestick + MA5/10/20/30/60 + 成交量 + MACD (intraday=1 → 盘中补一根今日实时K)
 async function _loadKlineDaily() {
   const cur = _klineCurrent;
   const box = document.getElementById('klineChartBox');
@@ -8803,6 +9114,7 @@ async function _loadKlineDaily() {
   const dates = rows.map(r => r.trade_date);
   const kData = rows.map(r => validOHLC(r) ? [r.open, r.close, r.low, r.high] : ['-', '-', '-', '-']);  // ECharts 顺序: [开,收,低,高]
   const closes = rows.map(r => r.close);
+  const macdData = _klineMACD(closes);
   const vols = rows.map(r => ({ value: r.volume || 0, itemStyle: { color: (r.open == null ? r.change >= 0 : r.close >= r.open) ? KLINE_UP : KLINE_DOWN } }));
   const volVals = rows.map(r => r.volume || 0);
   // 头部 MA 图例: 最新值, 颜色同均线
@@ -8815,7 +9127,40 @@ async function _loadKlineDaily() {
       return `<span style="color:${color};margin-left:10px">MA${n}: ${v != null ? v.toFixed(2) : '—'}</span>`;
     }).join('');
   }
-  const zoomStart = Math.max(0, 100 - (60 / rows.length) * 100);  // 默认看最近 ~60 个交易日
+  const markIndex = !isIndex && cur.markDate ? dates.indexOf(cur.markDate) : -1;
+  cur.markDateAvailable = markIndex >= 0;
+  _klineUpdateContext();
+  let zoomStart = Math.max(0, 100 - (60 / rows.length) * 100);  // 默认看最近 ~60 个交易日
+  let zoomEnd = 100;
+  if (markIndex >= 0 && rows.length > 60) {
+    const windowStart = Math.max(0, Math.min(markIndex - 30, rows.length - 60));
+    const windowEnd = Math.min(rows.length - 1, windowStart + 59);
+    zoomStart = windowStart / (rows.length - 1) * 100;
+    zoomEnd = windowEnd / (rows.length - 1) * 100;
+  }
+  const candleSeries = {
+    name: '日K', type: 'candlestick', data: kData, xAxisIndex: 0, yAxisIndex: 0,
+    z: 3,
+    itemStyle: { color: KLINE_UP, color0: KLINE_DOWN, borderColor: KLINE_UP, borderColor0: KLINE_DOWN },
+  };
+  const volumeSeries = {
+    name: isIndex ? '成交额' : 'VOL', type: 'bar', data: vols, xAxisIndex: 1, yAxisIndex: 1, barMaxWidth: 8, z: 3,
+  };
+  const macdBarSeries = {
+    name: 'MACD', type: 'bar', xAxisIndex: 2, yAxisIndex: 2, barMaxWidth: 6, z: 3,
+    data: macdData.macd.map(value => ({ value, itemStyle: { color: value >= 0 ? KLINE_UP : KLINE_DOWN } })),
+  };
+  if (markIndex >= 0) {
+    const selectedDayLine = () => ({
+      silent: true, symbol: 'none', animation: false, z: 1,
+      lineStyle: { color: '#ffd166', width: 1, type: 'dashed' },
+      label: { show: false },
+      data: [{ xAxis: cur.markDate }],
+    });
+    candleSeries.markLine = selectedDayLine();
+    volumeSeries.markLine = selectedDayLine();
+    macdBarSeries.markLine = selectedDayLine();
+  }
   const axisCommon = {
     axisLine: { lineStyle: { color: 'rgba(255,255,255,0.15)' } },
     axisLabel: { color: '#8b93a7', fontSize: 10, fontFamily: "'JetBrains Mono',monospace" },
@@ -8839,22 +9184,26 @@ async function _loadKlineDaily() {
         const cp = r.change;
         const cpColor = cp >= 0 ? KLINE_UP : KLINE_DOWN;
         const volWan = ((r.volume || 0) / 10000).toFixed(2);
+        const dif = macdData.dif[k.dataIndex], dea = macdData.dea[k.dataIndex], macd = macdData.macd[k.dataIndex];
         return `${r.trade_date.slice(0,4)}-${r.trade_date.slice(4,6)}-${r.trade_date.slice(6,8)}<br/>`
           + `开 ${r.open.toFixed(2)}　收 ${r.close.toFixed(2)}<br/>`
           + `高 ${r.high.toFixed(2)}　低 ${r.low.toFixed(2)}<br/>`
           + `涨跌 <span style="color:${cpColor}">${cp >= 0 ? '+' : ''}${cp == null ? '—' : cp.toFixed(2)}%</span>　`
-          + (isIndex ? `成交额 ${r.volume == null ? '—' : r.volume.toFixed(2)}亿元` : `量 ${volWan}万手`);
+          + (isIndex ? `成交额 ${r.volume == null ? '—' : r.volume.toFixed(2)}亿元` : `量 ${volWan}万手`) + '<br/>'
+          + `DIF ${dif == null ? '—' : dif.toFixed(3)}　DEA ${dea == null ? '—' : dea.toFixed(3)}　MACD ${macd == null ? '—' : macd.toFixed(3)}`;
       },
     },
     grid: [
-      { left: 56, right: 16, top: 16, height: '56%' },
-      { left: 56, right: 16, top: '70%', height: '19%' },
+      { left: 56, right: 16, top: 16, height: '45%' },
+      { left: 56, right: 16, top: '55%', height: '13%' },
+      { left: 56, right: 16, top: '73%', height: '14%' },
     ],
     xAxis: [
       { type: 'category', data: dates, gridIndex: 0, boundaryGap: true, ...axisCommon,
         axisLabel: { ...axisCommon.axisLabel, showMinLabel: true,
           formatter: (v, i) => isIndex ? `${v.slice(4,6)}-${v.slice(6,8)}` : (i > 0 && v.slice(4,6) === dates[i-1].slice(4,6)) ? `${v.slice(4,6)}-${v.slice(6,8)}` : `${v.slice(0,4)}-${v.slice(4,6)}` } },
       { type: 'category', data: dates, gridIndex: 1, boundaryGap: true, ...axisCommon, axisLabel: { show: false } },
+      { type: 'category', data: dates, gridIndex: 2, boundaryGap: true, ...axisCommon, axisLabel: { show: false } },
     ],
     yAxis: [
       { scale: true, gridIndex: 0, ...axisCommon, splitLine: { lineStyle: { color: 'rgba(255,255,255,0.06)' } } },
@@ -8863,25 +9212,34 @@ async function _loadKlineDaily() {
         nameTextStyle: { color: '#8b93a7', fontSize: 10 },
         axisLabel: { ...axisCommon.axisLabel, formatter: (v) => isIndex ? `${v.toFixed(0)}` : `${(v / 10000).toFixed(0)}万` },
         splitLine: { lineStyle: { color: 'rgba(255,255,255,0.06)' } } },
+      { scale: true, gridIndex: 2, ...axisCommon, splitNumber: 2,
+        name: 'MACD (12,26,9)', nameLocation: 'end', nameGap: 6,
+        nameTextStyle: { color: '#8b93a7', fontSize: 10 },
+        axisLabel: { ...axisCommon.axisLabel, formatter: (v) => v.toFixed(2) },
+        splitLine: { lineStyle: { color: 'rgba(255,255,255,0.06)' } } },
     ],
     dataZoom: [
-      { type: 'inside', xAxisIndex: [0, 1], start: zoomStart, end: 100 },
-      { type: 'slider', xAxisIndex: [0, 1], start: zoomStart, end: 100, bottom: 4, height: 14,
+      { type: 'inside', xAxisIndex: [0, 1, 2], start: zoomStart, end: zoomEnd },
+      { type: 'slider', xAxisIndex: [0, 1, 2], start: zoomStart, end: zoomEnd, bottom: 4, height: 14,
         borderColor: 'rgba(255,255,255,0.15)', backgroundColor: 'rgba(255,255,255,0.03)',
         fillerColor: 'rgba(122,200,255,0.12)', textStyle: { color: '#8b93a7', fontSize: 9 } },
     ],
     series: [
-      { name: '日K', type: 'candlestick', data: kData, xAxisIndex: 0, yAxisIndex: 0,
-        itemStyle: { color: KLINE_UP, color0: KLINE_DOWN, borderColor: KLINE_UP, borderColor0: KLINE_DOWN } },
+      candleSeries,
       ...Object.entries(KLINE_MA_COLORS).map(([n, color]) => ({
         name: `MA${n}`, type: 'line', data: _klineMA(closes, +n), xAxisIndex: 0, yAxisIndex: 0,
         smooth: true, showSymbol: false, lineStyle: { width: 1, color }, z: 3,
       })),
-      { name: isIndex ? '成交额' : 'VOL', type: 'bar', data: vols, xAxisIndex: 1, yAxisIndex: 1, barMaxWidth: 8 },
+      volumeSeries,
       { name: isIndex ? '额MA5' : '量MA5', type: 'line', data: _klineMA(volVals, 5), xAxisIndex: 1, yAxisIndex: 1,
         smooth: true, showSymbol: false, lineStyle: { width: 1, color: KLINE_MA_COLORS[5] } },
       { name: isIndex ? '额MA10' : '量MA10', type: 'line', data: _klineMA(volVals, 10), xAxisIndex: 1, yAxisIndex: 1,
         smooth: true, showSymbol: false, lineStyle: { width: 1, color: KLINE_MA_COLORS[10] } },
+      macdBarSeries,
+      { name: 'DIF', type: 'line', data: macdData.dif, xAxisIndex: 2, yAxisIndex: 2,
+        showSymbol: false, lineStyle: { width: 1, color: '#e8a45a' }, z: 4 },
+      { name: 'DEA', type: 'line', data: macdData.dea, xAxisIndex: 2, yAxisIndex: 2,
+        showSymbol: false, lineStyle: { width: 1, color: '#7ac8ff' }, z: 4 },
     ],
   });
 }
@@ -8915,7 +9273,7 @@ async function loadDeliveryAnalysis() {
         <span style="font-size:13px;font-weight:600">${s.name || ''} <span style="color:var(--text-muted);font-size:11px;font-weight:400">${s.ts_code}</span></span>
         <span style="font-size:11px;color:var(--text-muted)"><span style="color:var(--accent-green)">买${s.buys}</span> <span style="color:var(--accent-red)">卖${s.sells}</span></span>
       </div>
-      <div class="delivery-chart" id="dc-${s.ts_code}" style="height:380px"></div>
+      <div class="delivery-chart" id="dc-${s.ts_code}" style="height:460px"></div>
     </div>`).join('');
 
   // 懒加载: 进入视口(±600px)渲染, 滚出即 dispose 回收内存 (634 只全驻留吃不消)
@@ -8961,6 +9319,7 @@ async function _renderDeliveryChart(code) {
   dates.forEach((d, i) => { dateIdx[d] = i; });
   const kData = rows.map(r => [r.open, r.close, r.low, r.high]);
   const closes = rows.map(r => r.close);
+  const macdData = _klineMACD(closes);
   const vols = rows.map(r => ({ value: r.volume || 0, itemStyle: { color: r.close >= r.open ? KLINE_UP : KLINE_DOWN } }));
   // 主力净流入 (元→亿); fund_flow 2026-04-20 起, 之前日期留空
   const flowVals = dates.map(dt => {
@@ -9006,6 +9365,26 @@ async function _renderDeliveryChart(code) {
   chart.setOption({
     backgroundColor: 'transparent',
     animation: false,
+    legend: [
+      {
+        data: [5, 10, 20, 30, 60].map(n => `MA${n}`),
+        top: 0,
+        left: 44,
+        itemWidth: 18,
+        itemHeight: 2,
+        itemGap: 12,
+        textStyle: { color: '#aeb7c8', fontSize: 10, fontFamily: "'JetBrains Mono',monospace" },
+      },
+      {
+        data: ['DIF', 'DEA'],
+        top: '79%',
+        right: 8,
+        itemWidth: 14,
+        itemHeight: 2,
+        itemGap: 8,
+        textStyle: { color: '#aeb7c8', fontSize: 9, fontFamily: "'JetBrains Mono',monospace" },
+      },
+    ],
     axisPointer: { link: [{ xAxisIndex: 'all' }] },
     tooltip: {
       trigger: 'axis', axisPointer: { type: 'cross' },
@@ -9017,21 +9396,24 @@ async function _renderDeliveryChart(code) {
         const r = rows[k.dataIndex];
         const cp = r.close - r.open >= 0;
         const flow = flowVals[k.dataIndex];
+        const dif = macdData.dif[k.dataIndex], dea = macdData.dea[k.dataIndex], macd = macdData.macd[k.dataIndex];
         return `${r.trade_date.slice(0, 4)}-${r.trade_date.slice(4, 6)}-${r.trade_date.slice(6, 8)}<br/>`
           + `开 ${r.open.toFixed(2)}　收 ${r.close.toFixed(2)}<br/>`
           + `高 ${r.high.toFixed(2)}　低 ${r.low.toFixed(2)}<br/>`
           + `量 ${((r.volume || 0) / 10000).toFixed(1)}万手`
-          + (flow ? `　主力 <span style="color:${flow.value >= 0 ? KLINE_UP : KLINE_DOWN}">${flow.value >= 0 ? '+' : ''}${flow.value}亿</span>` : '');
+          + (flow ? `　主力 <span style="color:${flow.value >= 0 ? KLINE_UP : KLINE_DOWN}">${flow.value >= 0 ? '+' : ''}${flow.value}亿</span>` : '')
+          + `<br/>DIF ${dif == null ? '—' : dif.toFixed(3)}　DEA ${dea == null ? '—' : dea.toFixed(3)}　MACD ${macd == null ? '—' : macd.toFixed(3)}`;
       },
     },
     grid: [
-      { left: 44, right: 8, top: 8, height: '50%' },
-      { left: 44, right: 8, top: '61%', height: '13%' },
-      { left: 44, right: 8, top: '78%', height: '17%' },
+      { left: 44, right: 8, top: 24, height: '41%' },
+      { left: 44, right: 8, top: '50%', height: '10%' },
+      { left: 44, right: 8, top: '63%', height: '11%' },
+      { left: 44, right: 8, top: '79%', height: '14%' },
     ],
-    xAxis: [0, 1, 2].map(gi => ({
+    xAxis: [0, 1, 2, 3].map(gi => ({
       type: 'category', data: dates, gridIndex: gi, boundaryGap: true, ...axisCommon,
-      axisLabel: gi === 2 ? { ...axisCommon.axisLabel,
+      axisLabel: gi === 3 ? { ...axisCommon.axisLabel,
         formatter: (v, i) => (i > 0 && v.slice(4, 6) === dates[i - 1].slice(4, 6)) ? `${v.slice(4, 6)}-${v.slice(6, 8)}` : `${v.slice(0, 4)}-${v.slice(4, 6)}` }
         : { show: false },
     })),
@@ -9041,15 +9423,20 @@ async function _renderDeliveryChart(code) {
       { scale: true, gridIndex: 2, ...axisCommon, splitNumber: 2,
         axisLabel: { ...axisCommon.axisLabel, formatter: v => `${v}亿` },
         splitLine: { lineStyle: { color: 'rgba(255,255,255,0.06)' } } },
+      { scale: true, gridIndex: 3, ...axisCommon, splitNumber: 2,
+        name: 'MACD', nameLocation: 'end', nameGap: 4,
+        nameTextStyle: { color: '#8b93a7', fontSize: 9 },
+        axisLabel: { ...axisCommon.axisLabel, formatter: v => Number(v).toFixed(2) },
+        splitLine: { lineStyle: { color: 'rgba(255,255,255,0.06)' } } },
     ],
     dataZoom: [
-      { type: 'inside', xAxisIndex: [0, 1, 2], startValue: winStart, endValue: winEnd },
+      { type: 'inside', xAxisIndex: [0, 1, 2, 3], startValue: winStart, endValue: winEnd },
     ],
     series: [
       // 买卖点: 挂在 candlestick 上的 markPoint (12×12 方框+B/S字母, 4px 圆角) + markLine (虚线引到 K 线高低点)
-      // 24 像素的间距: 第一次 setOption 用占位 (row.low/high ± 占位偏移) 让 ECharts 完成 layout;
-      // 渲染完后用 chart.convertToPixel 算 24 像素对应的价格距离, 再 setOption 一次更新精确位置
-      { name: '日K', type: 'candlestick', data: kData, xAxisIndex: 0, yAxisIndex: 0,
+      // 16 像素的间距: 第一次 setOption 用占位 (row.low/high ± 占位偏移) 让 ECharts 完成 layout;
+      // 渲染完后用 chart.convertToPixel 算 16 像素对应的价格距离, 再 setOption 一次更新精确位置
+      { id: 'delivery-candles', name: '日K', type: 'candlestick', data: kData, xAxisIndex: 0, yAxisIndex: 0,
         itemStyle: { color: KLINE_UP, color0: KLINE_DOWN, borderColor: KLINE_UP, borderColor0: KLINE_DOWN },
         markPoint: {
           symbol: 'rect', symbolSize: [12, 12],
@@ -9107,24 +9494,30 @@ async function _renderDeliveryChart(code) {
           ],
         },
       },
-      ...[5, 10, 20].map(n => ({
+      ...[5, 10, 20, 30, 60].map(n => ({
         name: `MA${n}`, type: 'line', data: _klineMA(closes, n), xAxisIndex: 0, yAxisIndex: 0,
         smooth: true, showSymbol: false, lineStyle: { width: 1, color: KLINE_MA_COLORS[n] }, z: 3,
       })),
       { name: 'VOL', type: 'bar', data: vols, xAxisIndex: 1, yAxisIndex: 1, barMaxWidth: 6 },
       { name: '主力净流入', type: 'bar', data: flowVals, xAxisIndex: 2, yAxisIndex: 2, barMaxWidth: 6 },
+      { name: 'MACD', type: 'bar', data: macdData.macd.map(value => ({
+        value, itemStyle: { color: value >= 0 ? KLINE_UP : KLINE_DOWN },
+      })), xAxisIndex: 3, yAxisIndex: 3, barMaxWidth: 5, z: 3 },
+      { name: 'DIF', type: 'line', data: macdData.dif, xAxisIndex: 3, yAxisIndex: 3,
+        showSymbol: false, lineStyle: { width: 1, color: '#e8a45a' }, z: 4 },
+      { name: 'DEA', type: 'line', data: macdData.dea, xAxisIndex: 3, yAxisIndex: 3,
+        showSymbol: false, lineStyle: { width: 1, color: '#7ac8ff' }, z: 4 },
     ],
   });
 
-  // 等 'finished' 事件后, 用 convertToPixel 把 "24 像素间距" 转成精确价格距离, 更新 markPoint/markLine
+  // 等 'finished' 事件后, 用 convertToPixel 把 "16 像素间距" 转成精确价格距离, 更新 markPoint/markLine
   // 用 'finished' 而非 setTimeout 0: ECharts 内部渲染用 rAF, 比 setTimeout 0 晚;
   // setTimeout 触发时 grid 还没稳定, 算出来的 pxPerPrice 不准, 不同股票之间不一致
-  // 第二次 setOption 用 notMerge=true, 强制替换 markPoint/markLine, 避免默认 merge 模式下
-  // 数组按 index 合并导致长度变化时错位 / 清空
+  // 第二次 setOption 通过固定 series id 只更新蜡烛图标记，避免影响均线和各副图
   chart.once('finished', () => {
     if (!_deliveryCharts.has(code)) return;  // 滚出视口已 dispose
     try {
-      const offsetPx = 24;
+      const offsetPx = 16;
       const buyData = buyMarks.map(m => {
         const i = dateIdx[m.coord[0]];
         const row = rows[i];
@@ -9153,7 +9546,7 @@ async function _renderDeliveryChart(code) {
       });
       chart.setOption({
         series: [{
-          name: '日K', type: 'candlestick', data: kData, xAxisIndex: 0, yAxisIndex: 0,
+          id: 'delivery-candles',
           markPoint: {
             symbol: 'rect', symbolSize: [12, 12],
             itemStyle: { borderRadius: 4, borderColor: '#fff', borderWidth: 1 },
@@ -9171,7 +9564,7 @@ async function _renderDeliveryChart(code) {
             ],
           },
         }],
-      }, true);  // notMerge=true: 强制替换整个 series, 避免数组按 index 合并错位
+      });
     } catch (e) {
       console.warn(`[delivery ${code}] markPoint/markLine 精确位置更新失败:`, e);
     }
@@ -10247,10 +10640,168 @@ let _mktFlowLatest = null;      // 最近一次 /api/market/fflow 返回的 payl
 let _mktFlowDailyLatest = null; // 弹窗用的逐日 payload (缓存全部历史)
 let _mktFlowDetailHighlight = null;  // 弹窗打开时点的高亮档
 let _zoomSyncing = false;       // dataZoom 双向联动 reentry 守卫
+let _stockFlowDetailAmt = null;  // 个股弹窗: 5档净流入曲线
+let _stockFlowDetailPct = null;  // 个股弹窗: 5档净占比曲线
+let _stockFlowDetailKline = null;  // 个股弹窗: 日 K + 成交量
+let _stockFlowDetailTsCode = null;  // 当前打开弹窗的股票
+let _stockFlowDetailHighlight = null;  // 高亮档 key
+let _stockFlowDetailRequestId = 0;
+let _stockFlowConnectedRequestId = 0;
+let _stockFlowSyncing = false;
+
+function _resizeStockFlowDetailCharts() {
+  if (document.getElementById('stockFlowDetailMask')?.style.display === 'none') return;
+  _stockFlowDetailKline && _stockFlowDetailKline.resize();
+  _stockFlowDetailAmt && _stockFlowDetailAmt.resize();
+  _stockFlowDetailPct && _stockFlowDetailPct.resize();
+}
+window.addEventListener('resize', _resizeStockFlowDetailCharts);
+
+function _stockFlowDateKey(value) {
+  return String(value == null ? '' : value).replace(/\D/g, '');
+}
+
+function _stockFlowVisibleDateRange(chart) {
+  const dates = chart && chart._stockFlowDates;
+  if (!Array.isArray(dates) || !dates.length) return null;
+  const zoom = chart.getOption?.().dataZoom?.[0] || {};
+  const last = dates.length - 1;
+  const startIndex = Math.max(0, Math.min(last, Math.round(last * Number(zoom.start || 0) / 100)));
+  const endValue = zoom.end == null ? 100 : Number(zoom.end);
+  const endIndex = Math.max(startIndex, Math.min(last, Math.round(last * endValue / 100)));
+  return [_stockFlowDateKey(dates[startIndex]), _stockFlowDateKey(dates[endIndex])];
+}
+
+function _stockFlowDateRangeIndexes(dates, startKey, endKey) {
+  if (!Array.isArray(dates) || !dates.length) return null;
+  const keys = dates.map(_stockFlowDateKey);
+  let startIndex = keys.findIndex(key => key >= startKey);
+  let endIndex = keys.length - 1;
+  while (endIndex >= 0 && keys[endIndex] > endKey) endIndex--;
+  if (startIndex < 0) startIndex = keys.length - 1;
+  if (endIndex < startIndex) endIndex = startIndex;
+  return [startIndex, endIndex];
+}
+
+function _syncStockFlowZoom(sourceChart) {
+  if (_stockFlowSyncing) return;
+  const range = _stockFlowVisibleDateRange(sourceChart);
+  if (!range) return;
+  _stockFlowSyncing = true;
+  try {
+    for (const target of [_stockFlowDetailKline, _stockFlowDetailAmt, _stockFlowDetailPct]) {
+      if (!target || target === sourceChart || target._stockFlowRequestId !== _stockFlowDetailRequestId) continue;
+      const indexes = _stockFlowDateRangeIndexes(target._stockFlowDates, range[0], range[1]);
+      if (!indexes) continue;
+      const zooms = target.getOption?.().dataZoom || [];
+      target.dispatchAction({
+        type: 'dataZoom',
+        batch: zooms.map((_, dataZoomIndex) => ({
+          dataZoomIndex,
+          startValue: target._stockFlowDates[indexes[0]],
+          endValue: target._stockFlowDates[indexes[1]],
+        })),
+      });
+    }
+  } finally {
+    setTimeout(() => { _stockFlowSyncing = false; }, 0);
+  }
+}
+
+function _syncStockFlowPointer(sourceChart, event) {
+  if (_stockFlowSyncing) return;
+  const axis = (event?.axesInfo || []).find(info => info.axisDim === 'x' && info.axisIndex === 0);
+  const sourceDates = sourceChart?._stockFlowDates;
+  if (!axis || !Array.isArray(sourceDates)) return;
+  const rawDate = Number.isInteger(axis.value) ? sourceDates[axis.value] : axis.value;
+  const dateKey = _stockFlowDateKey(rawDate);
+  if (!dateKey) return;
+  _stockFlowSyncing = true;
+  try {
+    for (const target of [_stockFlowDetailKline, _stockFlowDetailAmt, _stockFlowDetailPct]) {
+      if (!target || target === sourceChart || target._stockFlowRequestId !== _stockFlowDetailRequestId) continue;
+      const dataIndex = target._stockFlowDates.findIndex(date => _stockFlowDateKey(date) === dateKey);
+      if (dataIndex >= 0) target.dispatchAction({ type: 'showTip', seriesIndex: 0, dataIndex });
+    }
+  } finally {
+    setTimeout(() => { _stockFlowSyncing = false; }, 0);
+  }
+}
+
+function _bindStockFlowChartSync(chart) {
+  if (!chart || chart._stockFlowSyncHooked) return;
+  chart._stockFlowSyncHooked = true;
+  chart.on('datazoom', () => _syncStockFlowZoom(chart));
+  chart.on('updateAxisPointer', event => _syncStockFlowPointer(chart, event));
+}
+
+function _connectStockFlowDetailCharts(requestId) {
+  const charts = [_stockFlowDetailKline, _stockFlowDetailAmt, _stockFlowDetailPct];
+  if (charts.some(chart => !chart || chart._stockFlowRequestId !== requestId)) return;
+  charts.forEach(_bindStockFlowChartSync);
+  if (_stockFlowConnectedRequestId !== requestId) {
+    _stockFlowConnectedRequestId = requestId;
+    _syncStockFlowZoom(_stockFlowDetailAmt);
+  }
+}
 
 function _mktFlowYi(v) {
   if (v === null || v === undefined) return '—';
   return (v / 1e8).toFixed(2) + '亿';
+}
+
+const _STOCK_FLOW_PERIODS = [1, 3, 5, 10, 20];
+
+function _stockFlowWindowSum(values, endIndex, days, multiplier = 1) {
+  const start = endIndex - days + 1;
+  if (!Array.isArray(values) || start < 0) return null;
+  const windowValues = values.slice(start, endIndex + 1).map(v => v == null ? NaN : Number(v) * multiplier);
+  return windowValues.length === days && windowValues.every(Number.isFinite)
+    ? windowValues.reduce((sum, value) => sum + value, 0)
+    : null;
+}
+
+function _stockFlowPeriodValue(d, key, endIndex, days, mode) {
+  const net = _stockFlowWindowSum(d.series && d.series[key], endIndex, days);
+  if (mode === 'amount' || net == null) return net;
+  // stock_daily.amount 沿用 Tushare 口径（千元），换算为元后计算同期累计净占比。
+  const turnover = _stockFlowWindowSum(d.amount, endIndex, days, 1000);
+  return turnover > 0 ? net / turnover * 100 : null;
+}
+
+function _stockFlowVisibleKeys(chart) {
+  const selected = chart && chart.getOption && chart.getOption().legend?.[0]?.selected;
+  return _MKT_FLOW_DEFS
+    .filter(def => !selected || selected[def.name] !== false)
+    .map(def => def.key);
+}
+
+function _stockFlowPeriodTooltip(d, endIndex, mode, visibleKeys) {
+  if (!d || !Array.isArray(d.dates) || !Number.isInteger(endIndex) || endIndex < 0) return '';
+  const isPct = mode === 'pct';
+  const visibleDefs = Array.isArray(visibleKeys)
+    ? _MKT_FLOW_DEFS.filter(def => visibleKeys.includes(def.key))
+    : _MKT_FLOW_DEFS;
+  if (!visibleDefs.length) return '';
+  const headers = visibleDefs.map(def =>
+    `<th style="padding:0 7px 5px;color:${def.color};font-weight:600;text-align:right">${def.name.replace('净流入', '')}</th>`
+  ).join('');
+  const rows = _STOCK_FLOW_PERIODS.map(days => {
+    const label = days === 1 ? '当日' : `${days}日`;
+    const cells = visibleDefs.map(def => {
+      const value = _stockFlowPeriodValue(d, def.key, endIndex, days, mode);
+      const color = value == null ? '#7d8699' : value >= 0 ? KLINE_UP : KLINE_DOWN;
+      const text = value == null
+        ? '—'
+        : isPct
+          ? `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
+          : `${value >= 0 ? '+' : ''}${_mktFlowYi(value)}`;
+      return `<td style="padding:3px 7px;text-align:right;color:${color};font-family:'JetBrains Mono',monospace">${text}</td>`;
+    }).join('');
+    return `<tr><td style="padding:3px 8px 3px 0;color:#c9d1e0;font-weight:600">${label}</td>${cells}</tr>`;
+  }).join('');
+  return `<div style="margin-bottom:7px;color:#e6e9f0;font-weight:600">${d.dates[endIndex]} · ${isPct ? '累计净占比' : '累计净流入'}</div>`
+    + `<table style="border-collapse:collapse;white-space:nowrap;font-size:11px"><thead><tr><th></th>${headers}</tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 // 跟随 _flowSelDate 拉一次; 不做盘中实时, 盘后 scheduler 落盘后历史回看.
@@ -10524,6 +11075,227 @@ function closeMktFlowDetail() {
   document.getElementById('mktFlowDetailMask').style.display = 'none';
 }
 
+// ── 个股 5档资金流向走势弹窗 (复刻大盘版规则控件: 折线 + 图例联动 + dataZoom + smooth) ──
+function openStockFlowDetail(tsCode, name, highlightKey) {
+  const requestId = ++_stockFlowDetailRequestId;
+  _stockFlowConnectedRequestId = 0;
+  _stockFlowDetailTsCode = tsCode;
+  _stockFlowDetailHighlight = highlightKey;
+  const defHighlight = _MKT_FLOW_DEFS.find(x => x.key === highlightKey);
+  const tag = defHighlight ? ` · 高亮 ${defHighlight.name.replace('净流入', '')}` : '';
+  document.getElementById('stockFlowDetailTitle').textContent =
+    `${name} (${tsCode}) · 5档资金流向逐日走势${tag}`;
+  document.getElementById('stockFlowDetailMask').style.display = 'flex';
+  const klineStatus = document.getElementById('stockFlowKlineStatus');
+  if (klineStatus) { klineStatus.textContent = '加载中…'; klineStatus.style.display = 'flex'; }
+  _loadStockFlowKline(tsCode, requestId);
+  _loadStockFlowDaily(tsCode, highlightKey, requestId);
+}
+
+function closeStockFlowDetail() {
+  _stockFlowDetailRequestId++;
+  _stockFlowDetailTsCode = null;
+  document.getElementById('stockFlowDetailMask').style.display = 'none';
+}
+
+async function _loadStockFlowKline(tsCode, requestId) {
+  const status = document.getElementById('stockFlowKlineStatus');
+  try {
+    const r = await fetch(`/api/stock/daily?ts_code=${encodeURIComponent(tsCode)}&limit=250&intraday=1`);
+    const data = await r.json();
+    if (!r.ok || data.status === 'error') throw new Error(data.message || '日 K 加载失败');
+    if (requestId !== _stockFlowDetailRequestId || tsCode !== _stockFlowDetailTsCode) return;
+    const rows = (data.rows || []).filter(row => [row.open, row.close, row.high, row.low].every(Number.isFinite));
+    if (!rows.length) throw new Error('暂无有效日线数据');
+
+    const dates = rows.map(row => row.trade_date);
+    const closes = rows.map(row => row.close);
+    const volumes = rows.map(row => ({
+      value: row.volume || 0,
+      itemStyle: { color: row.close >= row.open ? KLINE_UP : KLINE_DOWN },
+    }));
+    const total = rows.length;
+    const startPct = Math.max(0, 100 - Math.min(60, total) / total * 100);
+    const legend = document.getElementById('stockFlowKlineLegend');
+    if (legend) legend.innerHTML = Object.entries(KLINE_MA_COLORS).map(([days, color]) =>
+      `<span style="color:${color};margin-right:9px">MA${days}</span>`
+    ).join('') + (data.intraday ? '<span style="color:#e8a45a">⚡盘中</span>' : '');
+
+    const box = document.getElementById('stockFlowDetailChartKline');
+    if (!_stockFlowDetailKline) _stockFlowDetailKline = echarts.init(box);
+    else _stockFlowDetailKline.resize();
+    const axisCommon = {
+      axisLine: { lineStyle: { color: 'rgba(255,255,255,0.15)' } },
+      axisLabel: { color: '#8b93a7', fontSize: 10, fontFamily: "'JetBrains Mono',monospace" },
+      splitLine: { show: false },
+    };
+    _stockFlowDetailKline.setOption({
+      animation: false,
+      axisPointer: { link: [{ xAxisIndex: 'all' }] },
+      tooltip: {
+        trigger: 'axis', axisPointer: { type: 'cross' },
+        backgroundColor: 'rgba(20,22,30,0.96)', borderColor: 'rgba(255,255,255,0.12)',
+        textStyle: { color: '#e6e9f0', fontSize: 11, fontFamily: "'JetBrains Mono',monospace" },
+        formatter: params => {
+          const candle = params.find(item => item.seriesName === '日K');
+          if (!candle) return '';
+          const row = rows[candle.dataIndex];
+          const change = Number(row.change);
+          const changeText = Number.isFinite(change) ? `${change >= 0 ? '+' : ''}${change.toFixed(2)}%` : '—';
+          const changeColor = Number.isFinite(change) && change < 0 ? KLINE_DOWN : KLINE_UP;
+          return `${fmtDate(row.trade_date)}<br/>开 ${row.open.toFixed(2)}　收 ${row.close.toFixed(2)}<br/>`
+            + `高 ${row.high.toFixed(2)}　低 ${row.low.toFixed(2)}<br/>`
+            + `涨跌 <span style="color:${changeColor}">${changeText}</span>　量 ${((row.volume || 0) / 10000).toFixed(2)}万手`;
+        },
+      },
+      grid: [
+        { left: 56, right: 16, top: 10, height: '65%' },
+        { left: 56, right: 16, top: '70%', height: '13%' },
+      ],
+      xAxis: [
+        { type: 'category', data: dates, gridIndex: 0, boundaryGap: true, ...axisCommon,
+          axisLabel: { ...axisCommon.axisLabel, formatter: value => `${value.slice(4,6)}-${value.slice(6,8)}` } },
+        { type: 'category', data: dates, gridIndex: 1, boundaryGap: true, ...axisCommon, axisLabel: { show: false } },
+      ],
+      yAxis: [
+        { type: 'value', scale: true, gridIndex: 0, ...axisCommon,
+          splitLine: { lineStyle: { color: 'rgba(255,255,255,0.06)' } } },
+        { type: 'value', scale: true, gridIndex: 1, ...axisCommon, splitNumber: 2,
+          axisLabel: { ...axisCommon.axisLabel, formatter: value => `${(value / 10000).toFixed(0)}万` },
+          splitLine: { lineStyle: { color: 'rgba(255,255,255,0.06)' } } },
+      ],
+      dataZoom: [
+        { type: 'inside', xAxisIndex: [0, 1], start: startPct, end: 100 },
+        { type: 'slider', xAxisIndex: [0, 1], start: startPct, end: 100, bottom: 4, height: 14,
+          borderColor: 'rgba(255,255,255,0.15)', fillerColor: 'rgba(122,200,255,0.12)',
+          textStyle: { color: '#8b93a7', fontSize: 9 } },
+      ],
+      series: [
+        { name: '日K', type: 'candlestick', data: rows.map(row => [row.open, row.close, row.low, row.high]),
+          xAxisIndex: 0, yAxisIndex: 0,
+          itemStyle: { color: KLINE_UP, color0: KLINE_DOWN, borderColor: KLINE_UP, borderColor0: KLINE_DOWN } },
+        ...Object.entries(KLINE_MA_COLORS).map(([days, color]) => ({
+          name: `MA${days}`, type: 'line', data: _klineMA(closes, Number(days)), xAxisIndex: 0, yAxisIndex: 0,
+          smooth: true, showSymbol: false, lineStyle: { width: 1, color }, z: 3,
+        })),
+        { name: 'VOL', type: 'bar', data: volumes, xAxisIndex: 1, yAxisIndex: 1, barMaxWidth: 7 },
+      ],
+    }, { notMerge: true });
+    _stockFlowDetailKline._stockFlowDates = dates;
+    _stockFlowDetailKline._stockFlowRequestId = requestId;
+    _connectStockFlowDetailCharts(requestId);
+    if (status) status.style.display = 'none';
+  } catch (error) {
+    if (requestId !== _stockFlowDetailRequestId || tsCode !== _stockFlowDetailTsCode) return;
+    if (status) { status.textContent = `日 K 加载失败：${error.message}`; status.style.display = 'flex'; }
+  }
+}
+
+async function _loadStockFlowDaily(tsCode, highlightKey, requestId = _stockFlowDetailRequestId) {
+  try {
+    const r = await fetch(`/api/stock/${encodeURIComponent(tsCode)}/fflow/daily?days=250`);
+    const j = await r.json();
+    if (requestId !== _stockFlowDetailRequestId || tsCode !== _stockFlowDetailTsCode) return;
+    if (j.empty || !j.dates || !j.dates.length) {
+      showToast('暂无逐日资金流数据');
+      return;
+    }
+    // 弹窗刚 display:none→flex, box 宽度刚确定; echarts 必须在 layout 后 resize
+    requestAnimationFrame(() => {
+      _stockFlowDetailKline && _stockFlowDetailKline.resize();
+      _stockFlowDetailAmt && _stockFlowDetailAmt.resize();
+      _stockFlowDetailPct && _stockFlowDetailPct.resize();
+    });
+    const d = j;
+    const hl = def => def.key === highlightKey;
+    const total = d.dates.length;
+    const winSize = Math.min(60, total);
+    const startPct = ((total - winSize) / total) * 100;
+    const endPct = 100;
+
+    const commonLineSeries = (def, data) => ({
+      name: def.name, type: 'line', data,
+      symbol: 'none', smooth: true, smoothMonotone: 'x',
+      lineStyle: { width: hl(def) ? 2.2 : 1.4, color: def.color, opacity: hl(def) ? 1 : 0.55 },
+      itemStyle: { color: def.color },
+      emphasis: { lineStyle: { width: 2.5, opacity: 1 } },
+      z: hl(def) ? 10 : 1,
+      connectNulls: true,
+    });
+    const xAmt = { type: 'category', data: d.dates, boundaryGap: false,
+      axisLabel: { color: '#8b8fa3', fontSize: 10 },
+      axisLine: { lineStyle: { color: 'rgba(255,255,255,0.15)' } }, axisTick: { show: false } };
+    const xPct = { type: 'category', data: d.dates, boundaryGap: false,
+      axisLabel: { color: '#8b8fa3', fontSize: 10 },
+      axisLine: { lineStyle: { color: 'rgba(255,255,255,0.15)' } }, axisTick: { show: false } };
+
+    // 上图: 净流入
+    const amtBox = document.getElementById('stockFlowDetailChartAmt');
+    if (!_stockFlowDetailAmt) _stockFlowDetailAmt = echarts.init(amtBox);
+    else if (_stockFlowDetailAmt.getWidth() !== amtBox.clientWidth) _stockFlowDetailAmt.resize();
+    _stockFlowDetailAmt.setOption({
+      animation: false,
+      grid: { left: 64, right: 16, top: 30, bottom: 56 },
+      legend: { top: 2, textStyle: { color: '#c9d1e0', fontSize: 11 }, itemWidth: 14, itemHeight: 8,
+        selected: { '主力净流入': true, '超大单净流入': false, '大单净流入': false, '中单净流入': false, '小单净流入': false } },
+      tooltip: { trigger: 'axis', backgroundColor: 'rgba(20,22,30,0.96)', borderColor: 'rgba(255,255,255,0.12)',
+        textStyle: { color: '#e6e9f0', fontSize: 12 },
+        formatter: params => _stockFlowPeriodTooltip(d, params && params.length ? params[0].dataIndex : -1,
+          'amount', _stockFlowVisibleKeys(_stockFlowDetailAmt)) },
+      axisPointer: { link: [{ xAxisIndex: 'all' }] },
+      xAxis: xAmt,
+      yAxis: { type: 'value', scale: true,
+        axisLabel: { color: '#8b8fa3', fontSize: 10, formatter: v => (v / 1e8).toFixed(2) + '亿' },
+        splitLine: { lineStyle: { color: 'rgba(255,255,255,0.07)' } } },
+      dataZoom: [
+        { type: 'inside', xAxisIndex: 0, start: startPct, end: endPct },
+        { type: 'slider', xAxisIndex: 0, bottom: 8, height: 18, start: startPct, end: endPct,
+          borderColor: 'rgba(255,255,255,0.1)', fillerColor: 'rgba(122,200,255,0.15)',
+          handleStyle: { color: '#7ac8ff' }, textStyle: { color: '#8b8fa3', fontSize: 10 },
+          dataBackground: { lineStyle: { color: 'rgba(255,255,255,0.2)' }, areaStyle: { color: 'rgba(122,200,255,0.05)' } },
+          selectedDataBackground: { lineStyle: { color: '#7ac8ff' }, areaStyle: { color: 'rgba(122,200,255,0.2)' } } },
+      ],
+      series: _MKT_FLOW_DEFS.map(def => commonLineSeries(def, d.series[def.key])),
+    }, { notMerge: true });
+
+    // 下图: 净占比
+    const pctBox = document.getElementById('stockFlowDetailChartPct');
+    if (!_stockFlowDetailPct) _stockFlowDetailPct = echarts.init(pctBox);
+    else if (_stockFlowDetailPct.getWidth() !== pctBox.clientWidth) _stockFlowDetailPct.resize();
+    _stockFlowDetailPct.setOption({
+      animation: false,
+      grid: { left: 56, right: 16, top: 28, bottom: 56 },
+      legend: { top: 2, textStyle: { color: '#c9d1e0', fontSize: 11 }, itemWidth: 14, itemHeight: 8,
+        selected: { '主力净流入': true, '超大单净流入': false, '大单净流入': false, '中单净流入': false, '小单净流入': false } },
+      tooltip: { trigger: 'axis', backgroundColor: 'rgba(20,22,30,0.96)', borderColor: 'rgba(255,255,255,0.12)',
+        textStyle: { color: '#e6e9f0', fontSize: 12 },
+        formatter: params => _stockFlowPeriodTooltip(d, params && params.length ? params[0].dataIndex : -1,
+          'pct', _stockFlowVisibleKeys(_stockFlowDetailPct)) },
+      axisPointer: { link: [{ xAxisIndex: 'all' }] },
+      xAxis: xPct,
+      yAxis: { type: 'value', scale: true,
+        axisLabel: { color: '#8b8fa3', fontSize: 10, formatter: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%' },
+        splitLine: { lineStyle: { color: 'rgba(255,255,255,0.07)' } } },
+      dataZoom: [
+        { type: 'inside', xAxisIndex: 0, start: startPct, end: endPct },
+        { type: 'slider', xAxisIndex: 0, bottom: 8, height: 18, start: startPct, end: endPct,
+          borderColor: 'rgba(255,255,255,0.1)', fillerColor: 'rgba(122,200,255,0.15)',
+          handleStyle: { color: '#7ac8ff' }, textStyle: { color: '#8b8fa3', fontSize: 10 },
+          dataBackground: { lineStyle: { color: 'rgba(255,255,255,0.2)' }, areaStyle: { color: 'rgba(122,200,255,0.05)' } },
+          selectedDataBackground: { lineStyle: { color: '#7ac8ff' }, areaStyle: { color: 'rgba(122,200,255,0.2)' } } },
+      ],
+      series: _MKT_FLOW_DEFS.map(def => commonLineSeries(def, d.pct[def.key])),
+    }, { notMerge: true });
+    _stockFlowDetailAmt._stockFlowDates = d.dates;
+    _stockFlowDetailPct._stockFlowDates = d.dates;
+    _stockFlowDetailAmt._stockFlowRequestId = requestId;
+    _stockFlowDetailPct._stockFlowRequestId = requestId;
+    _connectStockFlowDetailCharts(requestId);
+  } catch (e) {
+    showToast(`⚠️ 加载逐日数据失败: ${e.message}`);
+  }
+}
+
 function _flowFmtYuan(v) {
   if (v === null || v === undefined) return '—';
   if (Math.abs(v) >= 1e8) return (v / 1e8).toFixed(2) + '亿';
@@ -10560,12 +11332,12 @@ function _flowMktRowHtml(r, i) {
       </td>
       <td style="text-align:right">${c('close')}</td>
       <td style="text-align:right;color:${_flowColor(r.change_pct)}">${r.change_pct !== null ? Number(r.change_pct).toFixed(2) + '%' : '—'}</td>
-      <td style="text-align:right;color:${_flowColor(mainVal)};font-weight:600" title="${mainTitle}">${_flowFmtYuan(mainVal)}</td>
+      <td class="flow-bucket-cell" data-bucket="main" style="text-align:right;color:${_flowColor(mainVal)};font-weight:600;cursor:pointer" title="${mainTitle} 点查看 ${_MKT_FLOW_DEFS.find(d=>d.key==='main').name} 走势">${_flowFmtYuan(mainVal)}</td>
       <td style="text-align:right;color:${isAgg ? 'var(--text-muted)' : _flowColor(r.main_net_pct)}">${isAgg ? '—' : (r.main_net_pct !== null ? Number(r.main_net_pct).toFixed(2) + '%' : '—')}</td>
-      <td style="text-align:right;color:${_flowColor(superVal)}">${_flowFmtYuan(superVal)}</td>
-      <td style="text-align:right;color:${_flowColor(bigVal)}">${_flowFmtYuan(bigVal)}</td>
-      <td style="text-align:right;color:${_flowColor(midVal)}">${_flowFmtYuan(midVal)}</td>
-      <td style="text-align:right;color:${_flowColor(smallVal)}">${_flowFmtYuan(smallVal)}</td>
+      <td class="flow-bucket-cell" data-bucket="super" style="text-align:right;color:${_flowColor(superVal)};cursor:pointer" title="点查看 ${_MKT_FLOW_DEFS.find(d=>d.key==='super').name} 走势">${_flowFmtYuan(superVal)}</td>
+      <td class="flow-bucket-cell" data-bucket="big" style="text-align:right;color:${_flowColor(bigVal)};cursor:pointer" title="点查看 ${_MKT_FLOW_DEFS.find(d=>d.key==='big').name} 走势">${_flowFmtYuan(bigVal)}</td>
+      <td class="flow-bucket-cell" data-bucket="mid" style="text-align:right;color:${_flowColor(midVal)};cursor:pointer" title="点查看 ${_MKT_FLOW_DEFS.find(d=>d.key==='mid').name} 走势">${_flowFmtYuan(midVal)}</td>
+      <td class="flow-bucket-cell" data-bucket="small" style="text-align:right;color:${_flowColor(smallVal)};cursor:pointer" title="点查看 ${_MKT_FLOW_DEFS.find(d=>d.key==='small').name} 走势">${_flowFmtYuan(smallVal)}</td>
       <td style="color:var(--text-muted);font-size:11px" title="${mainTitle}">${dateCell}</td>
     </tr>
   `;
@@ -10790,6 +11562,19 @@ async function renderFlow() {
     }
     // 同步更新上一日/下一日按钮的禁用状态
     _updateFlowNavButtons();
+    // 委托: 点 5档数值列 → 打开个股资金流向弹窗 (传 ts_code + 高亮档)
+    tbody.querySelectorAll('.flow-bucket-cell').forEach(td => {
+      td.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const tr = td.closest('tr');
+        const rowIdx = Array.from(tr.parentNode.children).indexOf(tr);
+        const row = d.rows[rowIdx];
+        if (!row) return;
+        const bucket = td.dataset.bucket;
+        const ts = row.ts_code || (row.code && row.code.length === 6 ? row.code + '.SZ' : row.code);
+        openStockFlowDetail(ts, row.name || row.code, bucket);
+      });
+    });
   } catch (err) {
     tbody.innerHTML = `<tr><td colspan="12" style="color:var(--accent-red);text-align:center;padding:20px">加载失败: ${err.message}</td></tr>`;
   }
@@ -11153,7 +11938,7 @@ function _defaultSubFor(source) {
 }
 
 const PICKS_SUB_TABS = {
-  em:   [{key: 'system', label: '系统推荐'}, {key: 'conditional', label: '条件选股'}, {key: 'combined', label: '组合选股'}],
+  em:   [{key: 'system', label: '系统推荐'}, {key: 'conditional', label: '条件选股'}, {key: 'conditionalNew', label: '条件选股新'}, {key: 'combined', label: '组合选股'}],
   ths:  [{key: 'ths', label: '系统推荐'}, {key: 'conditionalThs', label: '条件选股'}, {key: 'combinedThs', label: '组合选股'}],
   user: [{key: 'user', label: '我的选股'}],
 };
@@ -11179,6 +11964,7 @@ function _updatePicksButtons() {
   const isThs = g === 'ths';
   const isSystem = g === 'system';
   const isCond = g === 'conditional';
+  const isCondNew = g === 'conditionalNew';
   const isComb = g === 'combined';
   const isCondThs = g === 'conditionalThs';
   const isCombThs = g === 'combinedThs';
@@ -11192,16 +11978,19 @@ function _updatePicksButtons() {
     document.getElementById('picksSyncBtn').textContent = isThs ? '🔄 同步同花顺' : '🔄 同步数据';
   }
   // 资金门槛 + 同步日期按钮: 条件/组合共用 (EM + THS 都用)
-  const isAnyCond = isCond || isComb || isCondThs || isCombThs;
+  const isAnyCond = isCond || isCondNew || isComb || isCondThs || isCombThs;
   document.getElementById('picksThresholdGroup').style.display = isAnyCond ? 'inline-flex' : 'none';
+  document.getElementById('picksVolumeRatioGroup').style.display = isCondNew ? 'inline-flex' : 'none';
   document.getElementById('picksSyncDateBtn').style.display = isAnyCond ? '' : 'none';
   document.getElementById('condBackfillBtn').style.display = isCond ? '' : 'none';
   document.getElementById('condPreviewBtn').style.display = isCond ? '' : 'none';
+  document.getElementById('condNewPreviewBtn').style.display = isCondNew ? '' : 'none';
   document.getElementById('combinedBackfillBtn').style.display = isComb ? '' : 'none';
 }
 
 function _onSourceTabClick(source) {
   // 一级 Tab 点击: 切数据源, 重置到该源的默认 sub-group, 重渲染 sub-tabs
+  if (currentPicksGroup === 'conditionalNew') _conditionalNewRequestId++;
   document.querySelectorAll('#picksSourceTabs .pos-subtab').forEach(b => b.classList.toggle('active', b.dataset.source === source));
   currentPicksGroup = _defaultSubFor(source);
   _renderPicksSubTabs(source);
@@ -11212,6 +12001,9 @@ function _onSourceTabClick(source) {
 
 function _onSubTabClick(subGroup) {
   // 二级 sub-tab 点击: 切子视图
+  if (currentPicksGroup === 'conditionalNew' && subGroup !== 'conditionalNew') {
+    _conditionalNewRequestId++;
+  }
   document.querySelectorAll('#picksSubtabs .pos-subtab').forEach(b => b.classList.toggle('active', b.dataset.picksgroup === subGroup));
   currentPicksGroup = subGroup;
   _showBucketContainer(currentPicksGroup);
@@ -11235,6 +12027,7 @@ function _bindPicks() {
   // 历史日期补入库 (条件选股 / 组合选股)
   document.getElementById('condBackfillBtn').onclick = () => backfillSnapshots('conditional');
   document.getElementById('condPreviewBtn').onclick = generateConditionalPreview;
+  document.getElementById('condNewPreviewBtn').onclick = generateConditionalNewPreview;
   document.getElementById('combinedBackfillBtn').onclick = () => backfillSnapshots('combined');
   // 列头点击排序 (东方财富表)
   document.querySelectorAll('#posPicksTable th.sortable').forEach(th => {

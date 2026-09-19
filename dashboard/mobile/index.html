@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0a0e17">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="TradeIQ">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon-180.png">
+<link rel="icon" href="/icon-192.png">
+<link rel="stylesheet" href="/app.css">
+<title>TradeIQ · 私人看板</title>
+<script defer src="/vendor/echarts.min.js"></script>
+<script defer src="/app.js"></script>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="/" aria-label="TradeIQ 首页"><span class="brand-icon">T<span>i</span></span><span>TRADE<span class="brand-iq">IQ</span><small>PERSONAL MARKET DESK</small></span></a><span class="readonly"><i></i>只读模式</span></header>
+<main>
+  <div class="heading"><div><p class="eyebrow" id="eyebrow">MARKET OVERVIEW</p><h1 id="title">核心指数</h1></div><button id="refresh" class="icon-button" aria-label="重新读取已保存数据">↻</button></div>
+  <div id="connection" class="connection" role="status" aria-live="polite">正在连接电脑…</div>
+  <div id="module-tabs" class="chips" aria-label="模块切换"></div>
+  <div class="toolbar date-toolbar"><label for="date">数据日期</label><button id="date-prev" class="icon-button date-nav" aria-label="上一日">‹</button><input id="date" type="date" aria-label="数据日期"><button id="date-next" class="icon-button date-nav" aria-label="下一日">›</button><button id="date-all" class="date-all" aria-pressed="false">全部日期</button><span id="date-note"></span></div>
+  <div id="options" class="options"></div>
+  <div class="filterbar" id="filterbar"><input id="search" type="search" placeholder="搜索股票名称或代码" aria-label="搜索名称或代码"><select id="sort" aria-label="排序"><option value="default">默认排序</option><option value="desc">数值由高到低</option><option value="asc">数值由低到高</option></select></div>
+  <p id="data-note" class="data-note"></p>
+  <section id="content" aria-live="polite" aria-busy="true"><div class="empty">正在读取已保存数据…</div></section>
+  <footer class="footnote">数据保存在你的电脑 · 手机仅查看<br><span>刷新不会触发采集或同步</span></footer>
+</main>
+<nav class="bottom-nav" aria-label="主导航">
+  <button data-nav="market" class="active"><span aria-hidden="true">▥</span>行情</button>
+  <button data-nav="picks"><span aria-hidden="true">⌕</span>选股</button>
+  <button data-nav="more"><span aria-hidden="true">⊞</span>更多</button>
+</nav>
+<dialog id="detail"><div class="detail-header"><button id="detail-back" class="icon-button" aria-label="返回板块">‹</button><div><p class="eyebrow" id="detail-code"></p><h2 id="detail-title"></h2></div><button id="detail-close" class="icon-button" aria-label="关闭详情">×</button></div><div id="detail-body"></div></dialog>
+<noscript>请在 Safari 中启用 JavaScript 后使用 TradeIQ。</noscript>
+</body>
+</html>

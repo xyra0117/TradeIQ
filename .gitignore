@@ -38,6 +38,7 @@ env/
 
 # SQLite 数据库 (本地开发数据, 不入库)
 backend/market_data.db
+market_data.db
 backend/index_daily_backup_*.json
 
 # 工具/本地杂项
@@ -46,3 +47,24 @@ backend/scripts/__pycache__/
 *.db-wal
 *.db-shm
 backend/tradeiq-backend.log
+
+# Claude Code 本地配置 (会话记忆/项目设置, 不入库)
+.claude/
+
+# 用户持仓/交易备份 (含真实账户信息)
+backend/positions_backup_*.csv
+backend/positions_backup_*.json
+backend/trades_backup_*.csv
+backend/trades_backup_*.json
+
+# 预览图/截图缓存
+backend/previews/
+backend/previews_page/
+docs/previews/
+
+# dashboard 临时备份
+dashboard/*.bak.*
+dashboard/**/*.bak.*
+
+# 自定义预览文档
+docs/figma-agent-prompt.md

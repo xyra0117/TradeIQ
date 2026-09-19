@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const html = fs.readFileSync(`${__dirname}/index.html`, 'utf8');
 const source = html.slice(html.indexOf('const KLINE_UP ='), html.indexOf('// ── 交割分析:'));
+const deliverySource = html.slice(html.indexOf('// ── 交割分析:'), html.indexOf('let _mktFlowDetailPct'));
 const elements = new Map(), requests = [], charts = [];
 function element() {
   return { style: {}, clientWidth: 900, textContent: '', children: [],
@@ -36,6 +37,27 @@ const reply = async (request, data, ok = true) => {
 };
 
 (async () => {
+  assert.match(deliverySource, /data: \[5, 10, 20, 30, 60\]\.map\(n => `MA\$\{n\}`\)/,
+    '交割分析图例应显示五条均线名称');
+  assert.match(deliverySource, /\.\.\.\[5, 10, 20, 30, 60\]\.map\(n => \(\{/,
+    '交割分析应绘制 MA5、MA10、MA20、MA30、MA60');
+  assert.match(deliverySource, /const macdData = _klineMACD\(closes\)/,
+    '交割分析应使用与日 K 弹窗一致的 MACD 计算');
+  assert.match(deliverySource, /xAxisIndex: \[0, 1, 2, 3\]/,
+    '交割分析的缩放应联动 K 线、成交量、主力净流入和 MACD');
+  assert.match(deliverySource, /name: 'MACD', type: 'bar'/,
+    '交割分析应绘制 MACD 柱');
+  assert.match(deliverySource, /name: 'DIF', type: 'line'/,
+    '交割分析应绘制 DIF 曲线');
+  assert.match(deliverySource, /name: 'DEA', type: 'line'/,
+    '交割分析应绘制 DEA 曲线');
+  assert.match(deliverySource, /id: 'delivery-candles'/,
+    '买卖点二次定位应按唯一 id 更新蜡烛图');
+  assert.match(deliverySource, /const offsetPx = 16;/,
+    '交割分析的 B/S 标签应距离 K 线 16 像素');
+  assert.match(source, /const KLINE_MA_COLORS = \{ 5: '#7ac8ff', 10: '#e8a45a', 20: '#c89cff', 30: '#4dd0e1', 60: '#6fbf73' \}/,
+    '每条均线应有固定且不同的颜色');
+  assert.equal((html.match(/\{pickDate:/g) || []).length, 15, '选股推荐和条件优选的名称/代码入口都应传入选股日期');
   await run("showKlineModal('000001.SH','上证指数',{kind:'index',date:'20250102'})");
   const oldMin = requests.at(-1);
   assert.match(oldMin.url, /index\/minline.*date=20250102/);
@@ -52,6 +74,11 @@ const reply = async (request, data, ok = true) => {
   assert.deepEqual(Array.from(daily.series[0].data[2]), ['-', '-', '-', '-']);
   assert.equal(daily.series[1].data[4], 11); // 缺开盘仍有收盘：MA 不得跳过该日。
   assert.equal(daily.yAxis[1].name, '成交额（亿元）');
+  assert.equal(daily.yAxis[2].name, 'MACD (12,26,9)');
+  assert.deepEqual(Array.from(daily.dataZoom[0].xAxisIndex), [0, 1, 2]);
+  assert.equal(daily.series[9].name, 'MACD');
+  assert.equal(daily.series[10].name, 'DIF');
+  assert.equal(daily.series[11].name, 'DEA');
   assert.match(daily.tooltip.formatter([{ seriesName: '日K', dataIndex: 0 }]), /成交额 123.45亿元/);
   assert.ok(Math.abs(daily.dataZoom[0].start - (100 - 60 / 310 * 100)) < 0.001);
   assert.match(elements.get('klineContext').textContent, /20260911/);
@@ -81,14 +108,27 @@ const reply = async (request, data, ok = true) => {
   assert.equal(charts.length, countBefore + 1);
 
   // 个股仍使用个股接口、250 日和盘中补 K 参数。
-  await run("showKlineModal('000001.SZ','平安银行')");
-  assert.equal(requests.at(-1).url, '/api/stock/minline?ts_code=000001.SZ');
+  await run("showKlineModal('000001.SZ','平安银行',{pickDate:'20250121'})");
+  assert.equal(requests.at(-1).url, '/api/stock/minline?ts_code=000001.SZ&date=');
   run("_klineSwitchTab('daily')");
   assert.equal(requests.at(-1).url, '/api/stock/daily?ts_code=000001.SZ&limit=250&intraday=1');
   assert.equal(elements.get('klineContext').hidden, true);
-  await reply(requests.at(-1), { count: 1, rows: [rows[0]] });
+  const stockRows = Array.from({ length: 100 }, (_, i) => {
+    const day = new Date(Date.UTC(2025, 0, i + 1)).toISOString().slice(0, 10).replaceAll('-', '');
+    return { trade_date: day, open: 10, high: 12, low: 9, close: 11, change: 1, volume: 10000 };
+  });
+  await reply(requests.at(-1), { count: stockRows.length, rows: stockRows });
   assert.match(charts.at(-1).option.tooltip.formatter([{ seriesName: '日K', dataIndex: 0 }]), /万手/);
   assert.equal(charts.at(-1).option.series[6].name, 'VOL');
+  assert.equal(charts.at(-1).option.series[0].markLine.data[0].xAxis, '20250121');
+  assert.equal(charts.at(-1).option.series[0].markLine.lineStyle.width, 1);
+  assert.equal(charts.at(-1).option.series[0].markLine.label.show, false);
+  assert.equal(charts.at(-1).option.series[0].markPoint, undefined);
+  assert.equal(charts.at(-1).option.series[6].markLine.data[0].xAxis, '20250121');
+  assert.equal(charts.at(-1).option.series[6].markLine.label.show, false);
+  assert.equal(charts.at(-1).option.series[9].markLine.data[0].xAxis, '20250121');
+  assert.match(charts.at(-1).option.tooltip.formatter([{ seriesName: '日K', dataIndex: 20 }]), /DIF .*DEA .*MACD/);
+  assert.ok(charts.at(-1).option.dataZoom[0].start <= 20 && charts.at(-1).option.dataZoom[0].end >= 20, '初始窗口应包含选股日');
   run('closeKlineModal()');
-  console.log('PASS: 全历史、缺失 OHLC、MA、成交额、乱序响应、切换隐藏、重试、个股兼容');
+  console.log('PASS: 全历史、缺失 OHLC、MA、成交额、乱序响应、切换隐藏、重试、选股日标记');
 })().catch(error => { console.error(error); process.exitCode = 1; });

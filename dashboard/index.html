@@ -172,6 +172,41 @@
     font-size: 12px; color: var(--text-secondary);
   }
 
+  /* 顶栏数据拉取状态 (状态色用字面 hex: --accent-green/red 是涨跌语义, 不是状态语义) */
+  .sync-status-wrap { position: relative; }
+  .sync-pill {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text-secondary); padding: 6px 12px;
+    font-size: 12px; font-family: 'JetBrains Mono', monospace; cursor: pointer;
+  }
+  .sync-pill:hover { border-color: var(--accent-blue); color: var(--text-primary); }
+  .sync-pill .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .sync-pill.warn { border-color: rgba(255, 82, 82, 0.5); }
+  .sync-panel {
+    position: absolute; right: 0; top: calc(100% + 10px); z-index: 50;
+    width: 560px; max-height: 70vh; overflow: auto;
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.55); padding: 16px;
+  }
+  .sync-panel-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;
+  }
+  .sync-panel-head strong { color: var(--text-primary); font-family: 'JetBrains Mono', monospace; }
+  .sync-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .sync-item {
+    display: flex; align-items: center; gap: 8px;
+    border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;
+    font-size: 12px; color: var(--text-primary); min-width: 0;
+  }
+  .sync-item .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .sync-item .nm { flex-shrink: 0; }
+  .sync-item .ct { margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sync-item.stale .ct { color: var(--accent-orange); }
+  .sync-item.miss { border-color: rgba(255, 82, 82, 0.45); }
+  .sync-item.part { border-color: rgba(255, 215, 64, 0.4); }
+
   /* Tabs */
   .tabs {
     display: flex;
@@ -1063,6 +1098,10 @@
       <h1>A股行情看板</h1>
     </div>
     <div class="header-right">
+      <div class="sync-status-wrap">
+        <button class="sync-pill" id="syncPill" title="各数据源拉取情况">数据拉取 …</button>
+        <div class="sync-panel" id="syncPanel" hidden></div>
+      </div>
       <div class="status-dot"></div>
       <span class="status-text" id="updateTime">加载中...</span>
     </div>
@@ -1271,12 +1310,13 @@
 
   <!-- Tab 5: 主力净流入 (Skill 抓取的全市场数据) -->
   <div class="tab-panel" id="panel-flow">
-    <!-- 数据源分类: 东方财富 (push2) / 同花顺 (ggzjl) -->
+    <!-- 数据源分类: 东方财富 (push2) / 同花顺 (ggzjl) / 板块 (行业+概念) -->
     <div class="pos-subtabs" id="flowSrcTabs" style="margin-bottom:6px">
       <button class="pos-subtab active" data-flowsrc="em">东方财富</button>
       <button class="pos-subtab" data-flowsrc="ths">同花顺</button>
+      <button class="pos-subtab" data-flowsrc="sector">板块</button>
     </div>
-    <!-- 子 tab: 当日 / 3 日 / 5 日 / 10 日 / 20 日 累计 -->
+    <!-- 子 tab: 当日 / 3 日 / 5 日 / 10 日 / 20 日 累计 (板块模式不显示) -->
     <div class="pos-subtabs" id="flowSubtabs">
       <button class="pos-subtab" data-flowperiod="today">当日</button>
       <button class="pos-subtab active" data-flowperiod="3d">3 日累计</button>
@@ -1284,6 +1324,14 @@
       <button class="pos-subtab" data-flowperiod="10d">10 日累计</button>
       <button class="pos-subtab" data-flowperiod="20d">20 日累计</button>
     </div>
+    <!-- 板块二级 tab: 行业 / 概念 (仅 sector 模式显示) -->
+    <div class="pos-subtabs" id="flowSectorSubtabs" style="display:none;margin-top:4px">
+      <button class="pos-subtab active" data-flowsectortype="industry">行业</button>
+      <button class="pos-subtab" data-flowsectortype="concept">概念</button>
+    </div>
+
+    <!-- ── 当日入库只数提示 (数据完整度自检) ── -->
+    <div id="flowStockCountBar" style="padding:6px 10px;margin-bottom:8px;border-radius:5px;font-size:12px;font-family:'JetBrains Mono',monospace;display:none"></div>
 
     <!-- ── 大盘实时资金流向图 (沪深合计, /api/market/fflow) ── -->
     <style>
@@ -1436,6 +1484,22 @@
             <th style="text-align:right;position:sticky;top:0;background:var(--bg-card)" class="sortable" data-sort="outflow">流出资金 <span class="sort-arrow"></span></th>
             <th style="text-align:right;position:sticky;top:0;background:var(--bg-card)" class="sortable" data-sort="amount">成交额 <span class="sort-arrow"></span></th>
             <th style="position:sticky;top:0;background:var(--bg-card)" id="flowThsDate">交易日期</th>
+          </tr>
+          <!-- 板块表头: 行业/概念 共用, 切到 sector 时显示, 期间 sub-tab 隐藏 -->
+          <tr id="flowTheadSector" style="display:none">
+            <th style="width:50px;position:sticky;top:0;background:var(--bg-card)">#</th>
+            <th style="position:sticky;top:0;background:var(--bg-card)">板块代码</th>
+            <th style="position:sticky;top:0;background:var(--bg-card)">板块名称</th>
+            <th style="text-align:right;position:sticky;top:0;background:var(--bg-card)" class="sortable" data-sort="close">最新价 <span class="sort-arrow"></span></th>
+            <th style="text-align:right;position:sticky;top:0;background:var(--bg-card)" class="sortable" data-sort="change_pct">涨跌幅 <span class="sort-arrow"></span></th>
+            <th style="text-align:right;position:sticky;top:0;background:var(--bg-card)" class="sortable" data-sort="main_net_inflow" id="flowThSectorMain">主力净流入 <span class="sort-arrow"></span></th>
+            <th style="text-align:right;position:sticky;top:0;background:var(--bg-card)" class="sortable" data-sort="main_net_pct" id="flowThSectorPct">净占比 <span class="sort-arrow"></span></th>
+            <th style="text-align:right;position:sticky;top:0;background:var(--bg-card)" class="sortable" data-sort="super_net" id="flowThSectorSuper">超大单 <span class="sort-arrow"></span></th>
+            <th style="text-align:right;position:sticky;top:0;background:var(--bg-card)" class="sortable" data-sort="big_net" id="flowThSectorBig">大单 <span class="sort-arrow"></span></th>
+            <th style="text-align:right;position:sticky;top:0;background:var(--bg-card)" class="sortable" data-sort="mid_net" id="flowThSectorMid">中单 <span class="sort-arrow"></span></th>
+            <th style="text-align:right;position:sticky;top:0;background:var(--bg-card)" class="sortable" data-sort="small_net" id="flowThSectorSmall">小单 <span class="sort-arrow"></span></th>
+            <th style="position:sticky;top:0;background:var(--bg-card)">领涨股</th>
+            <th style="position:sticky;top:0;background:var(--bg-card)">交易日期</th>
           </tr>
         </thead>
         <tbody id="flowMktTbody">
@@ -2017,6 +2081,60 @@
         </table>
       </div>
 
+      <div id="conditionalPreferredPicksContainer" style="display:none">
+        <div style="padding:14px;background:rgba(122,200,255,0.06);border-bottom:1px solid var(--border)">
+          <div style="color:#7ac8ff;font-weight:600;margin-bottom:7px">条件优选 <span style="font-size:11px;font-weight:400;color:var(--text-muted)">· 资金筛选 / 量价排序</span></div>
+          <div style="font-size:12px;color:var(--text-secondary);line-height:1.9">
+            继承「条件选股新」与上方门槛：<strong>当日小单净流出</strong>，且<strong>最近 5 个交易日主力净流入 / 对应成交额 ≥ 5%</strong>。五日记录须完整。<br>
+            辅助排序：量比 70%～80%、收盘 ≤ MA60，每项命中优先一级；同级按主力强度排序。MA60 不足仅不加分。<br>
+            <span style="color:var(--text-muted)">T+1 为次日最高涨幅；T+N 为前 N−1 日收盘涨跌幅相加，再加第 N 日最高涨幅。盘后更新，非可成交收益。</span>
+          </div>
+        </div>
+        <section id="conditionalPreferredMarket" style="padding:14px;border-bottom:1px solid var(--border);background:rgba(255,255,255,0.012)" aria-label="入选日市场背景">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+            <div style="display:flex;flex-direction:column;gap:5px">
+              <div style="display:flex;align-items:center;gap:10px">
+                <span style="font-size:12px;font-weight:600;color:var(--text-primary)">市场温度</span>
+                <div style="display:flex;align-items:center;gap:4px">
+                  <button type="button" id="preferredViewPrevBtn" onclick="shiftPreferredViewDate(-1)" title="上一日" style="border:1px solid var(--border);background:transparent;color:var(--text-secondary);padding:1px 8px;border-radius:4px;cursor:pointer;font-size:14px;line-height:1.3;font-family:inherit">‹</button>
+                  <span id="preferredViewDateLabel" style="font-size:11px;color:var(--text-secondary);min-width:96px;text-align:center;font-family:'JetBrains Mono',monospace">—</span>
+                  <button type="button" id="preferredViewNextBtn" onclick="shiftPreferredViewDate(1)" title="下一日" style="border:1px solid var(--border);background:transparent;color:var(--text-secondary);padding:1px 8px;border-radius:4px;cursor:pointer;font-size:14px;line-height:1.3;font-family:inherit">›</button>
+                </div>
+              </div>
+              <div id="conditionalPreferredBreadthDate" style="font-size:11px;color:var(--text-muted)">正在读取同日盘面…</div>
+            </div>
+            <div id="conditionalPreferredBreadth" style="display:flex;gap:8px;flex-wrap:wrap" aria-live="polite"></div>
+          </div>
+          <div id="conditionalPreferredBreadthBar" style="height:3px;border-radius:2px;background:rgba(255,255,255,0.06);overflow:hidden;display:flex;margin-bottom:14px"></div>
+          <div id="conditionalPreferredIndexGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px">
+            <div data-preferred-index="000001.SH" style="min-width:0;padding:10px 10px 7px;border:1px solid var(--border);border-radius:7px;background:rgba(0,0,0,0.12)"><div style="display:flex;justify-content:space-between;gap:8px;font-size:11px"><span style="color:var(--text-primary)">上证指数</span><span data-index-meta style="color:var(--text-muted)">加载中…</span></div><div data-index-chart style="height:116px;margin-top:5px"></div></div>
+            <div data-preferred-index="399001.SZ" style="min-width:0;padding:10px 10px 7px;border:1px solid var(--border);border-radius:7px;background:rgba(0,0,0,0.12)"><div style="display:flex;justify-content:space-between;gap:8px;font-size:11px"><span style="color:var(--text-primary)">深证成指</span><span data-index-meta style="color:var(--text-muted)">加载中…</span></div><div data-index-chart style="height:116px;margin-top:5px"></div></div>
+            <div data-preferred-index="399006.SZ" style="min-width:0;padding:10px 10px 7px;border:1px solid var(--border);border-radius:7px;background:rgba(0,0,0,0.12)"><div style="display:flex;justify-content:space-between;gap:8px;font-size:11px"><span style="color:var(--text-primary)">创业板指</span><span data-index-meta style="color:var(--text-muted)">加载中…</span></div><div data-index-chart style="height:116px;margin-top:5px"></div></div>
+            <div data-preferred-index="000688.SH" style="min-width:0;padding:10px 10px 7px;border:1px solid var(--border);border-radius:7px;background:rgba(0,0,0,0.12)"><div style="display:flex;justify-content:space-between;gap:8px;font-size:11px"><span style="color:var(--text-primary)">科创50</span><span data-index-meta style="color:var(--text-muted)">加载中…</span></div><div data-index-chart style="height:116px;margin-top:5px"></div></div>
+          </div>
+          <div style="font-size:10px;color:var(--text-muted);margin-top:8px">分时仅显示请求日期与行情日期一致的数据；历史分时未留存时会明确标注缺失。</div>
+        </section>
+        <div style="padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid var(--border)">
+          <span id="conditionalPreferredSummary" style="font-size:12px;color:var(--text-secondary)" aria-live="polite">加载中…</span>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button type="button" id="preferredPreviewBtn" class="date-sync-btn" onclick="generateConditionalPreferredPreview()">📷 生成预览图</button>
+            <button type="button" class="date-sync-btn" onclick="loadConditionalPreferredPicks()">刷新结果</button>
+          </div>
+        </div>
+        <div style="overflow-x:auto">
+          <table id="conditionalPreferredPicksTable" style="width:100%;min-width:1180px;font-family:'JetBrains Mono',monospace;font-size:12px;border-collapse:collapse">
+            <thead><tr>
+              <th>排名</th><th>名称 / 代码</th><th>辅助命中</th><th style="text-align:right">收盘价</th>
+              <th style="text-align:right">当日涨幅</th><th style="text-align:right">成交量比</th>
+              <th style="text-align:right">5 日主力强度</th><th style="text-align:right">当日小单净额</th>
+              <th style="text-align:right">MA60</th><th style="text-align:right">T+1</th><th style="text-align:right">T+2</th>
+              <th style="text-align:right">T+3</th><th style="text-align:right">T+4</th><th style="text-align:right">T+5</th>
+            </tr></thead>
+            <tbody id="conditionalPreferredPicksBody"><tr><td colspan="14" style="text-align:center;padding:30px">加载中…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- 组合选股 sub-tab 内容 (默认隐藏): 字段同条件选股, 多一列评分 -->
       <div id="combinedPicksContainer" style="display:none">
         <div style="padding:10px 14px;background:rgba(255,180,80,0.05);border-bottom:1px solid var(--border);font-size:12px">
@@ -2293,6 +2411,9 @@ let freqSelRange = '1个月';  // 当前选中的时间区间 Tab
 
 async function loadData(selectedDate) {
   try {
+    // 盘后 17:00 后, 检查今日全量分时是否已落盘; 缺数据就 fire-and-forget 触发后端补抓.
+    // 后端返回 < 200ms, 真正抓数据在后台线程跑几分钟, 不阻塞 dashboard 加载.
+    _maybeTriggerMinlineDailyFetch();
     // 同时获取交易日历和有数据的实际最新日期
     let latestActualDate = '';
     try {
@@ -4656,6 +4777,18 @@ function showToast(msg) {
   setTimeout(() => { t.style.opacity = '0'; }, 8000);
 }
 
+// 盘后 17:00 后, 检查今日全量分时是否已落盘; 缺则后端异步触发补抓, 这里只 toast 提醒.
+// fire-and-forget, 不 await, 不阻塞 dashboard 加载.
+function _maybeTriggerMinlineDailyFetch() {
+  fetch('/api/minline/daily-status').then(r => r.ok ? r.json() : null).then(data => {
+    if (!data) return;
+    if (data.status === 'not_yet' || data.status === 'not_trading_day') return;  // 无需操作
+    if (!data.actions || data.actions.length === 0) return;  // already_complete
+    const labels = data.actions.map(a => a.kind === 'stock' ? '个股' : '指数');
+    showToast(`今日分时数据补全中 (${labels.join('、')}), 几分钟后可用`);
+  }).catch(e => console.warn('[minline_daily_status] 触发检查失败:', e));
+}
+
 function pollLuOcrJob(jobId, startTime) {
   const ocrProgress = document.getElementById('luOcrProgress');
   const ocrLabel = document.getElementById('luOcrLabel');
@@ -5426,8 +5559,8 @@ function renderPositionsTable(list) {
         <td style="text-align:right">${mv !== null && mv !== undefined ? fmtMoney(mv) : '—'}</td>
         <td style="text-align:right;cursor:help" class="${profitClass(profit)}" title="${profitTip}">${profit !== null && profit !== undefined ? (profit >= 0 ? '+' : '') + fmtMoney(profit) : '—'}</td>
         <td style="text-align:right" class="${profitClass(pct)}">${pct !== null && pct !== undefined ? fmtPct(pct) : '—'}</td>
-        <td style="text-align:right" class="${flowColor(p.main_net_5d)}" title="近 5 个交易日主力资金净流入累计 (元)">${fmtNet(p.main_net_5d)}</td>
-        <td style="text-align:right" class="${flowColor(p.main_net_20d)}" title="近 20 个交易日主力资金净流入累计 (元)">${fmtNet(p.main_net_20d)}</td>
+        <td style="text-align:right;cursor:pointer" class="${flowColor(p.main_net_5d)}" title="点击查看个股资金流向弹窗" onclick="event.stopPropagation();openStockFlowDetail('${p.ts_code}','${name}','main')">${fmtNet(p.main_net_5d)}</td>
+        <td style="text-align:right;cursor:pointer" class="${flowColor(p.main_net_20d)}" title="点击查看个股资金流向弹窗" onclick="event.stopPropagation();openStockFlowDetail('${p.ts_code}','${name}','main')">${fmtNet(p.main_net_20d)}</td>
         <td>${_normDate(p.last_trade_date || p.buy_date) || '—'}</td>
         <td style="text-align:center">${_renderExitPlanTag(p)}</td>
         <td><span class="pos-type-tag pos-type-${p.position_type || '建仓'}">${p.position_type || '建仓'}</span></td>
@@ -7502,7 +7635,9 @@ async function syncPicksDate(group, opts = {}) {
       if (!opts.auto || parts.length) {
         showToast(`✅ ${fmtDate(d.date || date)} 同步完成 · ${parts.join(' · ')}${d.note ? ' · ' + d.note : ''}`);
       }
-      if (group === 'combined') loadCombinedPicks(true); else loadConditionalPicks(true);  // force: 同步完绕过缓存拿最新
+      if (group === 'conditionalPreferred') {
+        if (currentPicksGroup === group) loadConditionalPreferredPicks();
+      } else if (group === 'combined') loadCombinedPicks(true); else loadConditionalPicks(true);  // force: 同步完绕过缓存拿最新
       return d;
     }
     if (!opts.auto) showToast(`❌ ${d.message || '同步失败'}`);
@@ -7613,13 +7748,28 @@ async function generateConditionalNewPreview() {
 
 // ── 条件选股 (sub-tab: 固定规则筛选全市场, 不入库) ──
 let conditionalPicksCache = [];
-// 按 日期|门槛 缓存整个响应 (仅盘后口径), 切回已看过的日期秒出, 不再每次全量重算
-const _condRespCache = {};
+// localStorage 缓存盘后快照响应 (snapshot 端点本身就是历史语义), 刷新页面瞬开
+const _COND_CACHE_PREFIX = 'cond:v1:';
 
 // ── 条件选股新 (条件选股 + MA10 + 缩量；独立缓存避免比例/Tab 串数据) ──
 let conditionalNewPicksCache = [];
-const _condNewRespCache = {};
+const _COND_NEW_CACHE_PREFIX = 'condNew:v1:';
 let _conditionalNewRequestId = 0;
+let conditionalPreferredPicksCache = [];
+let _conditionalPreferredRequestId = 0;
+const _COND_PREF_CACHE_PREFIX = 'condPref:v1:';  // localStorage 缓存盘后定稿响应
+const _COND_PREF_CACHE_MAX_AGE_MS = 24 * 3600 * 1000;  // 24h 内有效, 跨日自动失效
+let _liveNextIndex = 0;
+const CONDITIONAL_PREFERRED_INDEXES = [
+  {code: '000001.SH', name: '上证指数'},
+  {code: '399001.SZ', name: '深证成指'},
+  {code: '399006.SZ', name: '创业板指'},
+  {code: '000688.SH', name: '科创50'},
+];
+const _conditionalPreferredIndexCharts = {};
+// 入选日 / T+1~T+5 可切日期列表 + 当前查看日期 (默认入选日, 上限 T+5)
+let _preferredViewDates = [];
+let _preferredViewDate = '';
 
 // ── 组合选股 (sub-tab: 系统推荐 ∩ 条件选股 同日同时命中) ──
 let combinedPicksCache = [];
@@ -7640,6 +7790,7 @@ function _loadCurrentPicksSub() {
   if (currentPicksGroup === 'ths') return loadPicksThs();
   if (currentPicksGroup === 'conditional') return loadConditionalPicks();
   if (currentPicksGroup === 'conditionalNew') return loadConditionalNewPicks();
+  if (currentPicksGroup === 'conditionalPreferred') return loadConditionalPreferredPicks();
   if (currentPicksGroup === 'combined') return loadCombinedPicks();
   if (currentPicksGroup === 'conditionalThs') return loadConditionalPicksThs();
   if (currentPicksGroup === 'combinedThs') return loadCombinedPicksThs();
@@ -7651,6 +7802,7 @@ function _getCurrentPicksCache() {
   if (currentPicksGroup === 'ths') return thsPicksCache;
   if (currentPicksGroup === 'conditional') return conditionalPicksCache;
   if (currentPicksGroup === 'conditionalNew') return conditionalNewPicksCache;
+  if (currentPicksGroup === 'conditionalPreferred') return conditionalPreferredPicksCache;
   if (currentPicksGroup === 'combined') return combinedPicksCache;
   if (currentPicksGroup === 'conditionalThs') return conditionalPicksThsCache;
   if (currentPicksGroup === 'combinedThs') return combinedPicksThsCache;
@@ -7676,6 +7828,7 @@ function _applyPicksThreshold() {
   if (tag) tag.textContent = `当前 ≥ ${yi} 亿`;
   loadConditionalPicks();
   if (currentPicksGroup === 'conditionalNew') loadConditionalNewPicks();
+  if (currentPicksGroup === 'conditionalPreferred') loadConditionalPreferredPicks();
   loadCombinedPicks();
   loadConditionalPicksThs();
   loadCombinedPicksThs();
@@ -7695,6 +7848,7 @@ function _applyPicksVolumeRatio() {
   const ruleRatio = document.getElementById('conditionalNewRuleRatio');
   if (ruleRatio) ruleRatio.textContent = `${value}%`;
   if (currentPicksGroup === 'conditionalNew') loadConditionalNewPicks();
+  if (currentPicksGroup === 'conditionalPreferred') loadConditionalPreferredPicks();
 }
 function _bindPicksThresholdControl() {
   const sel = document.getElementById('picksThresholdSel');
@@ -7729,15 +7883,30 @@ async function loadConditionalPicks(force = false) {
   const useSnapshot = !(isTradingDay() && isTradingTime() && targetDate === _todayYmd());
   const th = _picksThresholdYI();
   const cacheKey = `${picksSelDate || 'latest'}|${th}`;
-  // 盘后口径 + 看过这个日期 → 直接用缓存响应, 秒出
-  if (useSnapshot && !force && _condRespCache[cacheKey]) {
-    _applyConditionalPayload(JSON.parse(JSON.stringify(_condRespCache[cacheKey])), useSnapshot, targetDate);
-    return;
+  // localStorage 缓存: snapshot 接口本身就是历史/盘后, 命中即同步渲染 (刷新页面瞬开)
+  if (useSnapshot && !force) {
+    const cached = _readTabPayloadCache(_COND_CACHE_PREFIX, cacheKey);
+    if (cached) {
+      _applyConditionalPayload(cached, useSnapshot, targetDate);
+      // 后台静默刷新, 跟条件优选同模式 (万一数据有微调)
+      _refreshConditionalPicksFromServer(useSnapshot, targetDate, th, cacheKey, false);
+      return;
+    }
   }
   // loading 态: 立即跳到目标日期, 不等响应 (之前旧日期数据停在那儿, 看起来像卡住)
   document.getElementById('conditionalDate').textContent = picksSelDate ? fmtDate(picksSelDate) : '…';
   document.getElementById('conditionalPicksBody').innerHTML =
     '<tr><td colspan="18" style="text-align:center;color:var(--text-muted);padding:40px 0">加载中…</td></tr>';
+  await _refreshConditionalPicksFromServer(useSnapshot, targetDate, th, cacheKey, true);
+}
+
+// 后台 / 首次加载共用: fetch + 应用响应 + 缓存 (snapshot 路径才会写缓存)
+async function _refreshConditionalPicksFromServer(useSnapshot, targetDate, th, cacheKey, showLoading) {
+  if (showLoading) {
+    document.getElementById('conditionalDate').textContent = picksSelDate ? fmtDate(picksSelDate) : '…';
+    document.getElementById('conditionalPicksBody').innerHTML =
+      '<tr><td colspan="18" style="text-align:center;color:var(--text-muted);padding:40px 0">加载中…</td></tr>';
+  }
   try {
     let url = useSnapshot ? '/api/conditional-picks/snapshot' : '/api/conditional-picks';
     const qs = [];
@@ -7752,10 +7921,10 @@ async function loadConditionalPicks(force = false) {
       return;
     }
     const data = await r.json();
-    // 盘后口径 + 有结果 → 缓存整个响应 (空结果不缓存, 留给 _maybeAutoSyncPicks 自动同步)
+    // snapshot 路径 + 有结果 → 写 localStorage (空结果不缓存, 留给 _maybeAutoSyncPicks 自动同步)
     if (useSnapshot && (data.count || 0) > 0) {
-      _condRespCache[cacheKey] = data;
-      if (data.date) _condRespCache[`${data.date}|${th}`] = data;
+      _writeTabPayloadCache(_COND_CACHE_PREFIX, cacheKey, data);
+      if (data.date) _writeTabPayloadCache(_COND_CACHE_PREFIX, `${data.date}|${th}`, data);
     }
     _applyConditionalPayload(data, useSnapshot, targetDate);
   } catch (e) {
@@ -7800,8 +7969,499 @@ function _applyConditionalPayload(data, useSnapshot, targetDate) {
     document.getElementById('conditionalMainCount').textContent = mainN;
     document.getElementById('conditionalSuperCount').textContent = superN;
     _lastNext1IsToday = !!data.next_1_is_today;
+    _liveNextIndex = Number(data.live_next_index) || (data.next_1_is_today ? 1 : 0);
     renderConditionalPicksTable(conditionalPicksCache);
     startPicksAutoRefresh();
+}
+
+function _renderConditionalPreferredBreadth(overview, date) {
+  const dateEl = document.getElementById('conditionalPreferredBreadthDate');
+  const box = document.getElementById('conditionalPreferredBreadth');
+  const bar = document.getElementById('conditionalPreferredBreadthBar');
+  if (!overview || !overview.available) {
+    dateEl.textContent = `${date ? fmtDate(date) : '—'} · ${overview?.message || '暂无同日涨跌家数'}`;
+    box.innerHTML = '<span style="font-size:11px;color:var(--text-muted)">未使用其他日期替代</span>';
+    bar.innerHTML = '';
+    return;
+  }
+  const up = Number(overview.upCount) || 0;
+  const down = Number(overview.downCount) || 0;
+  const flat = Number(overview.flatCount) || 0;
+  const total = Number(overview.totalCount) || up + down + flat;
+  const ratio = value => total ? value / total * 100 : 0;
+  dateEl.textContent = `${fmtDate(overview.date || date)} · 全市场 ${total.toLocaleString()} 只`;
+  box.innerHTML = [
+    ['上涨', up, 'var(--accent-green)'],
+    ['下跌', down, 'var(--accent-red)'],
+    ['平盘', flat, 'var(--text-secondary)'],
+  ].map(([label, value, color]) => `<div style="min-width:86px;padding:7px 10px;border:1px solid var(--border);border-radius:6px;background:rgba(0,0,0,0.12)"><span style="font-size:10px;color:var(--text-muted)">${label}</span><strong style="display:block;margin-top:2px;color:${color};font:600 18px 'JetBrains Mono',monospace">${value.toLocaleString()}</strong></div>`).join('');
+  bar.innerHTML = `<span style="width:${ratio(up)}%;background:var(--accent-green)"></span><span style="width:${ratio(flat)}%;background:rgba(255,255,255,0.26)"></span><span style="width:${ratio(down)}%;background:var(--accent-red)"></span>`;
+}
+
+function _preferredIndexCard(code) {
+  return document.querySelector(`#conditionalPreferredIndexGrid [data-preferred-index="${code}"]`);
+}
+
+function _setPreferredIndexStatus(code, message, color = 'var(--text-muted)') {
+  const card = _preferredIndexCard(code);
+  if (!card) return;
+  const meta = card.querySelector('[data-index-meta]');
+  const chartBox = card.querySelector('[data-index-chart]');
+  const loading = message === '加载中…';
+  meta.textContent = loading ? message : '无同日数据';
+  meta.style.color = color;
+  // 释放旧 chart: setOption 在已被 innerHTML='' 清空的容器上渲染不可靠, 切回新日期时残留实例会画不出来
+  if (_conditionalPreferredIndexCharts[code]) {
+    _conditionalPreferredIndexCharts[code].dispose();
+    _conditionalPreferredIndexCharts[code] = null;
+  }
+  if (chartBox) {
+    chartBox.innerHTML = `<div style="height:100%;display:grid;place-items:center;text-align:center;font-size:11px;color:var(--text-muted);line-height:1.6">${escapeHtml(message)}</div>`;
+  }
+}
+
+function _renderConditionalPreferredIndex(code, data) {
+  const card = _preferredIndexCard(code);
+  if (!card) return;
+  const box = card.querySelector('[data-index-chart]');
+  const meta = card.querySelector('[data-index-meta]');
+  const prevClose = Number(data.prev_close);
+  const rows = data.rows || [];
+  if (!rows.length || !Number.isFinite(prevClose) || prevClose <= 0 || data.trade_date !== data.requested_date) {
+    _setPreferredIndexStatus(code, data.message || '暂无该日分时');
+    return;
+  }
+  const points = rows.map(row => Number(row.p));
+  const changes = points.map(price => (price / prevClose - 1) * 100);
+  const end = changes[changes.length - 1];
+  const lineColor = end >= 0 ? '#ff5252' : '#00e676';
+  meta.textContent = `${end >= 0 ? '+' : ''}${end.toFixed(2)}%`;
+  meta.style.color = lineColor;
+  // 每次渲染前 dispose 旧 chart: 切回曾渲染过的日期时, 旧的 chart 实例绑在已被清空的容器上,
+  // setOption 行为不可靠. dispose 后 init 新实例, 保证首次/再次渲染都干净.
+  if (_conditionalPreferredIndexCharts[code]) {
+    _conditionalPreferredIndexCharts[code].dispose();
+    _conditionalPreferredIndexCharts[code] = null;
+  }
+  box.innerHTML = '';
+  const chart = echarts.init(box);
+  _conditionalPreferredIndexCharts[code] = chart;
+  chart.setOption({
+    animation: false, backgroundColor: 'transparent',
+    grid: {left: 34, right: 6, top: 8, bottom: 20},
+    tooltip: {trigger: 'axis', confine: true, backgroundColor: 'rgba(20,26,38,.96)', borderColor: 'rgba(255,255,255,.1)', textStyle: {color: '#c9d1e0', fontSize: 10},
+      formatter: params => { const i = params[0]?.dataIndex || 0; const value = changes[i]; return `${(rows[i].m || '').slice(0,5)}<br>${points[i].toFixed(2)}<br><span style="color:${value >= 0 ? '#ff5252' : '#00e676'}">${value >= 0 ? '+' : ''}${value.toFixed(2)}%</span>`; }},
+    xAxis: {type: 'category', boundaryGap: false, data: rows.map(row => (row.m || '').slice(0,5)), axisLine: {lineStyle: {color: 'rgba(255,255,255,.12)'}}, axisTick: {show: false}, axisLabel: {color: '#697386', fontSize: 9, interval: Math.max(1, Math.floor(rows.length / 2) - 1)}},
+    yAxis: {type: 'value', scale: true, axisLabel: {color: '#697386', fontSize: 9, formatter: value => `${value.toFixed(1)}%`}, splitLine: {lineStyle: {color: 'rgba(255,255,255,.055)'}}},
+    series: [{type: 'line', data: changes.map(value => Number(value.toFixed(4))), symbol: 'none', lineStyle: {width: 1.4, color: lineColor}, areaStyle: {color: end >= 0 ? 'rgba(255,82,82,.07)' : 'rgba(0,230,118,.07)'}, markLine: {silent: true, symbol: 'none', label: {show: false}, lineStyle: {type: 'dashed', width: 1, color: 'rgba(255,255,255,.2)'}, data: [{yAxis: 0}]}}],
+  }, {notMerge: true});
+}
+
+// ── 条件优选盘后缓存 (localStorage) ──
+// 盘后定稿场景 (daily_ready && !intraday_used): 响应数据当天不再变化, 缓存到 localStorage
+// 刷新页面 / 重新打开 tab 时, 同步命中瞬开, 后台再静默拉一次覆盖 (万一数据有微调)
+// 盘中实时场景 (intraday_used=true): 数据每分钟都在变, 缓存无意义且会误导, 不写
+function _condPrefCacheKey(date, thresholdYI, volumeRatioPct) {
+  return `${_COND_PREF_CACHE_PREFIX}${date || 'latest'}|${thresholdYI}|${volumeRatioPct}`;
+}
+
+// 检测 preferred 响应是否还在变化: 任意一只的 outcomes 含 reason='intraday' 就视为盘中
+// 后端 intraday_used 字段会被 _compute_picks 盘中分支污染 (即使 outcomes 全是 future_unavailable)
+// 真正能反映"响应是否稳定"的是 outcomes 本身
+function _preferredHasIntradayOutcome(data) {
+  if (!data || !data.results) return false;
+  for (const r of data.results) {
+    for (const o of (r.preferred_outcomes || [])) {
+      if (o && o.reason === 'intraday') return true;
+    }
+  }
+  return false;
+}
+
+function _readConditionalPreferredCache(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || !parsed.ts || !parsed.payload) return null;
+    // 跨日自动失效: 写入时间超过 24h 一律丢弃
+    if (Date.now() - parsed.ts > _COND_PREF_CACHE_MAX_AGE_MS) {
+      localStorage.removeItem(key);
+      return null;
+    }
+    return parsed;
+  } catch (e) {
+    // JSON 损坏 / localStorage 被禁用 → 静默回落到服务端
+    return null;
+  }
+}
+
+function _writeConditionalPreferredCache(key, payload, indexCharts) {
+  try {
+    localStorage.setItem(key, JSON.stringify({
+      ts: Date.now(),
+      payload,
+      index_charts: indexCharts || [],
+    }));
+  } catch (e) {
+    // localStorage 满 / 禁用 → 静默忽略, 不影响主流程
+  }
+}
+
+// ── 条件选股 / 条件选股新 共用 localStorage 缓存 ──
+// 盘后定稿场景才写 (snapshot 接口本身就是历史, /new 接口靠 daily_ready && live_next_index===0 判定)
+// 24h TTL 跨日自动失效; 命中后同步渲染, 后台静默拉覆盖 (跟条件优选同模式)
+function _readTabPayloadCache(prefix, key) {
+  try {
+    const raw = localStorage.getItem(prefix + key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || !parsed.ts || !parsed.payload) return null;
+    if (Date.now() - parsed.ts > _COND_PREF_CACHE_MAX_AGE_MS) {
+      localStorage.removeItem(prefix + key);
+      return null;
+    }
+    return parsed.payload;
+  } catch (e) {
+    return null;
+  }
+}
+
+function _writeTabPayloadCache(prefix, key, payload) {
+  try {
+    localStorage.setItem(prefix + key, JSON.stringify({ts: Date.now(), payload}));
+  } catch (e) {
+    // 满 / 禁用 → 静默忽略
+  }
+}
+
+async function _loadConditionalPreferredIndexCharts(date, requestId) {
+  CONDITIONAL_PREFERRED_INDEXES.forEach(item => _setPreferredIndexStatus(item.code, '加载中…'));
+  const settled = await Promise.all(CONDITIONAL_PREFERRED_INDEXES.map(async item => {
+    try {
+      const response = await fetch(`/api/index/minline?ts_code=${encodeURIComponent(item.code)}&date=${encodeURIComponent(date || '')}`);
+      const data = await response.json();
+      if (requestId !== _conditionalPreferredRequestId) return null;
+      if (!response.ok || data.status === 'error') throw new Error(data.message || '分时加载失败');
+      _renderConditionalPreferredIndex(item.code, data);
+      return {code: item.code, data};
+    } catch (error) {
+      if (requestId === _conditionalPreferredRequestId) _setPreferredIndexStatus(item.code, error.message || '分时加载失败');
+      return null;
+    }
+  }));
+  return settled.filter(Boolean);
+}
+
+function _resizeConditionalPreferredIndexCharts() {
+  Object.values(_conditionalPreferredIndexCharts).forEach(chart => chart && chart.resize());
+}
+
+// ── 条件优选日期切换: 市场温度 + 4 指数分时可在入选日 / T+1~T+5 间切换, 表格不变 ──
+function _initPreferredViewDates(data) {
+  if (!data || !data.date) return;
+  const dates = [data.date, data.next_date, data.next_date_2, data.next_date_3,
+                 data.next_date_4, data.next_date_5].filter(Boolean);
+  _preferredViewDates = dates;
+  // 已在该日期上则保持, 否则回到入选日
+  if (!_preferredViewDate || !dates.includes(_preferredViewDate)) _preferredViewDate = data.date;
+  _refreshPreferredViewControls();
+}
+
+function _refreshPreferredViewControls() {
+  const label = document.getElementById('preferredViewDateLabel');
+  const prevBtn = document.getElementById('preferredViewPrevBtn');
+  const nextBtn = document.getElementById('preferredViewNextBtn');
+  if (!label || !prevBtn || !nextBtn) return;
+  const idx = _preferredViewDates.indexOf(_preferredViewDate);
+  if (idx < 0) return;
+  const tag = idx === 0 ? '(入选日)' : `(T+${idx})`;
+  label.textContent = `${fmtDate(_preferredViewDate)} ${tag}`;
+  const atStart = idx <= 0;
+  const atEnd = idx >= _preferredViewDates.length - 1;
+  prevBtn.disabled = atStart;
+  nextBtn.disabled = atEnd;
+  prevBtn.style.color = atStart ? 'var(--text-muted)' : 'var(--text-secondary)';
+  nextBtn.style.color = atEnd ? 'var(--text-muted)' : 'var(--text-secondary)';
+  prevBtn.style.cursor = atStart ? 'not-allowed' : 'pointer';
+  nextBtn.style.cursor = atEnd ? 'not-allowed' : 'pointer';
+}
+
+async function shiftPreferredViewDate(delta) {
+  const idx = _preferredViewDates.indexOf(_preferredViewDate);
+  const newIdx = idx + delta;
+  if (newIdx < 0 || newIdx >= _preferredViewDates.length) return;
+  const date = _preferredViewDates[newIdx];
+  _preferredViewDate = date;
+  _refreshPreferredViewControls();
+  // 独立 requestId 防止跟原 tab 加载相互取消 (优先于 _conditionalPreferredRequestId)
+  const reqId = ++_conditionalPreferredRequestId;
+  await _refreshPreferredMarketForDate(date, reqId);
+}
+
+async function _refreshPreferredMarketForDate(date, reqId) {
+  // 拉市场温度
+  try {
+    const resp = await fetch(`/api/conditional-picks/preferred/market-overview?date=${encodeURIComponent(date)}`);
+    const data = await resp.json();
+    if (reqId !== _conditionalPreferredRequestId) return;
+    _renderConditionalPreferredBreadth(data, date);
+  } catch (error) {
+    if (reqId === _conditionalPreferredRequestId) {
+      _renderConditionalPreferredBreadth({available: false, message: error.message || '加载失败'}, date);
+    }
+  }
+  // 拉指数分时 (重置所有指数为「加载中」, 防旧 chart 残留)
+  CONDITIONAL_PREFERRED_INDEXES.forEach(item => _setPreferredIndexStatus(item.code, '加载中…'));
+  await Promise.all(CONDITIONAL_PREFERRED_INDEXES.map(async item => {
+    try {
+      const resp = await fetch(`/api/index/minline?ts_code=${encodeURIComponent(item.code)}&date=${encodeURIComponent(date)}`);
+      const data = await resp.json();
+      if (reqId !== _conditionalPreferredRequestId) return;
+      if (!resp.ok || data.status === 'error') throw new Error(data.message || '分时加载失败');
+      _renderConditionalPreferredIndex(item.code, data);
+    } catch (error) {
+      if (reqId === _conditionalPreferredRequestId) _setPreferredIndexStatus(item.code, error.message || '分时加载失败');
+    }
+  }));
+}
+
+async function loadConditionalPreferredPicks() {
+  const requestId = ++_conditionalPreferredRequestId;
+  const body = document.getElementById('conditionalPreferredPicksBody');
+  const summary = document.getElementById('conditionalPreferredSummary');
+  const threshold = _picksThresholdYI();
+  const volumePct = _picksVolumeRatioPct();
+  const cacheKey = `${picksSelDate || 'latest'}|${threshold}|${volumePct}`;
+  // 同步优先渲染 localStorage 缓存 (盘后定稿场景, 刷新页面瞬开, 后台再静默更新)
+  const cached = _readConditionalPreferredCache(cacheKey);
+  // 后端 intraday_used 字段会被 _compute_picks 盘中标记污染; 真信号是 outcomes 是否含 reason='intraday'
+  const settledFromCache = cached && cached.payload && cached.payload.daily_ready && !_preferredHasIntradayOutcome(cached.payload);
+  if (settledFromCache) {
+    conditionalPreferredPicksCache = cached.payload.results || [];
+    _liveNextIndex = Number(cached.payload.live_next_index) || 0;
+    _renderConditionalPreferredBreadth(cached.payload.market_overview, cached.payload.date);
+    if (cached.index_charts && cached.index_charts.length === CONDITIONAL_PREFERRED_INDEXES.length) {
+      cached.index_charts.forEach(cd => _renderConditionalPreferredIndex(cd.code, cd.data));
+    } else {
+      // 老缓存 (没 index_charts 字段) → 重新拉 (不 await, 不阻塞后台更新)
+      _loadConditionalPreferredIndexCharts(cached.payload.date, requestId).catch(() => {});
+    }
+    const cstats = cached.payload.preferred_exclusions || {};
+    summary.textContent = `${cached.payload.date ? fmtDate(cached.payload.date) : '—'} · 条件选股新 ${cstats.base_count || 0} 只 → 优选 ${cached.payload.count || 0} 只`
+      + ` · 资金门槛 ≥${threshold} 亿 / 成交量 ≤${volumePct}%`
+      + (cstats.missing_flow ? ` · ${cstats.missing_flow} 只五日资金或成交额不完整` : '')
+      + ` · 收盘确认 (缓存)`;
+    renderConditionalPreferredPicksTable(conditionalPreferredPicksCache, cached.payload.daily_ready !== false);
+    _initPreferredViewDates(cached.payload);
+  } else {
+    conditionalPreferredPicksCache = [];
+    summary.textContent = `${picksSelDate ? fmtDate(picksSelDate) : '最新交易日'} · 正在筛选…`;
+    body.innerHTML = '<tr><td colspan="14" style="text-align:center;padding:35px;color:var(--text-muted)">加载中…</td></tr>';
+  }
+  const query = new URLSearchParams({threshold_yi: String(threshold), volume_ratio_pct: String(volumePct)});
+  if (picksSelDate) query.set('date', picksSelDate);
+  try {
+    const response = await fetch('/api/conditional-picks/preferred?' + query.toString());
+    if (requestId !== _conditionalPreferredRequestId) return;
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    if (requestId !== _conditionalPreferredRequestId) return;
+    conditionalPreferredPicksCache = data.results || [];
+    _liveNextIndex = Number(data.live_next_index) || 0;
+    _renderConditionalPreferredBreadth(data.market_overview, data.date);
+    // 指数分时 fire-and-forget (不阻塞表渲染), 缓存写入依赖其返回值, 单独 .then 串接
+    const chartsPromise = _loadConditionalPreferredIndexCharts(data.date, requestId);
+    const stats = data.preferred_exclusions || {};
+    const prefLive = data.readiness_reason === 'intraday_live';
+    summary.textContent = `${data.date ? fmtDate(data.date) : '—'} · 条件选股新 ${stats.base_count || 0} 只 → 优选 ${data.count || 0} 只`
+      + ` · 资金门槛 ≥${threshold} 亿 / 成交量 ≤${volumePct}%`
+      + (stats.missing_flow ? ` · ${stats.missing_flow} 只五日资金或成交额不完整` : '')
+      + (data.daily_ready ? (data.intraday_used ? ` · T+${_liveNextIndex} 盘中实时` : ' · 收盘确认')
+        : prefLive ? ' · ⚡ 盘中实时估算' : ` · ${data.note || '等待收盘数据'}`);
+    renderConditionalPreferredPicksTable(conditionalPreferredPicksCache, data.daily_ready !== false || prefLive);
+    _initPreferredViewDates(data);
+    // 盘后定稿才缓存: outcomes 没 intraday 即视为稳定; 写缓存依赖指数分时响应, 等齐再写
+    if (data.daily_ready && !_preferredHasIntradayOutcome(data)) {
+      chartsPromise.then(charts => _writeConditionalPreferredCache(cacheKey, data, charts)).catch(() => {});
+    }
+    if (data.daily_ready || prefLive) startPicksAutoRefresh();
+  } catch (error) {
+    if (requestId !== _conditionalPreferredRequestId) return;
+    _renderConditionalPreferredBreadth({available: false, message: '优选数据加载失败'}, picksSelDate);
+    CONDITIONAL_PREFERRED_INDEXES.forEach(item => _setPreferredIndexStatus(item.code, '等待优选日期'));
+    summary.textContent = '加载失败，可点击刷新重试';
+    body.innerHTML = `<tr><td colspan="14" style="text-align:center;padding:35px;color:var(--accent-red)">${escapeHtml(error.message)}</td></tr>`;
+  }
+}
+
+// ── 条件优选『生成预览图』: 后端 Playwright 真截 dashboard 整面板,所见即所得 ──
+async function generateConditionalPreferredPreview() {
+  const btn = document.getElementById('preferredPreviewBtn');
+  const originalText = btn ? btn.textContent : '📷 生成预览图';
+  const threshold = _picksThresholdYI();
+  const volumePct = _picksVolumeRatioPct();
+  const date = (typeof picksSelDate !== 'undefined' && picksSelDate) ? picksSelDate : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.classList.add('syncing');
+    btn.textContent = '⏳ 生成中…';
+  }
+  try {
+    const response = await fetch('/api/conditional-picks/preferred/preview-page-image', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({date, threshold_yi: threshold, volume_ratio_pct: volumePct}),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.status !== 'success') {
+      throw new Error((data && data.note) || `HTTP ${response.status}`);
+    }
+    if (btn) {
+      btn.classList.remove('syncing');
+      btn.classList.add('synced');
+      btn.textContent = '✅ 已生成';
+      setTimeout(() => {
+        btn.textContent = originalText;
+        btn.classList.remove('synced');
+      }, 1800);
+    }
+    _showPreferredPreviewModal(data.url, data.date || date, threshold, volumePct, data.duration_ms || 0);
+  } catch (err) {
+    if (btn) {
+      btn.classList.remove('syncing');
+      btn.textContent = '❌ 重试';
+      setTimeout(() => { btn.textContent = originalText; }, 2200);
+    }
+    _showPreferredPreviewModalError(err.message || '截图失败', date, threshold, volumePct);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function _showPreferredPreviewModal(imgUrl, date, threshold, volumePct, durationMs) {
+  closePreferredPreviewModal();
+  const dateMd = date ? `${date.slice(0,4)}-${date.slice(4,6)}-${date.slice(6,8)}` : '—';
+  const safeUrl = escapeHtml(imgUrl);
+  const meta = `${escapeHtml(dateMd)} · 门槛 ≥${threshold} 亿 · 缩量 ≤${volumePct}% · 用时 ${durationMs}ms`;
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="pos-modal-mask" id="preferredPreviewMask" onclick="if(event.target===this)closePreferredPreviewModal()">
+      <div class="pos-modal" style="width:1280px;max-width:96vw;max-height:94vh;padding:14px 18px;display:flex;flex-direction:column">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">
+          <span style="font-size:15px;font-weight:600;color:var(--text-primary)">条件优选预览图</span>
+          <span style="color:var(--text-muted);font-size:12px">${meta}</span>
+          <span style="margin-left:auto"></span>
+          <button onclick="_downloadPreferredPreview('${safeUrl}')" class="date-sync-btn">⬇️ 下载</button>
+          <button onclick="_copyPreferredPreviewLink('${safeUrl}')" class="date-sync-btn" id="preferredPreviewCopyBtn">🔗 复制链接</button>
+          <button onclick="closePreferredPreviewModal()" class="date-sync-btn">✕</button>
+        </div>
+        <div style="overflow:auto;background:#0a0e17;border:1px solid var(--border);border-radius:8px;flex:1;min-height:0">
+          <img src="${safeUrl}" style="display:block;max-width:100%;height:auto" alt="条件优选预览图" />
+        </div>
+      </div>
+    </div>
+  `);
+  document.addEventListener('keydown', _preferredPreviewEscHandler);
+}
+
+function closePreferredPreviewModal() {
+  const m = document.getElementById('preferredPreviewMask');
+  if (m) m.remove();
+  document.removeEventListener('keydown', _preferredPreviewEscHandler);
+}
+
+function _preferredPreviewEscHandler(e) {
+  if (e.key === 'Escape') closePreferredPreviewModal();
+}
+
+function _downloadPreferredPreview(url) {
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = url.split('/').pop();
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+async function _copyPreferredPreviewLink(url) {
+  const absolute = (window.location.origin || '') + url;
+  let ok = false;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(absolute);
+      ok = true;
+    }
+  } catch (_) { /* 降级 */ }
+  if (!ok) {
+    try { window.prompt('复制此链接:', absolute); ok = true; } catch (_) {}
+  }
+  const btn = document.getElementById('preferredPreviewCopyBtn');
+  if (btn) {
+    const t = btn.textContent;
+    btn.textContent = ok ? '✅ 已复制' : '❌ 复制失败';
+    setTimeout(() => { btn.textContent = t; }, 1500);
+  }
+}
+
+function _showPreferredPreviewModalError(msg, date, threshold, volumePct) {
+  closePreferredPreviewModal();
+  const dateMd = date ? `${date.slice(0,4)}-${date.slice(4,6)}-${date.slice(6,8)}` : '—';
+  const safeMsg = escapeHtml(msg);
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="pos-modal-mask" id="preferredPreviewMask" onclick="if(event.target===this)closePreferredPreviewModal()">
+      <div class="pos-modal" style="min-width:420px;max-width:520px;padding:22px 24px">
+        <h3 style="margin:0 0 10px 0;color:var(--accent-red)">⚠ 预览图生成失败</h3>
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:14px;line-height:1.7">
+          ${safeMsg}<br>
+          <span style="color:var(--text-muted);font-size:11px">日期 ${escapeHtml(dateMd)} · 门槛 ${threshold} 亿 · 缩量 ${volumePct}%</span>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button class="date-sync-btn" onclick="closePreferredPreviewModal()">关闭</button>
+          <button class="date-sync-btn" onclick="closePreferredPreviewModal();generateConditionalPreferredPreview()">🔄 重试</button>
+        </div>
+      </div>
+    </div>
+  `);
+  document.addEventListener('keydown', _preferredPreviewEscHandler);
+}
+
+function renderConditionalPreferredPicksTable(list, ready = true) {
+  const body = document.getElementById('conditionalPreferredPicksBody');
+  if (!ready || !list.length) {
+    body.innerHTML = `<tr><td colspan="14" style="text-align:center;padding:35px;color:var(--text-muted)">${ready ? '该日没有满足全部优选条件的股票，可调整上方基础门槛或切换日期' : '等待完整收盘日线，暂不进行优选'}</td></tr>`;
+    return;
+  }
+  const pct = value => Number.isFinite(value) ? `${value >= 0 ? '+' : ''}${value.toFixed(2)}%` : '—';
+  const color = value => value == null ? 'var(--text-muted)' : value >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
+  const reasons = {intraday: '盘中实时价 / 截至当前最高价', waiting_close: '等待该日收盘', missing_daily: '缺少对应交易日日线', invalid_daily: '日线不完整', reference_mismatch: '涨跌幅参考价不一致', future_unavailable: '尚无对应交易日收盘数据'};
+  body.innerHTML = list.map((r, i) => {
+    const tags = [r.preferred_mild_shrink ? '温和缩量' : null, r.preferred_below_ma60 ? '不高于 MA60' : null].filter(Boolean);
+    const outcomes = Array.from({length: 5}, (_, index) => {
+      const o = (r.preferred_outcomes || [])[index] || {};
+      const live = index + 1 === _liveNextIndex && o.reason === 'intraday';
+      const tip = [o.date ? fmtDate(o.date) : '', o.reason ? reasons[o.reason] : '前期收盘涨幅之和 + 本日最高涨幅'].filter(Boolean).join(' · ');
+      return `<td style="text-align:right;white-space:nowrap" title="${escapeHtml(tip)}"><div style="color:${color(o.high_sum_pct)}">${live ? '⚡最高 ' : ''}${pct(o.high_sum_pct)}</div><div style="font-size:10px;color:${color(o.close_sum_pct)};opacity:${live ? 1 : .6};margin-top:4px">${live ? '⚡实时' : '收盘'} ${pct(o.close_sum_pct)}</div></td>`;
+    }).join('');
+    return `<tr data-ts-code="${escapeHtml(r.ts_code)}" data-stock-name="${escapeHtml(r.name || r.ts_code)}" data-pick-date="${escapeHtml(r.trade_date || picksSelDate || '')}">
+      <td style="text-align:center;color:var(--text-muted)">${i + 1}</td>
+      <td style="white-space:nowrap"><button type="button" data-preferred-action="kline" style="border:0;background:none;color:var(--text-primary);padding:0;text-align:left;cursor:pointer;font:inherit">${escapeHtml(r.name || r.ts_code)}<span style="display:block;color:var(--text-muted);font-size:11px;margin-top:3px">${escapeHtml(r.ts_code)}</span></button></td>
+      <td style="font-size:11px;color:#7ac8ff;white-space:nowrap">${r.preferred_priority}/2 项<div style="color:var(--text-secondary);margin-top:4px">${tags.join(' · ') || '仅核心条件'}</div></td>
+      <td style="text-align:right">${Number(r.close).toFixed(2)}</td>
+      <td style="text-align:right;color:${color(r.change_pct)}">${pct(r.change_pct)}</td>
+      <td style="text-align:right">${Number(r.volume_ratio_pct).toFixed(1)}%</td>
+      <td style="text-align:right"><button type="button" data-preferred-action="flow" style="border:0;background:none;padding:0;cursor:pointer;font:inherit;color:#7ac8ff">${Number(r.preferred_strength5).toFixed(2)}%</button></td>
+      <td style="text-align:right">${(r.preferred_small_net / 1e8).toFixed(2)} 亿</td>
+      <td style="text-align:right" title="${r.preferred_ma60 == null ? '不足60个有效收盘价，不计此项' : '入选日及此前60个有效收盘价均值'}">${r.preferred_ma60 == null ? '—' : Number(r.preferred_ma60).toFixed(2)}</td>
+      ${outcomes}</tr>`;
+  }).join('');
+  body.onclick = event => {
+    const button = event.target.closest('[data-preferred-action]');
+    if (!button) return;
+    event.stopPropagation();
+    const row = button.closest('tr');
+    if (button.dataset.preferredAction === 'kline') showKlineModal(row.dataset.tsCode, row.dataset.stockName, {pickDate: row.dataset.pickDate});
+    else openStockFlowDetail(row.dataset.tsCode, row.dataset.stockName, 'main');
+  };
 }
 
 async function loadConditionalNewPicks(force = false) {
@@ -7811,12 +8471,27 @@ async function loadConditionalNewPicks(force = false) {
   const cacheKey = `${picksSelDate || 'latest'}|${threshold}|${volumeRatio}`;
   const dateEl = document.getElementById('conditionalNewDate');
   const body = document.getElementById('conditionalNewPicksBody');
-  if (!force && _condNewRespCache[cacheKey]) {
-    _applyConditionalNewPayload(JSON.parse(JSON.stringify(_condNewRespCache[cacheKey])));
-    return;
+  // localStorage 缓存: 盘后定稿场景 (T+1 不是今天) 命中即同步渲染 (刷新页面瞬开)
+  if (!force) {
+    const cached = _readTabPayloadCache(_COND_NEW_CACHE_PREFIX, cacheKey);
+    if (cached) {
+      _applyConditionalNewPayload(cached);
+      _refreshConditionalNewPicksFromServer(requestId, threshold, volumeRatio, cacheKey, false);
+      return;
+    }
   }
   if (dateEl) dateEl.textContent = picksSelDate ? fmtDate(picksSelDate) : '…';
   if (body) body.innerHTML = '<tr><td colspan="20" style="text-align:center;color:var(--text-muted);padding:40px 0">加载中…</td></tr>';
+  await _refreshConditionalNewPicksFromServer(requestId, threshold, volumeRatio, cacheKey, true);
+}
+
+async function _refreshConditionalNewPicksFromServer(requestId, threshold, volumeRatio, cacheKey, showLoading) {
+  const dateEl = document.getElementById('conditionalNewDate');
+  const body = document.getElementById('conditionalNewPicksBody');
+  if (showLoading) {
+    if (dateEl) dateEl.textContent = picksSelDate ? fmtDate(picksSelDate) : '…';
+    if (body) body.innerHTML = '<tr><td colspan="20" style="text-align:center;color:var(--text-muted);padding:40px 0">加载中…</td></tr>';
+  }
   try {
     const query = new URLSearchParams({
       source: 'eastmoney-push2',
@@ -7829,9 +8504,11 @@ async function loadConditionalNewPicks(force = false) {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
     if (requestId !== _conditionalNewRequestId) return;
-    if (data.daily_ready) {
-      _condNewRespCache[cacheKey] = data;
-      if (data.date) _condNewRespCache[`${data.date}|${threshold}|${volumeRatio}`] = data;
+    // 盘后定稿才缓存: daily_ready && T+1 不是今天 (live_next_index===0 表示没有盘中实时价)
+    // 原条件只判 daily_ready, 会把盘中数据也缓存, 跟条件优选对齐改成"没盘中数据才写"
+    if (data.daily_ready && !data.live_next_index) {
+      _writeTabPayloadCache(_COND_NEW_CACHE_PREFIX, cacheKey, data);
+      if (data.date) _writeTabPayloadCache(_COND_NEW_CACHE_PREFIX, `${data.date}|${threshold}|${volumeRatio}`, data);
     }
     _applyConditionalNewPayload(data);
   } catch (error) {
@@ -7854,17 +8531,19 @@ function _applyConditionalNewPayload(data) {
   const ratio = data.filter?.max_volume_ratio_pct ?? _picksVolumeRatioPct();
   setText('conditionalNewRuleRatio', `${ratio}%`);
   const status = document.getElementById('conditionalNewDataStatus');
+  const intradayLive = data.readiness_reason === 'intraday_live';
   if (status) {
-    status.textContent = data.daily_ready ? '✓ 收盘日线已就绪' : '⏳ 等待收盘数据';
+    status.textContent = data.daily_ready ? '✓ 收盘日线已就绪' : intradayLive ? '⚡ 盘中实时估算' : '⏳ 等待收盘数据';
     status.style.background = data.daily_ready ? 'rgba(0,230,118,0.12)' : 'rgba(255,200,0,0.12)';
     status.style.color = data.daily_ready ? '#63d6a0' : '#e8b84f';
   }
   const excluded = data.exclusions || {};
   const excludedCount = Math.max(0, (excluded.base_count || 0) - (excluded.matched || 0));
-  setText('conditionalNewNote', `${data.note || ''}${data.daily_ready ? ` · 基础命中 ${excluded.base_count || 0} 只，技术条件排除 ${excludedCount} 只` : ''}`);
+  setText('conditionalNewNote', `${data.note || ''}${data.daily_ready || intradayLive ? ` · 基础命中 ${excluded.base_count || 0} 只，技术条件排除 ${excludedCount} 只` : ''}`);
   _lastNext1IsToday = !!data.next_1_is_today;
-  renderConditionalNewPicksTable(conditionalNewPicksCache, data.daily_ready !== false);
-  if (data.daily_ready) startPicksAutoRefresh();
+  _liveNextIndex = Number(data.live_next_index) || (data.next_1_is_today ? 1 : 0);
+  renderConditionalNewPicksTable(conditionalNewPicksCache, data.daily_ready !== false || intradayLive);
+  if (data.daily_ready || intradayLive) startPicksAutoRefresh();
 }
 
 // 组合选股: 字段同条件选股 18 列 + 多一列评分, 容器独立 (#combinedPicksContainer)
@@ -7991,11 +8670,12 @@ function _fmtPostPickChange(v) {
 //  - 中: 累计涨幅 (价格复利, next_close 对比入选 close)
 //  - 下: 累计涨幅 (最高价动量, max(high) T+1..T+N 对比入选 close)
 function _fmtPostPickAndCum(postChange, nextClose, maxHigh, refClose, opts = {}) {
-  // opts.liveT1: 当 T+1 那天是今天且盘中, daily 行渲染为 '⚡ 待实时' 占位
-  //   累计两行照旧 (按用户偏好: 只让 daily 行实时)
-  const liveT1 = !!opts.liveT1;
-  const dailyHtml = liveT1
-    ? `<span class="live-t1" style="display:inline-block;font-size:11px;padding:2px 7px;border-radius:4px;background:rgba(120,200,255,0.12);color:#7ac8ff;animation:liveT1Pulse 1.8s ease-in-out infinite">⚡ 待实时</span>`
+  // opts.live/liveT1: 今天所在的 T+N。已有行情直接展示，否则保留等待占位。
+  const live = !!opts.live || !!opts.liveT1;
+  const dailyHtml = live
+    ? (postChange == null
+      ? `<span class="live-tn" style="display:inline-block;font-size:11px;padding:2px 7px;border-radius:4px;background:rgba(120,200,255,0.12);color:#7ac8ff;animation:liveT1Pulse 1.8s ease-in-out infinite">⚡ 待实时</span>`
+      : `<span class="live-tn" style="display:inline-block;font-size:11px;padding:2px 7px;border-radius:4px;background:${postChange >= 0 ? 'rgba(255,82,82,0.18)' : 'rgba(0,230,118,0.18)'};color:${postChange >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'};font-weight:600">⚡ ${postChange >= 0 ? '+' : ''}${postChange.toFixed(2)}%</span>`)
     : _fmtPostPickChange(postChange);
   function _box(cum) {
     if (cum == null) {
@@ -8282,11 +8962,11 @@ function renderConditionalPicksTable(list) {
         <td class="picks-flow-cell" style="text-align:right;vertical-align:middle;cursor:pointer" title="点击查看个股资金流向弹窗">${_fmtCondFlow(r.sum_mid_small_5d, false)}</td>
         <td class="picks-flow-cell" style="text-align:right;vertical-align:middle;cursor:pointer" title="点击查看个股资金流向弹窗">${_fmtCondFlow(r.sum_mid_small_10d, false)}</td>
         <td class="picks-flow-cell" style="text-align:right;vertical-align:middle;cursor:pointer" title="点击查看个股资金流向弹窗">${_fmtCondFlow(r.sum_mid_small_20d, false)}</td>
-        <td style="text-align:right;vertical-align:middle;border-left:1px dashed var(--border)">${_fmtPostPickAndCum(r.post_pick_next_change_pct, r.next_1_close, r.max_high_t1, r.close, { liveT1: _lastNext1IsToday })}</td>
-        <td style="text-align:right;vertical-align:middle">${_fmtPostPickAndCum(r.post_pick_next2_change_pct, r.next_2_close, r.max_high_t2, r.close)}</td>
-        <td style="text-align:right;vertical-align:middle">${_fmtPostPickAndCum(r.post_pick_next3_change_pct, r.next_3_close, r.max_high_t3, r.close)}</td>
-        <td style="text-align:right;vertical-align:middle">${_fmtPostPickAndCum(r.post_pick_next4_change_pct, r.next_4_close, r.max_high_t4, r.close)}</td>
-        <td style="text-align:right;vertical-align:middle">${_fmtPostPickAndCum(r.post_pick_next5_change_pct, r.next_5_close, r.max_high_t5, r.close)}</td>
+        <td style="text-align:right;vertical-align:middle;border-left:1px dashed var(--border)">${_fmtPostPickAndCum(r.post_pick_next_change_pct, r.next_1_close, r.max_high_t1, r.close, { live: _liveNextIndex === 1 })}</td>
+        <td style="text-align:right;vertical-align:middle">${_fmtPostPickAndCum(r.post_pick_next2_change_pct, r.next_2_close, r.max_high_t2, r.close, { live: _liveNextIndex === 2 })}</td>
+        <td style="text-align:right;vertical-align:middle">${_fmtPostPickAndCum(r.post_pick_next3_change_pct, r.next_3_close, r.max_high_t3, r.close, { live: _liveNextIndex === 3 })}</td>
+        <td style="text-align:right;vertical-align:middle">${_fmtPostPickAndCum(r.post_pick_next4_change_pct, r.next_4_close, r.max_high_t4, r.close, { live: _liveNextIndex === 4 })}</td>
+        <td style="text-align:right;vertical-align:middle">${_fmtPostPickAndCum(r.post_pick_next5_change_pct, r.next_5_close, r.max_high_t5, r.close, { live: _liveNextIndex === 5 })}</td>
       </tr>
     `;
   }).join('');
@@ -8305,6 +8985,8 @@ function renderConditionalNewPicksTable(list, dailyReady = true) {
     tbody.innerHTML = '<tr><td colspan="20" style="text-align:center;color:var(--text-muted);padding:40px 0">无命中（收盘日线已就绪，该日没有满足全部规则的股票）</td></tr>';
     return;
   }
+  // 条件优选 cache → ts_code 集合: 标记「也在优选中」的股票
+  const preferredSet = new Set((conditionalPreferredPicksCache || []).map(p => p.ts_code));
   tbody.innerHTML = list.map((r, index) => {
     const code = (r.ts_code || '').replace(/\.SH|\.SZ|\.BJ/, '');
     const name = r.name || code;
@@ -8316,10 +8998,13 @@ function renderConditionalNewPicksTable(list, dailyReady = true) {
       : 'background:rgba(180,140,255,0.15);color:#c89cff';
     const hit = r.hit_threshold || '';
     const flowClick = `onclick="event.stopPropagation();openStockFlowDetail('${r.ts_code}','${name}','main')"`;
+    const preferredBadge = preferredSet.has(r.ts_code)
+      ? '<span title="该股票也在条件优选中" style="display:inline-block;margin-left:6px;background:rgba(99,214,160,0.15);color:#63d6a0;font-size:10px;font-weight:600;padding:1px 6px;border-radius:3px;line-height:1.4;vertical-align:middle;letter-spacing:.3px">优选</span>'
+      : '';
     return `<tr data-ts-code="${r.ts_code}">
       <td style="text-align:center;color:var(--text-muted);vertical-align:middle">${index + 1}</td>
       <td style="vertical-align:middle;white-space:nowrap">
-        <div style="cursor:pointer" onclick="showKlineModal('${r.ts_code}','${name}',{pickDate:'${r.trade_date || picksSelDate || ''}'})">${name}</div>
+        <div style="cursor:pointer" onclick="showKlineModal('${r.ts_code}','${name}',{pickDate:'${r.trade_date || picksSelDate || ''}'})">${name}${preferredBadge}</div>
         <div style="margin-top:2px;color:var(--text-muted);font-size:11px;cursor:pointer" onclick="showKlineModal('${r.ts_code}','${name}',{pickDate:'${r.trade_date || picksSelDate || ''}'})">${code}</div>
         <div style="margin-top:3px">${renderSectorPills(r)}</div>
       </td>
@@ -8336,11 +9021,11 @@ function renderConditionalNewPicksTable(list, dailyReady = true) {
       <td class="picks-flow-cell" style="text-align:right;cursor:pointer" ${flowClick}>${_fmtCondFlow(r.sum_mid_small_5d, false)}</td>
       <td class="picks-flow-cell" style="text-align:right;cursor:pointer" ${flowClick}>${_fmtCondFlow(r.sum_mid_small_10d, false)}</td>
       <td class="picks-flow-cell" style="text-align:right;cursor:pointer" ${flowClick}>${_fmtCondFlow(r.sum_mid_small_20d, false)}</td>
-      <td style="text-align:right;border-left:1px dashed var(--border)">${_fmtPostPickAndCum(r.post_pick_next_change_pct, r.next_1_close, r.max_high_t1, r.close, { liveT1: _lastNext1IsToday })}</td>
-      <td style="text-align:right">${_fmtPostPickAndCum(r.post_pick_next2_change_pct, r.next_2_close, r.max_high_t2, r.close)}</td>
-      <td style="text-align:right">${_fmtPostPickAndCum(r.post_pick_next3_change_pct, r.next_3_close, r.max_high_t3, r.close)}</td>
-      <td style="text-align:right">${_fmtPostPickAndCum(r.post_pick_next4_change_pct, r.next_4_close, r.max_high_t4, r.close)}</td>
-      <td style="text-align:right">${_fmtPostPickAndCum(r.post_pick_next5_change_pct, r.next_5_close, r.max_high_t5, r.close)}</td>
+      <td style="text-align:right;border-left:1px dashed var(--border)">${_fmtPostPickAndCum(r.post_pick_next_change_pct, r.next_1_close, r.max_high_t1, r.close, { live: _liveNextIndex === 1 })}</td>
+      <td style="text-align:right">${_fmtPostPickAndCum(r.post_pick_next2_change_pct, r.next_2_close, r.max_high_t2, r.close, { live: _liveNextIndex === 2 })}</td>
+      <td style="text-align:right">${_fmtPostPickAndCum(r.post_pick_next3_change_pct, r.next_3_close, r.max_high_t3, r.close, { live: _liveNextIndex === 3 })}</td>
+      <td style="text-align:right">${_fmtPostPickAndCum(r.post_pick_next4_change_pct, r.next_4_close, r.max_high_t4, r.close, { live: _liveNextIndex === 4 })}</td>
+      <td style="text-align:right">${_fmtPostPickAndCum(r.post_pick_next5_change_pct, r.next_5_close, r.max_high_t5, r.close, { live: _liveNextIndex === 5 })}</td>
     </tr>`;
   }).join('');
 }
@@ -8356,6 +9041,7 @@ function _showBucketContainer(group) {
   const isCombinedThs = group === 'combinedThs';
   document.getElementById('conditionalPicksContainer').style.display = isConditional ? '' : 'none';
   document.getElementById('conditionalNewPicksContainer').style.display = isConditionalNew ? '' : 'none';
+  document.getElementById('conditionalPreferredPicksContainer').style.display = group === 'conditionalPreferred' ? '' : 'none';
   document.getElementById('combinedPicksContainer').style.display = isCombined ? '' : 'none';
   document.getElementById('conditionalPicksThsContainer').style.display = isConditionalThs ? '' : 'none';
   document.getElementById('combinedPicksThsContainer').style.display = isCombinedThs ? '' : 'none';
@@ -8705,7 +9391,7 @@ async function refreshPicksQuotes() {
   const cache = _getCurrentPicksCache();
   console.log('[picks-refresh] start, cache size:', cache.length, 'group:', currentPicksGroup);
   if (!cache.length) return;
-  if (currentPicksGroup === 'conditional' || currentPicksGroup === 'conditionalNew' || currentPicksGroup === 'combined' ||
+  if (currentPicksGroup === 'conditional' || currentPicksGroup === 'conditionalNew' || currentPicksGroup === 'conditionalPreferred' || currentPicksGroup === 'combined' ||
       currentPicksGroup === 'conditionalThs' || currentPicksGroup === 'combinedThs') {
     return _refreshBucketT1Quotes(cache);
   }
@@ -8779,47 +9465,52 @@ async function refreshPicksQuotes() {
   }
 }
 
-// 条件/组合选股 sub-tab 的实时刷新: 只更新 T+1 那格 "⚡ 待实时" 占位为实时涨幅 (因为入选日的下个交易日 == 今天)
-// 进入条件: 仅当 currentPicksGroup ∈ {conditional, combined} AND _lastNext1IsToday === true
+// 三个东方财富条件 Tab：刷新“今天所在的 T+N”，支持 T+1..T+5。
 async function _refreshBucketT1Quotes(cache) {
-  if (!_lastNext1IsToday || !cache.length) return;
+  if (!['conditional', 'conditionalNew', 'conditionalPreferred'].includes(currentPicksGroup)
+      || !_liveNextIndex || !cache.length) return;
   const codes = cache.map(p => p.ts_code).filter(Boolean).join(',');
   if (!codes) return;
   try {
     const r = await fetch('/api/picks/quote?codes=' + encodeURIComponent(codes) + '&interval=' + (parseInt(document.getElementById('posAutoInterval')?.value, 10) || 3));
     if (!r.ok) return;
     const quotes = await r.json();
-    // 当前 sub-tab 对应的 tbody id (EM + THS 都按同一套占位刷新, 容器不同而已)
-    const tbodyId = currentPicksGroup === 'combined' ? 'combinedPicksBody'
-                  : currentPicksGroup === 'conditionalNew' ? 'conditionalNewPicksBody'
-                  : currentPicksGroup === 'combinedThs' ? 'combinedPicksThsBody'
-                  : currentPicksGroup === 'conditionalThs' ? 'conditionalPicksThsBody'
-                  : 'conditionalPicksBody';
-    const tbody = document.getElementById(tbodyId);
-    if (!tbody) return;
     let updated = 0;
     for (const [ts_code, q] of Object.entries(quotes)) {
-      if (!q || q.price == null) continue;
-      const row = tbody.querySelector(`tr[data-ts-code="${ts_code}"]`);
-      if (!row) continue;
-      const liveEl = row.querySelector('.live-t1');
-      if (!liveEl) continue;
+      if (!q || q.price == null || !q.prev_close) continue;
       const cached = cache.find(x => x.ts_code === ts_code);
       if (!cached || !cached.close) continue;
-      const intradayPct = (Number(q.price) - cached.close) / cached.close * 100;
-      const rounded = Math.round(intradayPct * 100) / 100;
-      cached.post_pick_intraday_pct = rounded;  // 同步到 cache
-      // 替换 span 内容 (保持背景/动画样式)
-      liveEl.textContent = `${rounded >= 0 ? '+' : ''}${rounded.toFixed(2)}%`;
-      liveEl.title = `入选日 ${cached.trade_date} 收盘 ${cached.close.toFixed(2)} → 当前盘中 ${Number(q.price).toFixed(2)}`;
-      liveEl.style.background = intradayPct >= 0 ? 'rgba(255,82,82,0.18)' : 'rgba(0,230,118,0.18)';
-      liveEl.style.color = intradayPct >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
-      liveEl.style.fontWeight = '600';
-      liveEl.style.animation = 'none';  // 拿到价后停止脉冲
+      const i = _liveNextIndex;
+      const price = Number(q.price);
+      const prevClose = Number(q.prev_close);
+      const dailyPct = Number.isFinite(Number(q.change_pct))
+        ? Number(q.change_pct) : (price / prevClose - 1) * 100;
+      cached[`next_${i}_close`] = price;
+      cached[`next_${i}_change_pct`] = dailyPct;
+      cached[i === 1 ? 'post_pick_next_change_pct' : `post_pick_next${i}_change_pct`] = dailyPct;
+      const liveHigh = Number(q.high);
+      const priorHigh = i > 1 ? Number(cached[`max_high_t${i - 1}`]) : NaN;
+      const highs = [liveHigh, priorHigh].filter(Number.isFinite);
+      cached[`max_high_t${i}`] = highs.length ? Math.max(...highs) : null;
+      if (currentPicksGroup === 'conditionalPreferred') {
+        const outcomes = cached.preferred_outcomes || [];
+        const priorSum = i > 1 && Number.isFinite(outcomes[i - 2]?.close_sum_pct)
+          ? outcomes[i - 2].close_sum_pct : 0;
+        outcomes[i - 1] = {
+          date: outcomes[i - 1]?.date,
+          high_sum_pct: Number.isFinite(liveHigh) ? priorSum + (liveHigh / prevClose - 1) * 100 : null,
+          close_sum_pct: priorSum + dailyPct,
+          reason: 'intraday',
+        };
+        cached.preferred_outcomes = outcomes;
+      }
       updated++;
     }
     if (updated > 0) {
-      console.log(`[bucket-refresh] updated ${updated} live-t1 cells, group=${currentPicksGroup}`);
+      if (currentPicksGroup === 'conditional') renderConditionalPicksTable(cache);
+      else if (currentPicksGroup === 'conditionalNew') renderConditionalNewPicksTable(cache, true);
+      else renderConditionalPreferredPicksTable(cache, true);
+      console.log(`[bucket-refresh] updated ${updated} live T+${_liveNextIndex} cells, group=${currentPicksGroup}`);
     }
   } catch (e) {
     console.warn('_refreshBucketT1Quotes failed:', e);
@@ -8874,9 +9565,11 @@ function _klineUpdateContext() {
   const cur = _klineCurrent;
   const el = document.getElementById('klineContext');
   if (!cur || !el) return;
-  el.hidden = cur.kind !== 'index';
-  if (cur.kind !== 'index') return;
-  el.textContent = cur.tab === 'min'
+  // 股票 / 指数在分时 tab 时都显示当前分时归属日期
+  const isMin = cur.tab === 'min';
+  el.hidden = !(cur.kind === 'index' || (cur.kind !== 'index' && isMin));
+  if (!isMin && cur.kind !== 'index') return;
+  el.textContent = isMin
     ? `分时日期：${fmtDate(cur.minDate || cur.date)}`
     : (cur.dailyRange ? `日 K：${cur.dailyRange.map(fmtDate).join(' — ')} · 全部已入库历史` : '日 K：正在加载全部已入库历史');
   if (cur.tab === 'daily' && cur.dailyMessage) el.textContent += ` · ${cur.dailyMessage}`;
@@ -8978,7 +9671,8 @@ function _klineSwitchTab(tab) {
   }
 }
 
-// 分时图: 价格线 + 均价线 + 分钟量柱 (新浪分钟线, 非交易时段是最近一个交易日)
+// 分时图: 价格线 + 均价线 + 分钟量柱.
+// 数据源策略: 优先后端本地 stock_minline_bars 表, 没命中时给出"未留存"提示.
 async function _loadKlineMinline() {
   const cur = _klineCurrent;
   const box = document.getElementById('klineMinBox');
@@ -8987,7 +9681,7 @@ async function _loadKlineMinline() {
   try {
     const url = cur.kind === 'index'
       ? `/api/index/minline?ts_code=${encodeURIComponent(cur.tsCode)}&date=${encodeURIComponent(cur.date)}`
-      : `/api/stock/minline?ts_code=${encodeURIComponent(cur.tsCode)}`;
+      : `/api/stock/minline?ts_code=${encodeURIComponent(cur.tsCode)}&date=${encodeURIComponent(cur.date || cur.markDate || '')}`;
     const r = await fetch(url);
     data = await r.json();
     if (!r.ok || data.status === 'error') throw new Error(data.message || '分时加载失败');
@@ -8996,7 +9690,12 @@ async function _loadKlineMinline() {
     return;
   }
   if (_klineCurrent !== cur) return;
-  if (!data || !data.count) { _klineShowError(box, data?.message || '暂无分时数据', 'min'); return; }
+  // source === 'none' → 本地无该日分时 (新浪不支持回填历史日期). 给明确文案.
+  if (!data || !data.count || data.source === 'none') {
+    const msg = data?.message || '未留存该日分时';
+    _klineShowError(box, msg, 'min');
+    return;
+  }
   cur.minDate = data.trade_date;
   _klineUpdateContext();
   if (!cur.name && data.name) {
@@ -9020,6 +9719,10 @@ async function _loadKlineMinline() {
     splitLine: { show: false },
   };
   box.style.display = cur.tab === 'min' ? 'block' : 'none';
+  // init 前 dispose 旧实例, 防止日 K → 分时再 init 时 "There is a chart instance already initialized".
+  // 顺序很重要: 必须先 dispose 再清空 box, 否则 textContent='' 先把 canvas 子节点删了,
+  // dispose 内部 removeChild 会抛 "Cannot read properties of null".
+  if (_klineMinChart) { _klineMinChart.dispose(); _klineMinChart = null; }
   box.textContent = '';
   _klineMinChart = echarts.init(box, null, { width: box.clientWidth || document.getElementById('klineChartBox').clientWidth, height: 540 });
   const priceSeries = {
@@ -9229,6 +9932,7 @@ async function _loadKlineDaily() {
       ...Object.entries(KLINE_MA_COLORS).map(([n, color]) => ({
         name: `MA${n}`, type: 'line', data: _klineMA(closes, +n), xAxisIndex: 0, yAxisIndex: 0,
         smooth: true, showSymbol: false, lineStyle: { width: 1, color }, z: 3,
+        silent: true,  // 不响应鼠标, 让 click 穿透到 candlestick
       })),
       volumeSeries,
       { name: isIndex ? '额MA5' : '量MA5', type: 'line', data: _klineMA(volVals, 5), xAxisIndex: 1, yAxisIndex: 1,
@@ -9241,6 +9945,25 @@ async function _loadKlineDaily() {
       { name: 'DEA', type: 'line', data: macdData.dea, xAxisIndex: 2, yAxisIndex: 2,
         showSymbol: false, lineStyle: { width: 1, color: '#7ac8ff' }, z: 4 },
     ],
+  });
+  // 单击日 K 蜡烛 → 切换到该日分时. MA 线 silent:true 穿透, 但兜底接受主图 (xAxisIndex=0) 任意 series.
+  _klineChart.off('click').on('click', (params) => {
+    if (params.componentType !== 'series') return;
+    if (params.xAxisIndex !== 0 && params.seriesType !== 'candlestick') return;  // 只在主图 (日K 网格) 响应
+    const idx = params.dataIndex;
+    if (idx == null || idx < 0 || idx >= dates.length) return;
+    const picked = dates[idx];
+    if (!picked) return;
+    cur.date = picked;
+    cur.loadedMin = false;  // 强制 _klineSwitchTab('min') 重新拉
+    // 主动清理: 上次 min tab 可能停在「未留存」错误状态, 清掉 box 内容 + dispose 旧 chart,
+    // 防止 _klineSwitchTab('min') 走 resize 路径直接显示旧错误.
+    const minBox = document.getElementById('klineMinBox');
+    if (minBox) {
+      if (_klineMinChart) { _klineMinChart.dispose(); _klineMinChart = null; }
+      minBox.textContent = '加载中…';
+    }
+    _klineSwitchTab('min');
   });
 }
 
@@ -10917,6 +11640,7 @@ window.addEventListener('resize', () => {
   _mktFlowChart && _mktFlowChart.resize();
   _mktFlowDetailAmt && _mktFlowDetailAmt.resize();
   _mktFlowDetailPct && _mktFlowDetailPct.resize();
+  _resizeConditionalPreferredIndexCharts();
 });
 
 // stats 行 click 委托 → 打开弹窗 (事件绑一次, renderMktFlow 反复重写 innerHTML 不影响)
@@ -11348,14 +12072,27 @@ let _flowDates = [];  // 缓存可用日期列表
 let _flowSelDate = '';  // YYYYMMDD, 空 = "全部日期" 模式 (仅 today 模式有效)
 let _flowPeriod = '3d';  // today / 3d / 5d / 10d / 20d
 let _flowSort = { col: 'sum_main_net', dir: 'desc' };  // 默认按累计主力净降序 (Nd 模式默认值)
-let _flowSource = 'em';  // em=东方财富(push2) / ths=同花顺(ggzjl), 两套数据列口径不同
+let _flowSource = 'em';  // em=东方财富(push2) / ths=同花顺(ggzjl) / sector=板块, 三套数据列口径不同
+// 板块模式 (sector) 独立的状态: 板块没 today/Nd 聚合, 只有单一 trade_date
+let _sectorFlowType = 'industry';  // industry / concept
+let _sectorFlowDates = [];  // 该 sector_type 的可用日期列表
+let _sectorFlowSelDate = '';  // YYYYMMDD, 空 = 走 API 默认 latest
+let _sectorFlowSort = { col: 'main_net_inflow', dir: 'desc' };
 
 // 数据源切换: 重置日期/排序状态, 换表头, 显隐东财专属 UI (大盘图/补数区)
 function _applyFlowSourceUI() {
   const isEm = _flowSource === 'em';
+  const isThs = _flowSource === 'ths';
+  const isSector = _flowSource === 'sector';
   document.getElementById('flowTheadEm').style.display = isEm ? '' : 'none';
-  document.getElementById('flowTheadThs').style.display = isEm ? 'none' : '';
-  // 大盘实时资金流向图 + 补数区是东财 push2 专属, 同花顺模式藏起来
+  document.getElementById('flowTheadThs').style.display = isThs ? '' : 'none';
+  document.getElementById('flowTheadSector').style.display = isSector ? '' : 'none';
+  // 期间 sub-tab (today/3d/5d/...) 板块模式也支持 (板块 Nd 累计), 板块二级 sub-tab (行业/概念) 仅板块模式显示
+  const subtabs = document.getElementById('flowSubtabs');
+  if (subtabs) subtabs.style.display = '';
+  const sectorSubtabs = document.getElementById('flowSectorSubtabs');
+  if (sectorSubtabs) sectorSubtabs.style.display = isSector ? '' : 'none';
+  // 大盘实时资金流向图 + 补数区是东财 push2 专属, 同花顺/板块模式藏起来
   const mktCard = document.querySelector('#panel-flow .mkt-flow-card');
   if (mktCard) mktCard.style.display = isEm ? '' : 'none';
   ['flowBfBar', 'flowBfProgress', 'flowBfHealth'].forEach(id => {
@@ -11363,6 +12100,16 @@ function _applyFlowSourceUI() {
     if (el && !isEm) el.style.display = 'none';
     // em 模式的显隐由 _checkFlowGaps / 补数流程自己管, 这里不强行恢复
   });
+  // 过滤区 (市场/搜索): 板块模式不显示 "市场" filter (板块没有沪/深)
+  const marketFilter = document.getElementById('flowMktMarket');
+  if (marketFilter && marketFilter.parentElement) {
+    marketFilter.parentElement.style.display = isSector ? 'none' : '';
+  }
+  // 板块模式: 重置 sort 默认值 (agg/today 不同), period 沿用全局 _flowPeriod
+  // (切 sector 时让 _flowPeriod 保留, 用户可自由切 today/3d/5d/10d/20d)
+  if (isSector) {
+    _sectorFlowSort = { col: 'main_net_inflow', dir: 'desc' };
+  }
 }
 
 document.querySelectorAll('#flowSrcTabs .pos-subtab[data-flowsrc]').forEach(btn => {
@@ -11375,12 +12122,17 @@ document.querySelectorAll('#flowSrcTabs .pos-subtab[data-flowsrc]').forEach(btn 
     // 两套数据各有自己的日期列表和排序字段, 全部重置
     _flowSelDate = '';
     _flowDates = [];
+    _sectorFlowSelDate = '';
+    _sectorFlowDates = [];
     if (window.fpInstances['flowDate']) window.fpInstances['flowDate'].clear();
     document.getElementById('flowAllToggle').classList.add('active');
     _applyFlowSourceUI();
     _updateFlowThead();   // 重置列头 + 默认 sort (按当前 period 和 source)
     _updateFlowDateNav(); // today/Nd 模式显隐日期 UI
-    _refreshFlowDates().then(() => {
+    const datePromise = (_flowSource === 'sector')
+      ? _refreshSectorFlowDates()
+      : _refreshFlowDates();
+    datePromise.then(() => {
       renderFlow();
       if (_flowSource === 'em') { _checkFlowGaps(); renderMktFlow(_flowSelDate); }
     });
@@ -11419,9 +12171,27 @@ function _updateFlowThead() {
     th.innerHTML = (isAgg ? col.aggLabel : col.label) + ' <span class="sort-arrow"></span>';
   });
   document.getElementById('flowThsDate').textContent = isAgg ? '交易日区间' : '交易日期';
+  // 板块表头: agg 模式下切 sum_* 字段 + 累计标签 (跟 EM/THS 同口径)
+  const _sectorMap = {
+    'flowThSectorMain':   { today: 'main_net_inflow', agg: 'sum_main_net',   label: { today: '主力净流入',   agg: '主力净流入累计' } },
+    'flowThSectorPct':    { today: 'main_net_pct',    agg: 'main_net_pct',    label: { today: '净占比',       agg: '净占比'        } },  // agg 模式 pct 无效但保留
+    'flowThSectorSuper':  { today: 'super_net',       agg: 'sum_super_net',  label: { today: '超大单',       agg: '超大单累计'    } },
+    'flowThSectorBig':    { today: 'big_net',         agg: 'sum_big_net',    label: { today: '大单',         agg: '大单累计'      } },
+    'flowThSectorMid':    { today: 'mid_net',         agg: 'sum_mid_net',    label: { today: '中单',         agg: '中单累计'      } },
+    'flowThSectorSmall':  { today: 'small_net',       agg: 'sum_small_net',  label: { today: '小单',         agg: '小单累计'      } },
+  };
+  Object.keys(_sectorMap).forEach(id => {
+    const th = document.getElementById(id);
+    if (!th) return;
+    const cfg = _sectorMap[id];
+    th.dataset.sort = isAgg ? cfg.agg : cfg.today;
+    th.innerHTML = (isAgg ? cfg.label.agg : cfg.label.today) + ' <span class="sort-arrow"></span>';
+  });
   // 重置 sort 为当前 period + 数据源的默认
   if (_flowSource === 'ths') {
     _flowSort = { col: isAgg ? 'sum_net' : 'net', dir: 'desc' };
+  } else if (_flowSource === 'sector') {
+    _sectorFlowSort = { col: isAgg ? 'sum_main_net' : 'main_net_inflow', dir: 'desc' };
   } else {
     _flowSort = { col: isAgg ? 'sum_main_net' : 'main_net_inflow', dir: 'desc' };
   }
@@ -11515,13 +12285,184 @@ async function _renderFlowThs() {
       updateSortArrows('flowMktTable', _flowSort);
     }
     _updateFlowNavButtons();
+    _refreshFlowStockCountBar();
   } catch (err) {
     tbody.innerHTML = `<tr><td colspan="11" style="color:var(--accent-red);text-align:center;padding:20px">加载失败: ${err.message}</td></tr>`;
   }
 }
 
+// ── 板块数据源 (sector_fund_flow 表, 行业/概念 各自一份) ──
+// 列口径跟东财个股 push2 一致 (主力 = 超大单+大单), 多了 lead_stock_name/code 领涨股列
+// 期间 today → 单日截面; 3d/5d/10d/20d → SQL 聚合近 N 个交易日 (跟 EM/THS 个股口径一致)
+function _sectorFlowRowHtml(r, i) {
+  const isAgg = _flowPeriod !== 'today';
+  // 取值: today 用原字段, agg 用 sum_*
+  const mainV   = isAgg ? r.sum_main_net   : r.main_net_inflow;
+  const superV  = isAgg ? r.sum_super_net  : r.super_net;
+  const bigV    = isAgg ? r.sum_big_net    : r.big_net;
+  const midV    = isAgg ? r.sum_mid_net    : r.mid_net;
+  const smallV  = isAgg ? r.sum_small_net  : r.small_net;
+  // 净占比 agg 模式无意义, 显示 —
+  const pctCell = isAgg
+    ? '—'
+    : (r.main_net_pct !== null && r.main_net_pct !== undefined ? Number(r.main_net_pct).toFixed(2) + '%' : '—');
+  // 日期列: today 单日, agg "Nd 累计" + tooltip 日期范围
+  const dateCell = isAgg
+    ? `${r.flow_days || 0}日累计`
+    : (r.trade_date || '');
+  const dateTitle = isAgg
+    ? `${r.start_date || ''} ~ ${r.end_date || ''} (${r.flow_days || 0}天)`
+    : (r.trade_date || '');
+  // 领涨股代码 (6 位) 转 ts_code 供 showKlineModal 用, 失败则降级
+  let leadTs = '';
+  if (r.lead_stock_code && r.lead_stock_code.length === 6) {
+    // 6/9 开头 → 沪 (主板/科创/B 股); 否则 → 深
+    const _sh = r.lead_stock_code.startsWith('6') || r.lead_stock_code.startsWith('9');
+    leadTs = r.lead_stock_code + (_sh ? '.SH' : '.SZ');
+  }
+  const leadHtml = r.lead_stock_code
+    ? `<span style="cursor:pointer" onclick="${leadTs ? `showKlineModal('${leadTs}','${r.lead_stock_name || ''}')` : ''}"><span style="font-family:'JetBrains Mono',monospace;color:var(--accent-blue)">${r.lead_stock_code}</span> <span style="color:var(--text-secondary)">${r.lead_stock_name || ''}</span></span>`
+    : '<span style="color:var(--text-muted)">—</span>';
+  // close / change_pct agg 模式是最新一日的快照 (后端相关子查询)
+  const closeStr = r.close !== null && r.close !== undefined ? Number(r.close).toFixed(2) : '—';
+  const changeStr = r.change_pct !== null && r.change_pct !== undefined ? Number(r.change_pct).toFixed(2) + '%' : '—';
+  return `
+    <tr style="cursor:default" title="${dateTitle}">
+      <td style="color:var(--text-muted)">${i + 1}</td>
+      <td style="font-family:'JetBrains Mono',monospace;color:var(--text-secondary)">${r.sector_code}</td>
+      <td style="font-weight:600">${r.name || '—'}</td>
+      <td style="text-align:right">${closeStr}</td>
+      <td style="text-align:right;color:${_flowColor(r.change_pct)}">${changeStr}</td>
+      <td style="text-align:right;color:${_flowColor(mainV)};font-weight:600">${_flowFmtYuan(mainV)}</td>
+      <td style="text-align:right;color:${_flowColor(r.main_net_pct)}">${pctCell}</td>
+      <td style="text-align:right;color:${_flowColor(superV)}">${_flowFmtYuan(superV)}</td>
+      <td style="text-align:right;color:${_flowColor(bigV)}">${_flowFmtYuan(bigV)}</td>
+      <td style="text-align:right;color:${_flowColor(midV)}">${_flowFmtYuan(midV)}</td>
+      <td style="text-align:right;color:${_flowColor(smallV)}">${_flowFmtYuan(smallV)}</td>
+      <td style="font-size:12px">${leadHtml}</td>
+      <td style="color:var(--text-muted);font-size:11px">${dateCell}</td>
+    </tr>
+  `;
+}
+
+async function _renderFlowSector() {
+  const tbody = document.getElementById('flowMktTbody');
+  const empty = document.getElementById('flowMktEmpty');
+  const info = document.getElementById('flowMktInfo');
+
+  const isAgg = _flowPeriod !== 'today';
+  const search = (document.getElementById('flowMktSearch') || {}).value || '';
+  const params = new URLSearchParams({
+    type: _sectorFlowType,
+    period: _flowPeriod,
+    sort: _sectorFlowSort.col || (isAgg ? 'sum_main_net' : 'main_net_inflow'),
+    order: _sectorFlowSort.dir || 'desc',
+    search: search.trim(),
+    limit: 500,  // 行业 496 / 概念 504, 给 500 上限免截断
+  });
+  // today 模式才传 date, Nd 累计走 trading_dates_cache 窗口
+  if (_sectorFlowSelDate && !isAgg) params.set('date', _sectorFlowSelDate);
+
+  try {
+    const r = await fetch('/api/flow/sector/market?' + params.toString());
+    const d = await r.json();
+    if (!d || d.error || d.count === 0) {
+      tbody.innerHTML = '';
+      empty.style.display = '';
+      const msg = d && d.message ? d.message : `还没有 ${_sectorFlowType === 'industry' ? '行业' : '概念'} 板块资金流数据`;
+      empty.querySelectorAll('.flow-empty-text')[0].textContent = msg;
+      empty.querySelectorAll('.flow-empty-text')[1].textContent = '点上方"同步数据"按钮, 5-10 秒抓完';
+      const periodLabel = isAgg ? `${_flowPeriod}累计` : '当日';
+      info.textContent = `0 行 · ${_sectorFlowType === 'industry' ? '行业' : '概念'} · ${periodLabel}`;
+      return;
+    }
+    empty.style.display = 'none';
+    tbody.innerHTML = d.rows.map((r, i) => _sectorFlowRowHtml(r, i)).join('');
+    const sortLabel = `${_sectorFlowSort.col} ${_sectorFlowSort.dir === 'asc' ? '↑' : '↓'}`;
+    const typeLabel = _sectorFlowType === 'industry' ? '行业' : '概念';
+    const periodLabel = isAgg
+      ? `${d.flow_days || d.rows[0]?.flow_days || 0}日累计`
+      : (d.trade_date || '最新');
+    info.textContent = `${d.count} 行 · ${typeLabel} · ${periodLabel} · ${sortLabel}`;
+    if (typeof updateSortArrows === 'function') {
+      updateSortArrows('flowMktTable', _sectorFlowSort);
+    }
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="13" style="color:var(--accent-red);text-align:center;padding:20px">加载失败: ${err.message}</td></tr>`;
+  }
+}
+
+async function _refreshSectorFlowDates() {
+  try {
+    const r = await fetch(`/api/flow/sector/dates?type=${_sectorFlowType}`);
+    const d = await r.json();
+    _sectorFlowDates = d.dates || [];
+    if (_sectorFlowDates.length && !_sectorFlowSelDate) {
+      _sectorFlowSelDate = _sectorFlowDates[0];
+      // 同步日期选择器 visual (跟 _refreshFlowDates 行为一致)
+      const [y, m, dy] = [_sectorFlowSelDate.slice(0,4), _sectorFlowSelDate.slice(4,6), _sectorFlowSelDate.slice(6,8)];
+      if (window.fpInstances['flowDate']) {
+        window.fpInstances['flowDate'].setDate(`${y}-${m}-${dy}`, true);
+      }
+      const allToggle = document.getElementById('flowAllToggle');
+      if (allToggle) allToggle.classList.remove('active');
+    }
+  } catch (err) {
+    _sectorFlowDates = [];
+  }
+}
+
+// 板块二级 sub-tab: 切 行业 / 概念, 重新拉日期+数据
+document.querySelectorAll('#flowSectorSubtabs .pos-subtab[data-flowsectortype]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const newType = btn.dataset.flowsectortype;
+    if (newType === _sectorFlowType) return;
+    _sectorFlowType = newType;
+    _sectorFlowSelDate = '';
+    _sectorFlowDates = [];
+    _sectorFlowSort = { col: 'main_net_inflow', dir: 'desc' };
+    document.querySelectorAll('#flowSectorSubtabs .pos-subtab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    _refreshSectorFlowDates().then(() => _renderFlowSector());
+  });
+});
+
+// 顶部 status bar: 显示当前选中日期 (或最新一日) 的入库只数, 数据残缺时给红字警告
+async function _refreshFlowStockCountBar() {
+  const bar = document.getElementById('flowStockCountBar');
+  if (!bar) return;
+  // ths 数据源没有 stock-count endpoint, 直接隐藏
+  if (_flowSource !== 'em') { bar.style.display = 'none'; return; }
+  // period=Nd 模式没有具体日期, 用最新一日
+  const date = _flowSelDate || (_flowDates[0] || '');
+  if (!date) { bar.style.display = 'none'; return; }
+  try {
+    const r = await fetch(`/api/flow/stock-count?date=${date}&source=eastmoney-push2`);
+    const d = await r.json();
+    if (!d || d.error) { bar.style.display = 'none'; return; }
+    _renderFlowStockCountBar(d, date);
+  } catch (e) {
+    bar.style.display = 'none';
+  }
+}
+
+function _renderFlowStockCountBar(d, dateYYYYMMDD) {
+  const bar = document.getElementById('flowStockCountBar');
+  if (!bar) return;
+  const dt = `${dateYYYYMMDD.slice(0,4)}-${dateYYYYMMDD.slice(4,6)}-${dateYYYYMMDD.slice(6,8)}`;
+  const dt_md = `${dateYYYYMMDD.slice(4,6)}-${dateYYYYMMDD.slice(6,8)}`;
+  if (d.is_low) {
+    bar.style.cssText = 'display:block;padding:8px 12px;margin-bottom:8px;border-radius:5px;font-size:12.5px;font-family:"JetBrains Mono",monospace;background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.35);color:#fca5a5';
+    bar.innerHTML = `⚠️ <b>${dt_md} (${dt})</b> 仅录入了 <b style="color:#ef4444">${d.stocks}</b> 只个股的主力净流入数据, 正常水平约 5300 只, <b>数据不完整</b>。榜单/排名仅供参考, 不代表全市场。`;
+  } else {
+    bar.style.cssText = 'display:block;padding:6px 12px;margin-bottom:8px;border-radius:5px;font-size:12px;font-family:"JetBrains Mono",monospace;background:rgba(99,214,160,0.06);border:1px solid rgba(99,214,160,0.18);color:var(--text-secondary)';
+    bar.innerHTML = `✓ <b>${dt_md} (${dt})</b> 录入了 <b style="color:var(--text-primary)">${d.stocks}</b> 只个股的主力净流入数据 (${d.first_seen || ''})`;
+  }
+}
+
 async function renderFlow() {
   if (_flowSource === 'ths') return _renderFlowThs();  // 同花顺分类走独立数据源
+  if (_flowSource === 'sector') return _renderFlowSector();  // 板块 (行业/概念) 走 sector_fund_flow
   const tbody = document.getElementById('flowMktTbody');
   const empty = document.getElementById('flowMktEmpty');
   const info = document.getElementById('flowMktInfo');
@@ -11562,6 +12503,8 @@ async function renderFlow() {
     }
     // 同步更新上一日/下一日按钮的禁用状态
     _updateFlowNavButtons();
+    // 刷新顶部入库只数提示 (异步不阻塞表格渲染)
+    _refreshFlowStockCountBar();
     // 委托: 点 5档数值列 → 打开个股资金流向弹窗 (传 ts_code + 高亮档)
     tbody.querySelectorAll('.flow-bucket-cell').forEach(td => {
       td.addEventListener('click', (e) => {
@@ -11611,7 +12554,10 @@ document.querySelectorAll('#flowSubtabs .pos-subtab[data-flowperiod]').forEach(b
     btn.classList.add('active');
     _updateFlowThead();   // 改列头 + 默认 sort
     _updateFlowDateNav(); // Nd 模式隐藏日期切换 UI
-    if (_flowPeriod !== 'today') _flowSelDate = '';  // Nd 模式不需要日期
+    if (_flowPeriod !== 'today') {
+      _flowSelDate = '';
+      _sectorFlowSelDate = '';  // 板块 Nd 累计也不绑日期
+    }
     renderFlow();
     if (_flowSource === 'em') renderMktFlow(_flowSelDate);  // 同步刷新大盘资金流图 (东财专属)
   });
@@ -11625,26 +12571,35 @@ function _flowShiftDate(delta) {
   // 列表是倒序 (index 0 = 最新, index N-1 = 最旧)
   // 语义: delta=+1 = 下一日 (更新的, index 往前走)
   //       delta=-1 = 上一日 (更旧的, index 往后走)
+  // 板块模式用 _sectorFlowDates / _sectorFlowSelDate, 其它走个股
+  const isSector = _flowSource === 'sector';
+  const dates = isSector ? _sectorFlowDates : _flowDates;
+  let selDate = isSector ? _sectorFlowSelDate : _flowSelDate;
   let idx;
-  if (_flowSelDate) {
-    idx = _flowDates.indexOf(_flowSelDate);
+  if (selDate) {
+    idx = dates.indexOf(selDate);
     if (idx === -1) idx = 0;
   } else {
     idx = 0;
   }
   const newIdx = idx - delta;  // 倒序列表 + 语义化 delta, 用减法
-  if (newIdx < 0 || newIdx >= _flowDates.length) {
+  if (newIdx < 0 || newIdx >= dates.length) {
     showToast(newIdx < 0 ? '⚠️ 已经是最近的日期' : '⚠️ 已经是最早的日期');
     return;
   }
-  _flowSelDate = _flowDates[newIdx];
+  selDate = dates[newIdx];
+  if (isSector) {
+    _sectorFlowSelDate = selDate;
+  } else {
+    _flowSelDate = selDate;
+  }
   document.getElementById('flowAllToggle').classList.remove('active');
   if (window.fpInstances['flowDate']) {
-    const [y, m, d] = [_flowSelDate.slice(0,4), _flowSelDate.slice(4,6), _flowSelDate.slice(6,8)];
+    const [y, m, d] = [selDate.slice(0,4), selDate.slice(4,6), selDate.slice(6,8)];
     window.fpInstances['flowDate'].setDate(`${y}-${m}-${d}`, false);
   }
   renderFlow();
-  if (_flowSource === 'em') renderMktFlow(_flowSelDate);  // 同步刷新大盘资金流图 (东财专属)
+  if (_flowSource === 'em') renderMktFlow(selDate);  // 同步刷新大盘资金流图 (东财专属)
   _updateFlowNavButtons();
 }
 
@@ -11653,19 +12608,23 @@ function _updateFlowNavButtons() {
   const prevBtn = document.getElementById('flowPrevBtn');
   const nextBtn = document.getElementById('flowNextBtn');
   if (!prevBtn || !nextBtn) return;
+  // 板块模式用 _sectorFlowDates / _sectorFlowSelDate, 其它走个股
+  const isSector = _flowSource === 'sector';
+  const dates = isSector ? _sectorFlowDates : _flowDates;
+  const selDate = isSector ? _sectorFlowSelDate : _flowSelDate;
   let atOldest = false, atNewest = false;
-  if (_flowDates.length === 0) {
+  if (dates.length === 0) {
     atOldest = atNewest = true;  // 没数据, 两个都置灰
-  } else if (!_flowSelDate) {
+  } else if (!selDate) {
     // 默认 "全部日期" 模式 = 隐含在最新 (idx=0), 下一日按钮置灰
     atNewest = true;
   } else {
-    const idx = _flowDates.indexOf(_flowSelDate);
+    const idx = dates.indexOf(selDate);
     if (idx === -1) {
       atOldest = atNewest = true;  // 选中日期不在列表里 (异常)
     } else {
       atNewest = idx === 0;
-      atOldest = idx === _flowDates.length - 1;
+      atOldest = idx === dates.length - 1;
     }
   }
   [prevBtn, nextBtn].forEach((btn, i) => {
@@ -11682,10 +12641,17 @@ async function _flowSync() {
   const label = document.getElementById('flowProgressLabel');
   const fill = document.getElementById('flowProgressFill');
   const isThs = _flowSource === 'ths';
+  const isSector = _flowSource === 'sector';
+  // 三个数据源各自的 sync URL + status URL
   // 东财: push2 间歇限流, wait_for_user 弹浏览器让用户手动刷新
   // 同花顺: 真实 Chrome 藏窗口翻 105 页, 不需要用户介入, 但要 5-8 分钟
-  const syncUrl = isThs ? '/api/flow/ths/sync?force=1' : '/api/flow/sync-market?force=1&wait_for_user=1';
-  const statusUrl = isThs ? '/api/flow/ths/sync-status' : '/api/flow/sync-status';
+  // 板块: 量级小 (~10s 跑完), wait_for_user 兜底防反爬
+  const syncUrl = isSector
+    ? `/api/flow/sector/sync?type=${_sectorFlowType}&force=1&wait_for_user=1`
+    : (isThs ? '/api/flow/ths/sync?force=1' : '/api/flow/sync-market?force=1&wait_for_user=1');
+  const statusUrl = isSector
+    ? '/api/flow/sector/sync-status'
+    : (isThs ? '/api/flow/ths/sync-status' : '/api/flow/sync-status');
 
   try {
     const r = await fetch(syncUrl, { method: 'POST' });
@@ -11694,6 +12660,9 @@ async function _flowSync() {
       showToast('⏳ 同步仍在进行中, 请稍候');
     } else if (isThs) {
       showToast('⏳ 已开始同步同花顺数据, 约 5-8 分钟 (后台真实浏览器翻 105 页)');
+    } else if (isSector) {
+      const typeLabel = _sectorFlowType === 'industry' ? '行业' : '概念';
+      showToast(`⏳ 已开始同步${typeLabel}板块, 约 5-10 秒, 浏览器会弹出 — 第 1 页拿不到数据时, 请在弹出的浏览器里按 Cmd+R 刷新`);
     } else {
       showToast('⏳ 已开始同步, 浏览器会弹出 — 第 1 页拿不到数据时, 请在弹出的浏览器里按 Cmd+R 刷新');
     }
@@ -11752,7 +12721,11 @@ async function _flowSync() {
         }
         setTimeout(async () => {
           wrap.style.display = 'none';
-          await _refreshFlowDates();
+          if (isSector) {
+            await _refreshSectorFlowDates();
+          } else {
+            await _refreshFlowDates();
+          }
           renderFlow();
         }, 3000);
       }
@@ -11889,6 +12862,7 @@ function _bindFlow() {
   document.getElementById('flowNextBtn').onclick = () => _flowShiftDate(+1);
   document.getElementById('flowAllToggle').onclick = () => {
     _flowSelDate = '';
+    _sectorFlowSelDate = '';  // 板块模式也回到最新
     document.getElementById('flowAllToggle').classList.add('active');
     if (window.fpInstances['flowDate']) window.fpInstances['flowDate'].clear();
     renderFlow();
@@ -11904,7 +12878,12 @@ function _bindFlow() {
   document.getElementById('flowDate').addEventListener('change', (e) => {
     const v = e.target.value;  // YYYY-MM-DD
     if (v) {
-      _flowSelDate = v.replace(/-/g, '');
+      const ymd = v.replace(/-/g, '');
+      if (_flowSource === 'sector') {
+        _sectorFlowSelDate = ymd;  // 板块模式用独立日期变量
+      } else {
+        _flowSelDate = ymd;
+      }
       document.getElementById('flowAllToggle').classList.remove('active');
     }
     renderFlow();
@@ -11913,7 +12892,11 @@ function _bindFlow() {
   // 列头点击排序 (复用项目里的 cycleSort 模式)
   document.querySelectorAll('#flowMktTable th.sortable').forEach(th => {
     th.addEventListener('click', () => {
-      _flowSort = cycleSort(_flowSort, th.dataset.sort);
+      if (_flowSource === 'sector') {
+        _sectorFlowSort = cycleSort(_sectorFlowSort, th.dataset.sort);
+      } else {
+        _flowSort = cycleSort(_flowSort, th.dataset.sort);
+      }
       renderFlow();
     });
   });
@@ -11938,7 +12921,7 @@ function _defaultSubFor(source) {
 }
 
 const PICKS_SUB_TABS = {
-  em:   [{key: 'system', label: '系统推荐'}, {key: 'conditional', label: '条件选股'}, {key: 'conditionalNew', label: '条件选股新'}, {key: 'combined', label: '组合选股'}],
+  em:   [{key: 'system', label: '系统推荐'}, {key: 'conditional', label: '条件选股'}, {key: 'conditionalNew', label: '条件选股新'}, {key: 'conditionalPreferred', label: '条件优选'}, {key: 'combined', label: '组合选股'}],
   ths:  [{key: 'ths', label: '系统推荐'}, {key: 'conditionalThs', label: '条件选股'}, {key: 'combinedThs', label: '组合选股'}],
   user: [{key: 'user', label: '我的选股'}],
 };
@@ -11978,9 +12961,11 @@ function _updatePicksButtons() {
     document.getElementById('picksSyncBtn').textContent = isThs ? '🔄 同步同花顺' : '🔄 同步数据';
   }
   // 资金门槛 + 同步日期按钮: 条件/组合共用 (EM + THS 都用)
-  const isAnyCond = isCond || isCondNew || isComb || isCondThs || isCombThs;
+  const isPreferred = g === 'conditionalPreferred';
+  document.getElementById('picksInfo').style.display = isPreferred ? 'none' : '';
+  const isAnyCond = isCond || isCondNew || isPreferred || isComb || isCondThs || isCombThs;
   document.getElementById('picksThresholdGroup').style.display = isAnyCond ? 'inline-flex' : 'none';
-  document.getElementById('picksVolumeRatioGroup').style.display = isCondNew ? 'inline-flex' : 'none';
+  document.getElementById('picksVolumeRatioGroup').style.display = isCondNew || isPreferred ? 'inline-flex' : 'none';
   document.getElementById('picksSyncDateBtn').style.display = isAnyCond ? '' : 'none';
   document.getElementById('condBackfillBtn').style.display = isCond ? '' : 'none';
   document.getElementById('condPreviewBtn').style.display = isCond ? '' : 'none';
@@ -11989,6 +12974,7 @@ function _updatePicksButtons() {
 }
 
 function _onSourceTabClick(source) {
+  _conditionalPreferredRequestId++;
   // 一级 Tab 点击: 切数据源, 重置到该源的默认 sub-group, 重渲染 sub-tabs
   if (currentPicksGroup === 'conditionalNew') _conditionalNewRequestId++;
   document.querySelectorAll('#picksSourceTabs .pos-subtab').forEach(b => b.classList.toggle('active', b.dataset.source === source));
@@ -12000,6 +12986,7 @@ function _onSourceTabClick(source) {
 }
 
 function _onSubTabClick(subGroup) {
+  _conditionalPreferredRequestId++;
   // 二级 sub-tab 点击: 切子视图
   if (currentPicksGroup === 'conditionalNew' && subGroup !== 'conditionalNew') {
     _conditionalNewRequestId++;
@@ -12014,12 +13001,15 @@ function _onSubTabClick(subGroup) {
 function _bindPicks() {
   // 同步按钮: 按 currentPicksGroup 路由到 EM 或 THS 的 sync, 默认 EM
   document.getElementById('picksSyncBtn').onclick = () => {
-    if (currentPicksGroup === 'ths') return syncPicksThs();
+    const g = currentPicksGroup;
+    if (g === 'ths') return syncPicksThs();
+    if (g === 'system') return syncPicksDate(g);  // 系统推荐: 顺手把条件/组合/新/优选快照也一并入库
     return syncPicks();
   };
   // 按日期一键同步 (条件/组合选股共用, 对当前选中日期跑完整同步链)
   document.getElementById('picksSyncDateBtn').onclick = () => {
     const g = currentPicksGroup;
+    if (g === 'conditionalPreferred') return syncPicksDate(g);
     if (g === 'conditionalThs' || g === 'combinedThs') return syncPicksDate(g);
     if (g === 'combined') return syncPicksDate('combined');
     return syncPicksDate('conditional');
@@ -12066,6 +13056,63 @@ function _bindPicks() {
 loadData();
 _bindFlow();
 _bindPicks();
+
+// ── 顶栏「数据拉取情况」: 跟随当前 tab 选中的日期, 60s 自动刷新 ──
+const SYNC_STATUS_COLORS = {ok: '#00e676', partial: '#ffd740', missing: '#ff5252', empty: '#4a5568'};
+const SYNC_STATUS_LABELS = {ok: '已拉全', partial: '不完整', missing: '缺失', empty: '无数据'};
+const SYNC_TAB_PICKERS = {index: 'idxDate', leaderboard: 'lbDate', limitup: 'luDate', lz: 'lzDate', flow: 'flowDate', picks: 'picksDate', sectors: 'sectorsDate'};
+function currentSyncDate() {
+  const tab = document.querySelector('.tab-btn.active')?.dataset.tab;
+  const pickerId = SYNC_TAB_PICKERS[tab];
+  const v = pickerId ? document.getElementById(pickerId)?.value : '';
+  const d = String(v || '').replace(/[^\d]/g, '');
+  return /^\d{8}$/.test(d) ? d : '';
+}
+async function refreshSyncStatus() {
+  const pill = document.getElementById('syncPill');
+  try {
+    const sel = currentSyncDate();
+    const d = await (await fetch('/api/sync/overview' + (sel ? `?date=${sel}` : ''))).json();
+    const total = d.sources.length;
+    const worst = d.missing > 0 ? 'missing' : d.partial > 0 ? 'partial' : 'ok';
+    const short = `${d.ref_date.slice(4, 6)}-${d.ref_date.slice(6)}`;
+    pill.innerHTML = `<span class="dot" style="background:${SYNC_STATUS_COLORS[worst]}"></span>` +
+      `${short} 数据 ${d.ok}/${total}${d.missing ? ` · 缺 ${d.missing}` : ''}${d.partial ? ` · 少 ${d.partial}` : ''}`;
+    pill.classList.toggle('warn', worst !== 'ok');
+    const dateStr = d.ref_date ? `${d.ref_date.slice(0,4)}-${d.ref_date.slice(4,6)}-${d.ref_date.slice(6)}` : '—';
+    document.getElementById('syncPanel').innerHTML =
+      `<div class="sync-panel-head"><span>拉取目标: <strong>${dateStr}</strong>${d.is_trading_today ? '' : d.ref_date === d.today ? ' (今日非交易日)' : ''}</span><span>更新于 ${d.generated_at}</span></div>` +
+      `<div class="sync-grid">${d.sources.map(s => {
+        const stale = s.latest && s.latest !== d.ref_date;
+        const cls = s.status === 'missing' || s.status === 'empty' ? 'miss' : s.status === 'partial' ? 'part' : '';
+        const detail = s.count > 0
+          ? `${s.count.toLocaleString()} 行${s.count < s.expected ? ` / 应≥${s.expected.toLocaleString()}` : ''}`
+          : `0 行 · 最新 ${s.latest ? s.latest.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3') : '—'}`;
+        return `<div class="sync-item ${cls} ${stale && s.count > 0 ? 'stale' : ''}" title="${s.name}: ${SYNC_STATUS_LABELS[s.status]}${stale ? ` · 表内最新 ${s.latest}` : ''}">` +
+          `<span class="dot" style="background:${SYNC_STATUS_COLORS[s.status]}"></span>` +
+          `<span class="nm">${s.name}</span><span class="ct">${detail}</span></div>`;
+      }).join('')}</div>`;
+  } catch (e) {
+    pill.innerHTML = '<span class="dot" style="background:#4a5568"></span>数据状态不可用';
+  }
+}
+document.getElementById('syncPill').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const p = document.getElementById('syncPanel');
+  p.hidden = !p.hidden;
+  if (!p.hidden) refreshSyncStatus();
+});
+document.addEventListener('click', (e) => {
+  const p = document.getElementById('syncPanel');
+  if (!p.hidden && !e.target.closest('.sync-status-wrap')) p.hidden = true;
+  if (e.target.closest('.tab-btn')) setTimeout(refreshSyncStatus, 0);
+});
+// capture 阶段监听: 既有日期处理里有 stopPropagation, 冒泡到不了 document
+document.addEventListener('change', (e) => {
+  if (e.target.classList?.contains('date-picker')) refreshSyncStatus();
+}, true);
+refreshSyncStatus();
+setInterval(refreshSyncStatus, 60000);
 // 预热: 拉已知板块名给自选板块 datalist 用 (一次即可, 静态)
 _loadKnownSectors();
 

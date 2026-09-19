@@ -181,6 +181,90 @@ def register_market_fflow_after_close():
                       name=f'盘后入库大盘资金流 ({tag}, 供历史 tab 回看)')
 
 
+def register_bk_flow_after_close():
+    """盘后抓东方财富板块资金流 (行业 + 概念) → 落 sector_fund_flow 表.
+    15:35 行业主跑 + 15:36 概念主跑 + 16:30/16:31 兜底.
+    行业先跑 1 分钟错开 (避免 push2 同时段被双调用限流).
+    行业 ~5 页 5s, 概念 ~5 页 5s, 总共 ~10s 跑完.
+    幂等: _bk_sync_market_bg(force=False) 自带 skip_if_exists, 已有数据直接跳过."""
+    from datetime import datetime
+
+    def _job(sector_type, tag):
+        from app import _bk_sync_market_bg, _BKSYNC_STATE
+        today = datetime.now().strftime('%Y%m%d')
+        if _BKSYNC_STATE.get('running'):
+            print(f'[bk fflow] {sector_type} {today} [{tag}] 上一次还在跑, 跳过', flush=True)
+            return
+        try:
+            _bk_sync_market_bg(sector_type=sector_type, force=False)
+        except Exception as e:
+            print(f'[bk fflow] {sector_type} {today} [{tag}] 异常: {e}', flush=True)
+            traceback.print_exc()
+
+    for hh, mm, jid, tag in [
+        (15, 35, 'bk_flow_industry_after_close',     '15:35'),
+        (15, 36, 'bk_flow_concept_after_close',      '15:36'),
+        (16, 30, 'bk_flow_industry_after_close_late','16:30'),
+        (16, 31, 'bk_flow_concept_after_close_late', '16:31'),
+    ]:
+        st = 'industry' if 'industry' in jid else 'concept'
+        trigger = CronTrigger(hour=hh, minute=mm)
+        safe_register(lambda t=tag, s=st: _job(s, t), trigger, id=jid,
+                      name=f'盘后抓板块资金流-{st} ({tag})')
+
+
+def register_stock_minline_after_close():
+    """盘后批量抓全市场个股分时 → 落 stock_minline_bars 表.
+
+    15:05 主跑 (比 15:00 收盘迟 5 分钟, 给上游定格) + 16:30 兜底 (15:05 偶尔 sina 临时抽风).
+    交易日守卫在 run() 内部 (_infer_minline_trade_date → last_trading_date, 非交易日→上一交易日, 自动跳过).
+    已有 (ts_code, trade_date) 行会被 run() 跳过, 幂等可重跑.
+    """
+    from fetch_stock_minline_daily import run as run_minline
+
+    def _job(tag):
+        try:
+            summary = run_minline(verbose=True)
+            print(f'[fetch_minline] {tag} {summary}', flush=True)
+        except Exception as e:
+            print(f'[fetch_minline] {tag} 异常: {e}', flush=True)
+            traceback.print_exc()
+
+    for hh, mm, jid, tag in [
+        (15, 5,  'stock_minline_after_close',      '15:05'),
+        (16, 30, 'stock_minline_after_close_late', '16:30'),
+    ]:
+        trigger = CronTrigger(day_of_week='mon-fri', hour=hh, minute=mm)
+        safe_register(lambda t=tag: _job(t), trigger, id=jid,
+                      name=f'盘后批量抓全市场个股分时入库 ({tag})')
+
+
+def register_index_minline_after_close():
+    """盘后批量抓 4 大指数分时 → 落 index_minline_bars 表.
+
+    4 只规模极小 (~2s 跑完), 跟个股 job 共用 15:05 + 16:30 时段, 失败 16:30 兜底.
+    跟个股 job 共时段不会触发限流 (4 只 vs 5500 只, 量级差千倍).
+    交易日守卫 + 跨日 quote 核验都在 run() 内部.
+    """
+    from fetch_index_minline_daily import run as run_idx_minline
+
+    def _job(tag):
+        try:
+            summary = run_idx_minline(verbose=True)
+            print(f'[fetch_idx_minline] {tag} {summary}', flush=True)
+        except Exception as e:
+            print(f'[fetch_idx_minline] {tag} 异常: {e}', flush=True)
+            traceback.print_exc()
+
+    for hh, mm, jid, tag in [
+        (15, 5,  'index_minline_after_close',      '15:05'),
+        (16, 30, 'index_minline_after_close_late', '16:30'),
+    ]:
+        trigger = CronTrigger(day_of_week='mon-fri', hour=hh, minute=mm)
+        safe_register(lambda t=tag: _job(t), trigger, id=jid,
+                      name=f'盘后批量抓指数分时入库 ({tag})')
+
+
 def register_ths_flow_after_close():
     """盘后抓同花顺个股资金流 (data.10jqka.com.cn/ggzjl) → fund_flow_ths 表.
     17:05 主跑 + 19:30 兜底: 用户要求自动触发等 17 点后 (同花顺页面数据盘后较晚定格);

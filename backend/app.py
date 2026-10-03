@@ -50,6 +50,13 @@ DB_PATH = os.path.join(os.path.dirname(__file__), 'market_data.db')
 TUSHARE_TOKEN = '1905eff139f559e9caa61c7363ac18e6217a33032e9e434812db1e34'
 INTERVALS = [('5日', 5), ('10日', 10), ('20日', 20)]  # 涨幅榜区间 (名称, 天数)
 
+# 飞书表格同步 (盘面晴雨表 → 飞书)
+FEISHU_BAROMETER_SPREADSHEET_TOKEN = 'Pbhssp0pshZXPktMddpcaHJlnue'  # "盘面晴雨表" spreadsheet
+LARK_CLI_BIN = '/Users/xyra/.local/bin/lark-cli'                     # 本机 lark-cli 绝对路径 (PATH 不一定含 .local/bin)
+LARK_CMD_TIMEOUT = 60                                                # 单次 lark-cli subprocess 超时 (秒)
+LOG_DIR = os.path.join(os.path.dirname(__file__), 'logs')
+os.makedirs(LOG_DIR, exist_ok=True)                                   # lark 失败时落日志的目录 (幂等)
+
 # 主力净流入数据源
 AKSHARE_TIMEOUT = 15                                  # 单次 AKShare 调用超时
 PUSH2_BASE = 'https://push2.eastmoney.com/api/qt/clist/get'  # 东方财富 push2 全市场接口
@@ -640,6 +647,48 @@ def init_db():
     _add_col_if_missing(c, 'user_sector_stocks', 'rank', 'INTEGER')  # 1/2/3 (在 role 内的排序)
     c.execute('CREATE INDEX IF NOT EXISTS idx_user_sector_stocks_sector ON user_sector_stocks(sector_id)')
 
+    # 盘面晴雨表 (按日汇总, 单日单行; 手机端晴雨 tab 渲染; comments / signal 本轮不写, 留人工填)
+    c.execute('''CREATE TABLE IF NOT EXISTS market_barometer (
+        date TEXT PRIMARY KEY,                          -- YYYYMMDD
+        shanghai_index REAL, shanghai_change REAL,
+        kechuang50_index REAL, kechuang50_change REAL,
+        main_money_yi REAL, big_money_yi REAL, small_money_yi REAL,
+        turnover_yi REAL,
+        advancers INTEGER, decliners INTEGER,
+        top1_name TEXT,  top1_rate REAL,  top1_money REAL,  top1_stock TEXT,
+        top2_name TEXT,  top2_rate REAL,  top2_money REAL,  top2_stock TEXT,
+        top3_name TEXT,  top3_rate REAL,  top3_money REAL,  top3_stock TEXT,
+        hot5_sector TEXT,  hot5_stock TEXT,
+        hot10_sector TEXT, hot10_stock TEXT,
+        hot20_sector TEXT, hot20_stock TEXT,
+        comments TEXT,
+        signal TEXT,
+        synced_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    )''')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_market_barometer_synced ON market_barometer(synced_at)')
+
+    # 盘面晴雨表 · 手工笔记表 (xlsx 同款字段, 全部可空, 本轮只读)
+    c.execute('''CREATE TABLE IF NOT EXISTS market_notes (
+        date TEXT PRIMARY KEY,
+        weekdays TEXT,
+        shanghai_index REAL, change_rate REAL,
+        kechuang50_index REAL, kechuang50_rate REAL,
+        main_money REAL, big_money REAL, small_money REAL, turnover REAL,
+        advancers INTEGER, decliners INTEGER,
+        today_top1_concept TEXT, today_top1_concept_rate REAL,
+        today_top1_concept_money REAL, today_top1_concept_stock TEXT,
+        today_top2_concept TEXT, today_top2_concept_rate REAL,
+        today_top2_concept_money REAL, today_top2_concept_stock TEXT,
+        today_top3_concept TEXT, today_top3_concept_rate REAL,
+        today_top3_concept_money REAL, today_top3_concept_stock TEXT,
+        hot5_sector TEXT, hot5_stock TEXT,
+        hot10_sector TEXT, hot10_stock TEXT,
+        hot20_sector TEXT, hot20_stock TEXT,
+        comments TEXT, signal TEXT,
+        synced_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    )''')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_market_notes_synced ON market_notes(synced_at)')
+
     # ============ 阶段 0: 申万行业 / 涨停 Tushare 兜底 / 北向资金 新表 (情绪分析系统前置) ============
 
     # 申万行业分类 (L1/L2/L3)
@@ -746,6 +795,484 @@ def init_db():
         print(f'[init_db] stock_sector_summary 重建完成: {n} 只股')
     except Exception as e:
         print(f'[init_db] sector summary 重建失败 (非致命): {e}')
+
+
+def sync_market_barometer(date: str) -> dict:
+    """盘面晴雨表同步: 从本地数据库计算并 UPSERT 某日 (YYYYMMDD) 一行.
+    数据源: index_daily (上证/科创50) / overview (成交/涨跌家数) /
+            market_fflow.last JSON (5 档资金) / sector_fund_flow (top 概念) /
+            leaderboard + limitup (近 5/10/20 日热门板块+个股).
+    comments / signal 不写, 留作未来人工填入口子."""
+    import json as _json
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    iso = f'{date[:4]}-{date[4:6]}-{date[6:8]}'
+    row = {}
+    # 1) 核心指数
+    idx = {r['name']: r for r in conn.execute(
+        "SELECT name, close, change FROM index_daily WHERE date IN (?, ?) AND name IN ('上证指数','科创50')",
+        (date, iso))}
+    sh = idx.get('上证指数')
+    if sh:
+        row['shanghai_index'] = sh['close']
+        row['shanghai_change'] = sh['change']
+    kc = idx.get('科创50')
+    if kc:
+        row['kechuang50_index'] = kc['close']
+        row['kechuang50_change'] = kc['change']
+    # 2) overview
+    ov = conn.execute("SELECT totalVolume, netFlow, upCount, downCount FROM overview WHERE date IN (?, ?)",
+                      (date, iso)).fetchone()
+    if ov:
+        row['turnover_yi'] = ov['totalVolume']
+        row['advancers'] = ov['upCount']
+        row['decliners'] = ov['downCount']
+    # 3) market_fflow.last (单位元 → 亿元)
+    mf = conn.execute("SELECT last FROM market_fflow WHERE trade_date IN (?, ?) ORDER BY fetched_at DESC LIMIT 1",
+                      (date, iso)).fetchone()
+    if mf and mf['last']:
+        try:
+            last = _json.loads(mf['last'])
+            for src, dst in (('main','main_money_yi'), ('big','big_money_yi'), ('small','small_money_yi')):
+                if last.get(src) is not None:
+                    row[dst] = round(last[src] / 1e8, 2)
+        except (ValueError, TypeError):
+            pass
+    # 4) sector_fund_flow top3
+    sf_rows = conn.execute(
+        "SELECT name, change_pct, main_net_inflow, lead_stock_name "
+        "FROM sector_fund_flow WHERE trade_date IN (?, ?) "
+        "AND main_net_inflow IS NOT NULL "
+        "ORDER BY main_net_inflow DESC LIMIT 3", (date, iso)).fetchall()
+    for i, sr in enumerate(sf_rows, 1):
+        row[f'top{i}_name'] = sr['name']
+        row[f'top{i}_rate'] = sr['change_pct']
+        row[f'top{i}_money'] = round((sr['main_net_inflow'] or 0) / 1e8, 2)
+        row[f'top{i}_stock'] = sr['lead_stock_name']
+    # 5) 5/10/20 日热门: leaderboard 5/10/20日涨幅榜 rank=1 → 关联 stock_sector_summary 取其所属板块
+    for period, key in (('5日','5'), ('10日','10'), ('20日','20')):
+        top = conn.execute(
+            "SELECT name, code FROM leaderboard WHERE date IN (?, ?) AND type=? "
+            "ORDER BY rank ASC LIMIT 1", (date, iso, period)).fetchone()
+        if not top:
+            continue
+        row[f'hot{key}_stock'] = top['name']
+        # 取其最新一次涨停所属板块 (sectors_json 取 is_latest=true 那条; 排除'公告'/'其他'等噪音)
+        s = conn.execute(
+            "SELECT sectors_json FROM stock_sector_summary WHERE ts_code=?",
+            (top['code'],)).fetchone()
+        if not s:
+            continue
+        try:
+            sects = _json.loads(s[0])
+        except (ValueError, TypeError):
+            continue
+        valid = [x['sector'] for x in sects
+                 if x.get('is_latest') and x.get('sector') not in ('公告','其他')]
+        if valid:
+            row[f'hot{key}_sector'] = valid[0]
+    conn.close()
+    if not row:
+        return {'date': date, 'written': False, 'fields_filled': 0,
+                'message': '该日期无任何本地数据可填; 跳过入库.'}
+    cols = ['date','shanghai_index','shanghai_change','kechuang50_index','kechuang50_change',
+            'main_money_yi','big_money_yi','small_money_yi','turnover_yi',
+            'advancers','decliners',
+            'top1_name','top1_rate','top1_money','top1_stock',
+            'top2_name','top2_rate','top2_money','top2_stock',
+            'top3_name','top3_rate','top3_money','top3_stock',
+            'hot5_sector','hot5_stock','hot10_sector','hot10_stock','hot20_sector','hot20_stock',
+            'comments','signal']
+    placeholders = ','.join(['?'] * len(cols))
+    update_pairs = ','.join(f'{c}=excluded.{c}' for c in cols if c != 'date')
+    values = [date] + [row.get(c) for c in cols[1:-2]] + [None, None]  # comments, signal 留 NULL
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute(
+        f'INSERT INTO market_barometer ({",".join(cols)}) VALUES ({placeholders}) '
+        f'ON CONFLICT(date) DO UPDATE SET {update_pairs}',
+        values)
+    conn.commit()
+    conn.close()
+    return {'date': date, 'written': True, 'fields_filled': sum(1 for v in row.values() if v is not None)}
+
+
+# ============ 飞书表格推送 (盘面晴雨表 → Feishu spreadsheet) ============
+
+def _lark_sheets_call(args, *, input_json=None, timeout=None, op_label=''):
+    """调一次 lark-cli, 返回 (ok, parsed, stdout, stderr).
+
+    判 ok 同时看 parsed.get('ok') 和 returncode — lark-cli 错误时也会 rc=0 但 stdout 是 {"ok": false, "error": ...}.
+    失败时把 args+rc+stdout+stderr 写到 LOG_DIR/lark_sheets_<op_label>_<utc_ts>.json 便于排查.
+    """
+    if timeout is None:
+        timeout = LARK_CMD_TIMEOUT
+    cmd = [LARK_CLI_BIN, *args]
+    try:
+        proc = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=timeout, input=input_json,
+        )
+        stdout, stderr, rc = proc.stdout, proc.stderr, proc.returncode
+        parsed = None
+        try:
+            parsed = json.loads(stdout) if stdout and stdout.lstrip().startswith('{') else None
+        except ValueError:
+            parsed = None
+        ok = (rc == 0) and (parsed is None or parsed.get('ok') is True)
+        if not ok:
+            _dump_lark_log(op_label, cmd, rc, stdout, stderr, parsed=parsed)
+        return ok, parsed, stdout, stderr
+    except subprocess.TimeoutExpired as e:
+        _dump_lark_log(op_label, cmd, -1, e.stdout or '', e.stderr or f'timeout {timeout}s')
+        return False, None, e.stdout or '', f'timeout {timeout}s'
+    except Exception as e:
+        _dump_lark_log(op_label, cmd, -1, '', '', exception=str(e))
+        return False, None, '', str(e)
+
+
+def _dump_lark_log(op_label, cmd, rc, stdout, stderr, *, parsed=None, exception=None):
+    """失败兜底: 落一份 JSON 日志到 backend/logs/ 方便排查. op_label 含步骤名 (如 'feishu_push_cells-set')."""
+    try:
+        ts = datetime.utcnow().strftime('%Y%m%dT%H%M%S')
+        fname = f'lark_sheets_{op_label}_{ts}.json'
+        path = os.path.join(LOG_DIR, fname)
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump({
+                'cmd': cmd, 'rc': rc,
+                'stdout': stdout[-4000:] if isinstance(stdout, str) else '',
+                'stderr': stderr[-2000:] if isinstance(stderr, str) else '',
+                'parsed': parsed,
+                'exception': exception,
+            }, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass  # 日志失败不影响主流程
+
+
+def _barometer_user_picks_text(iso_date: str) -> str:
+    """某日「当日低吸成功票」名单 (user_picks.name, 顿号拼接).
+
+    added_at 前 10 位 = iso_date 的全部记录; 同 ts_code 多次添加只取一条 name;
+    按 MAX(added_at) DESC + ts_code ASC 稳定排序.
+    整行 push 和单格同步共用这个函数, 保证两边口径不会漂.
+    """
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        return '、'.join(
+            r['name'] for r in conn.execute(
+                "SELECT b.name FROM user_picks p "
+                "LEFT JOIN stock_basic b ON b.ts_code = p.ts_code "
+                "WHERE substr(p.added_at, 1, 10) = ? "
+                "GROUP BY p.ts_code "
+                "ORDER BY MAX(p.added_at) DESC, p.ts_code ASC",
+                (iso_date,)
+            ) if r['name']
+        ) or ''
+    finally:
+        conn.close()
+
+
+def push_barometer_to_feishu(date: str) -> dict:
+    """把本地最新一行盘面晴雨表 push 到飞书 spreadsheet (A2 插入).
+
+    流程: 幂等检查 → 插入行 → 清格式 → 写 cells → 扩 6 条条件格式 (best-effort).
+    列对应走 barometer_history (口径跟手机端一致: super_money 是超大单, chinext_index 是创业板指).
+    """
+    # 1) 拉指定日期那一行 (date 是 YYYYMMDD 8 位)
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        try:
+            from mobile_data import SavedData  # 跟手机端共享同一个 SQLite
+        except ImportError as e:
+            return {'status': 'error', 'step': 'import_mobile_data', 'message': str(e)}
+        sd = SavedData(conn)
+        rows = sd.barometer_history(date=date)
+    finally:
+        conn.close()
+    if not rows:
+        return {'status': 'no_data', 'date': date, 'message': f'{date[:4]}-{date[4:6]}-{date[6:8]} 本地无晴雨表数据'}
+    row = rows[0]
+    iso_date = f"{row['date'][:4]}-{row['date'][4:6]}-{row['date'][6:8]}"
+
+    # 1b) 拉当日低吸成功票: 口径见 _barometer_user_picks_text
+    user_picks_str = _barometer_user_picks_text(iso_date)
+
+    # 2) 拼 32 列 cells (idx 0..31). 百分比列 idx [3,5,7,14,18,22] 加 number_format
+    pct_indices = {3, 5, 7, 14, 18, 22}
+    def _d2(v):
+        """数值 round 2 位; None 透传."""
+        return None if v is None else round(float(v), 2)
+    def _i(v):
+        return None if v is None else int(v)
+    iso_d = iso_date  # YYYY-MM-DD 字符串
+    raw = [
+        iso_d,                                       # 0  日期 (YYYY-MM-DD)
+        _d2(row['turnover']),                        # 1  成交额/亿
+        _d2(row['shanghai_index']),                  # 2  上证
+        _d2(row['change_rate']),                     # 3  上证涨跌幅% (percent)
+        _d2(row['kechuang50_index']),                # 4  科创50
+        _d2(row['kechuang50_rate']),                 # 5  科创50涨跌幅% (percent)
+        _d2(row['chinext_index']),                   # 6  创业板指
+        _d2(row['chinext_rate']),                    # 7  创业板涨跌% (percent)
+        _d2(row['main_money']),                      # 8  主力净流入/亿
+        _d2(row['super_money']),                     # 9  超大单/亿
+        _d2(row['small_money']),                     # 10 小单/亿
+        _i(row['advancers']),                        # 11 上涨家数 (int)
+        _i(row['decliners']),                        # 12 下跌家数 (int)
+        row.get('today_top1_concept'),               # 13 TOP1 板块
+        _d2(row.get('today_top1_concept_rate')),     # 14 TOP1 板块涨幅% (percent)
+        _d2(row.get('today_top1_concept_money')),    # 15 TOP1 板块主力/亿
+        row.get('today_top1_concept_stock'),         # 16 TOP1 领涨股
+        row.get('today_top2_concept'),               # 17 TOP2 板块
+        _d2(row.get('today_top2_concept_rate')),     # 18 TOP2 板块涨幅% (percent)
+        _d2(row.get('today_top2_concept_money')),    # 19 TOP2 板块主力/亿
+        row.get('today_top2_concept_stock'),         # 20 TOP2 领涨股
+        row.get('today_top3_concept'),               # 21 TOP3 板块
+        _d2(row.get('today_top3_concept_rate')),     # 22 TOP3 板块涨幅% (percent)
+        _d2(row.get('today_top3_concept_money')),    # 23 TOP3 板块主力/亿
+        row.get('today_top3_concept_stock'),         # 24 TOP3 领涨股
+        row.get('hot5_stock'),                       # 25 5日榜个股
+        row.get('hot5_sector'),                      # 26 5日榜板块
+        row.get('hot10_stock'),                      # 27 10日榜个股
+        row.get('hot10_sector'),                     # 28 10日榜板块
+        row.get('hot20_stock'),                      # 29 20日榜个股
+        row.get('hot20_sector'),                     # 30 20日榜板块
+        user_picks_str,                              # 31 当日低吸成功票 (user_picks.name 全量, 顿号拼接)
+    ]
+    # 数值列做 None→"" 的兼容; 整型列 (L/M) 也用 None→""
+    cells = []
+    for i, v in enumerate(raw):
+        style = {'font_size': 13, 'vertical_alignment': 'middle'}
+        if i in pct_indices:
+            style['number_format'] = '0.00"%"'
+        cells.append({'value': (v if v is not None else ''), 'cell_styles': style})
+    cells_payload = [cells]
+
+    token = FEISHU_BAROMETER_SPREADSHEET_TOKEN
+
+    # 3) 幂等检查 — 读 A2 日期对比
+    ok, parsed, _, stderr = _lark_sheets_call(
+        ['sheets', '+cells-get', '--spreadsheet-token', token, '--range', 'A2:A2', '--as', 'user'],
+        op_label='feishu_push_idempotency',
+    )
+    if not ok:
+        return {'status': 'error', 'step': 'cells-get', 'message': '读取飞书 A2 失败', 'stderr': stderr}
+    try:
+        a2_date = parsed['data']['ranges'][0]['cells'][0][0].get('value', '') if parsed else ''
+        # lark 返回的 value 可能是 "2026-09-21" 字符串或数字
+        a2_date_str = a2_date if isinstance(a2_date, str) else ''
+    except (KeyError, IndexError, TypeError):
+        a2_date_str = ''
+    if a2_date_str == iso_date:
+        return {'status': 'no_change', 'date': iso_date, 'message': '已是最新'}
+
+    # 4) 插入行 (A2 前 1 行, 把原 A2..A492 下移到 A3..A493)
+    ok, parsed, _, stderr = _lark_sheets_call(
+        ['sheets', '+dim-insert', '--spreadsheet-token', token,
+         '--position', '2', '--count', '1', '--inherit-style', 'before', '--as', 'user'],
+        op_label='feishu_push_dim-insert',
+    )
+    if not ok:
+        return {'status': 'error', 'step': 'dim-insert', 'message': '插入行失败', 'stderr': stderr}
+
+    # 5) 清 A2:AF2 的格式 (继承自 A1 header, 不清值)
+    ok, parsed, _, stderr = _lark_sheets_call(
+        ['sheets', '+cells-clear', '--spreadsheet-token', token,
+         '--range', 'A2:AF2', '--scope', 'formats', '--yes', '--as', 'user'],
+        op_label='feishu_push_cells-clear',
+    )
+    if not ok:
+        return {'status': 'error', 'step': 'cells-clear', 'message': '清格式失败', 'stderr': stderr}
+
+    # 6) 写 cells (从 stdin 喂 JSON)
+    ok, parsed, _, stderr = _lark_sheets_call(
+        ['sheets', '+cells-set', '--spreadsheet-token', token,
+         '--range', 'A2:AF2', '--cells', '-', '--as', 'user'],
+        input_json=json.dumps(cells_payload, ensure_ascii=False),
+        op_label='feishu_push_cells-set',
+    )
+    if not ok:
+        return {'status': 'error', 'step': 'cells-set', 'message': '写 cells 失败', 'stderr': stderr}
+
+    # 7) 扩 6 条条件格式 (best-effort: 失败仅计数, 不影响主流程)
+    extended = _extend_cond_formats(token)
+    return {
+        'status': 'success',
+        'date': iso_date,
+        'wrote_range': 'A2:AF2',
+        'cond_formats_extended': extended,
+    }
+
+
+# 「当日低吸成功票」= push payload 的第 32 列 (idx 31), 表头 A1 起算 → AF 列
+BAROMETER_USER_PICKS_COL = 'AF'
+
+
+def _feishu_find_date_row(token: str, iso_date: str):
+    """在飞书表 A 列找 iso_date 所在行号; 找不到返回 (None, debug).
+
+    表结构: row1 = 表头, row2 = 最新一天, 往下按时间倒序.
+
+    注意: +cells-get 返回的 cells 是**行主序** — cells[i] 就是第 i 行 (单列 range 下每行
+    只有 1 个元素), 所以真实行号取 ranges[0].row_indices[i]; 之前误按列主序 (cells[0] 当整列)
+    解, 结果只扫到 1 个格子.
+    """
+    ok, parsed, stdout, stderr = _lark_sheets_call(
+        ['sheets', '+cells-get', '--spreadsheet-token', token, '--range', 'A1:A500', '--as', 'user'],
+        op_label='feishu_find_date_row',
+    )
+    if not ok or not parsed:
+        return None, {'ok': ok, 'why': 'lark 调用失败或未返回 JSON', 'stderr': (stderr or '')[:400]}
+    try:
+        rng = parsed['data']['ranges'][0]
+    except (KeyError, IndexError, TypeError) as e:
+        return None, {'ok': True, 'why': f'取 data.ranges[0] 失败: {type(e).__name__}',
+                      'parsed_head': json.dumps(parsed, ensure_ascii=False)[:600]}
+    if not isinstance(rng, dict) or 'cells' not in rng:
+        return None, {'ok': True, 'why': 'range 里没有 cells', 'range_keys': list(rng.keys()) if isinstance(rng, dict) else None,
+                      'parsed_head': json.dumps(parsed, ensure_ascii=False)[:600]}
+    cells = rng.get('cells')
+    row_indices = rng.get('row_indices') or []
+    debug = {'ok': True, 'cells_outer_len': len(cells) if isinstance(cells, list) else None,
+             'row_indices_len': len(row_indices), 'sample': json.dumps(cells, ensure_ascii=False)[:300]}
+    if not isinstance(cells, list) or not cells:
+        return None, debug
+    for i, row_cells in enumerate(cells):          # 行主序: cells[i] = 第 i 行
+        if not isinstance(row_cells, list) or not row_cells:
+            continue
+        cell = row_cells[0]                        # 单列 range, 只看该行唯一那个格子
+        if not isinstance(cell, dict):
+            continue
+        value = cell.get('value', '')
+        if isinstance(value, str) and value.strip() == iso_date:
+            # row_indices 缺失时退回"数组下标 +1"(单列 + 起始行为 row1 时才成立)
+            return (row_indices[i] if i < len(row_indices) else i + 1), debug
+    return None, dict(debug, scanned=len(cells), why='列内没匹配到该日期')
+
+
+def sync_user_picks_to_feishu(date: str) -> dict:
+    """把某日 user_picks 名单刷进盘面晴雨表「当日低吸成功票」列 (加自选按钮专用).
+
+    行为 (和用户确认过):
+      - 飞书表里**已有**该日期行 → 原地只改那一行的 AF 单格, 不碰其他 31 列, 不插行.
+        这是必须的: push_barometer_to_feishu() 的幂等检查 (读 A2 日期比对) 在当天行
+        已存在时会直接返回 no_change 什么都不写, 所以行内追加只能自己改单格.
+      - **没有**该日期行 → 退回复用 push_barometer_to_feishu() 补一整行.
+    """
+    date = (date or '').strip().replace('-', '')
+    if not date:
+        date = datetime.now().strftime('%Y%m%d')
+    if not re.fullmatch(r'\d{8}', date):
+        return {'status': 'error', 'message': f'日期格式错误: {date!r} (需 YYYYMMDD)'}
+    iso_date = f'{date[:4]}-{date[4:6]}-{date[6:8]}'
+    token = FEISHU_BAROMETER_SPREADSHEET_TOKEN
+    text = _barometer_user_picks_text(iso_date)
+
+    row, find_debug = _feishu_find_date_row(token, iso_date)
+    if row is None:
+        pushed = push_barometer_to_feishu(date)
+        return {
+            'status': 'fell_back_to_full_push', 'date': iso_date, 'user_picks': text,
+            'message': f'飞书表无 {iso_date} 行, 已整行补齐 (原 push: {pushed.get("status")})',
+            'push': pushed, 'find_debug': find_debug,
+        }
+
+    rng = f'{BAROMETER_USER_PICKS_COL}{row}'
+    payload = [{'value': text, 'cell_styles': {'font_size': 13, 'vertical_alignment': 'middle'}}]
+    # 写前复核: 单格读 A{row}, 日期必须仍是 iso_date.
+    # row_indices 语义万一跟预期不符, 这一步会挡住, 不会把名单写到别的日期那一行.
+    ok_v, parsed_v, _, _ = _lark_sheets_call(
+        ['sheets', '+cells-get', '--spreadsheet-token', token, '--range', f'A{row}:A{row}', '--as', 'user'],
+        op_label='feishu_sync_verify_row',
+    )
+    verified = False
+    if ok_v and parsed_v:
+        try:
+            v = parsed_v['data']['ranges'][0]['cells'][0][0].get('value', '')
+            verified = (isinstance(v, str) and v.strip() == iso_date)
+        except (KeyError, IndexError, TypeError):
+            verified = False
+    if not verified:
+        return {'status': 'error', 'step': 'verify_row', 'date': iso_date, 'row': row,
+                'message': f'第 {row} 行日期复核不通过, 已中止写入 (避免写到错误的日期行)'}
+
+    ok, _, _, stderr = _lark_sheets_call(
+        ['sheets', '+cells-set', '--spreadsheet-token', token,
+         '--range', rng, '--cells', '-', '--as', 'user'],
+        input_json=json.dumps(payload, ensure_ascii=False),
+        op_label='feishu_sync_user_picks',
+    )
+    if not ok:
+        return {'status': 'error', 'step': 'cells-set', 'date': iso_date, 'row': row,
+                'wrote_range': rng, 'user_picks': text,
+                'message': '写单元格失败', 'stderr': stderr}
+
+    # 写后回读: ok=true 只代表请求被接受, 不代表值真的落上了. 必须读回来比对.
+    ok_r, parsed_r, _, _ = _lark_sheets_call(
+        ['sheets', '+cells-get', '--spreadsheet-token', token, '--range', rng, '--as', 'user'],
+        op_label='feishu_sync_readback',
+    )
+    got = None
+    if ok_r and parsed_r:
+        try:
+            got = parsed_r['data']['ranges'][0]['cells'][0][0].get('value', '')
+        except (KeyError, IndexError, TypeError):
+            got = None
+    if (got or '') != text:
+        return {'status': 'error', 'step': 'readback', 'date': iso_date, 'row': row,
+                'wrote_range': rng, 'user_picks': text, 'readback': got,
+                'message': '写入后回读值与预期不一致, 请人工核对'}
+
+    return {'status': 'success', 'date': iso_date, 'row': row,
+            'wrote_range': rng, 'user_picks': text, 'readback': got,
+            'message': f'{iso_date} 第 {row} 行「当日低吸成功票」已更新并回读校验通过'}
+
+
+def _extend_cond_formats(token: str) -> int:
+    """lark-cli 的 +dim-insert 操作会把 cond-format 的 ranges 起始 +1, 尾 +1 (实测).
+    所以这边反向操作: 读 list 后, 把每个 range 的**起始 -1, 尾 -1**, 再 update;
+    dim-insert 写完后 lark 自动 +1 +1, 净效果 = list 时啥样, push 后还是啥样.
+
+    注意: 起始最小是 1 (header 行), 不会 < 1, 因为 dim-insert 在 row 2,起始 < 2 都会被 +1.
+    """
+    import re as _re
+    ok, parsed, _, _ = _lark_sheets_call(
+        ['sheets', '+cond-format-list', '--spreadsheet-token', token, '--as', 'user'],
+        op_label='feishu_push_cond-format-list',
+    )
+    if not ok or not parsed:
+        return 0
+    rules = parsed.get('data', {}).get('sheets', [{}])[0].get('conditional_formats', [])
+    extended = 0
+    for r in rules:
+        rid = r.get('conditional_format_id')
+        d = r.get('details', {})
+        old_ranges = d.get('ranges', [])
+        new_ranges = []
+        for rg in old_ranges:
+            m = _re.match(r'^([A-Z]+)(\d+):([A-Z]+)(\d+)$', rg)
+            if m:
+                c1, r1, c2, r2 = m.group(1), int(m.group(2)), m.group(3), int(m.group(4))
+                new_ranges.append(f'{c1}{max(1, r1 - 1)}:{c2}{max(r1, r2 - 1)}')  # 起始≥1, 尾 ≥ 起始
+            else:
+                new_ranges.append(rg)
+        if new_ranges == old_ranges:
+            continue
+        rule_type = d.get('rule_type', 'cellIs')
+        attrs = d.get('attrs', [])
+        style = d.get('style', {})
+        props = {'attrs': attrs, 'style': style}
+        ok2, _, _, stderr2 = _lark_sheets_call(
+            ['sheets', '+cond-format-update', '--spreadsheet-token', token,
+             '--rule-id', rid, '--rule-type', rule_type,
+             '--ranges', json.dumps(new_ranges),
+             '--properties', json.dumps(props, ensure_ascii=False),
+             '--as', 'user'],
+            op_label=f'feishu_push_cond-format-update_{rid}',
+        )
+        if ok2:
+            extended += 1
+    return extended
 
 
 def get_pro():
@@ -937,20 +1464,33 @@ def get_stock_daily():
             try:
                 q = fetch_sina_quotes([ts_code]).get(ts_code)
                 if q and q.get('open') and q.get('price'):
-                    rows.append({
-                        'trade_date': today,
-                        'open': q['open'],
-                        'high': q.get('high') or q['price'],
-                        'low': q.get('low') or q['price'],
-                        'close': q['price'],
-                        'change': q.get('change_pct'),
-                        'volume': q.get('volume'),
-                        'amount': None,
-                        'name': name or q.get('name') or '',
-                    })
-                    intraday = True
-                    if not name and q.get('name'):
-                        name = q['name']
+                    # 新浪返回的行情自带交易日 (fields[30], 形如 '2026-09-30').
+                    # weekday()<5 只挡得住周末, 挡不住国庆/春节等法定休市日: 休市期间
+                    # 新浪持续返回**上一交易日**的快照, 直接当成"今天"补 K 就会画出
+                    # 一根 10-01 的幽灵蜡烛, 而 OHLC 其实是 9/30 的.
+                    # 所以这里只认"行情自带日期 == 今天", 节假日自动不补.
+                    quote_day = str(q.get('time') or '').strip()[:10].replace('-', '')
+                    if quote_day and quote_day != today:
+                        print(f'[stock/daily] {ts_code} 跳过盘中补K: 行情日期 {quote_day} != 今天 {today} (休市/未开盘)',
+                              flush=True)
+                    elif not quote_day:
+                        # 拿不到行情日期就不补, 宁可少一根盘中 K, 也不画假数据
+                        print(f'[stock/daily] {ts_code} 跳过盘中补K: 行情无日期字段', flush=True)
+                    else:
+                        rows.append({
+                            'trade_date': today,
+                            'open': q['open'],
+                            'high': q.get('high') or q['price'],
+                            'low': q.get('low') or q['price'],
+                            'close': q['price'],
+                            'change': q.get('change_pct'),
+                            'volume': q.get('volume'),
+                            'amount': None,
+                            'name': name or q.get('name') or '',
+                        })
+                        intraday = True
+                        if not name and q.get('name'):
+                            name = q['name']
             except Exception as _e:
                 print(f'[stock/daily] {ts_code} 盘中K线补齐失败: {_e}', flush=True)
     return jsonify({
@@ -972,11 +1512,16 @@ _MINLINE_CACHE_MAX_AGE = 30  # 写入新条目时清掉 > 30s 的, 防 (ts_code,
 
 
 def _is_intraday_now():
-    """本机时间是否在 A 股盘中交易时段 (工作日 09:25-15:01 闭区间, 含午休).
-    用于「指定 date == 今天」路径命中本地时, 盘中强制走 lazy 重拉换实时性."""
+    """本机时间是否在 A 股盘中交易时段 (交易日 09:25-15:01 闭区间, 含午休).
+    用于「指定 date == 今天」路径命中本地时, 盘中强制走 lazy 重拉换实时性.
+
+    必须查交易日历: 只判 weekday() 的话, 国庆/春节这些法定休市日会被当成交易日,
+    休市期间 sina 一直返回上一交易日的分时, 贴上今天的日期就是错的."""
     from datetime import datetime as _dt
     now = _dt.now()
     if now.weekday() >= 5:
+        return False
+    if not _today_is_trading_day():
         return False
     return '092500' <= now.strftime('%H%M%S') <= '150100'
 
@@ -1086,6 +1631,12 @@ def get_index_minline():
 
     if requested_date:
         today_str = datetime.now().strftime('%Y%m%d')
+        # 休市日请求"今天" → 重定向到最近交易日, 避免把上一交易日分时贴成今天的 (同 /api/stock/minline)
+        if requested_date == today_str and not _today_is_trading_day():
+            actual = last_trading_date(today_str)
+            print(f'[index-minline] {code} 今天 {today_str} 非交易日, {requested_date} → {actual}', flush=True)
+            requested_date = actual
+            payload['requested_date'] = actual
         rows, prev_close = _read_index_minline_from_db(code, requested_date)
         # 今天盘中: 强制 lazy 重拉换实时性, 失败 fallback 到本地
         if requested_date == today_str and _is_intraday_now():
@@ -1199,6 +1750,13 @@ def get_stock_minline():
 
     if requested_date:
         today_str = datetime.now().strftime('%Y%m%d')
+        # 休市日 (周末/法定节假日) 请求"今天": 直接拿它问 sina, 会把**上一交易日**的
+        # 分时原样贴上今天的日期 (国庆期间 10/01 会显示一整天的 9/30 分时, 逐根一模一样).
+        # 统一重定向到 <= 今天的最近交易日, 跟 _infer_minline_trade_date 同一口径.
+        if requested_date == today_str and not _today_is_trading_day():
+            actual = last_trading_date(today_str)
+            print(f'[minline] {ts_code} 今天 {today_str} 非交易日, {requested_date} → {actual}', flush=True)
+            requested_date = actual
         cache_key = (ts_code, requested_date)
         ent = _MINLINE_CACHE.get(cache_key)
         if ent and now_ts - ent['_ts'] < _MINLINE_CACHE_TTL:
@@ -2235,6 +2793,189 @@ def get_overview():
                 pass
         result.append(d)
     return jsonify(result)
+
+
+@app.route('/api/barometer/sync', methods=['POST'])
+def api_barometer_sync():
+    """手动触发某日盘面晴雨表同步; date 缺省 = 今天."""
+    from datetime import datetime as _dt
+    date = (request.args.get('date') or '').strip() or _dt.now().strftime('%Y%m%d')
+    if not re.fullmatch(r'\d{8}', date):
+        raise ValueError('日期格式错误')
+    result = sync_market_barometer(date)
+    return jsonify({'status': 'success', **result})
+
+
+@app.route('/api/barometer', methods=['GET'])
+def api_barometer_read():
+    """读某日盘面晴雨表; date 缺省 → 最新一日."""
+    date = (request.args.get('date') or '').strip()
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    if date:
+        row = conn.execute('SELECT * FROM market_barometer WHERE date=?', (date,)).fetchone()
+    else:
+        row = conn.execute('SELECT * FROM market_barometer ORDER BY date DESC LIMIT 1').fetchone()
+    conn.close()
+    if not row:
+        return jsonify({'available': False, 'date': date or None, 'message': '该日期尚未同步晴雨表'})
+    return jsonify({'available': True, **dict(row)})
+
+
+# ── 简易版模式专用接口 ──
+# 简易版只保留三块: 盘面晴雨表 / 个股搜索 / 选股推荐(EM 条件四选股).
+# 桌面端原本没有晴雨表本体 (只有「同步飞书表格」按钮), 这里复用手机端
+# SavedData.barometer_history 的同一套 SQL, 保证两端口径一致.
+
+@app.route('/api/simple/barometer', methods=['GET'])
+def api_simple_barometer():
+    """简易版盘面晴雨表: 近 limit 个交易日, 列对齐飞书晴雨表 A~AF 32 列.
+
+    复用 mobile_data.SavedData.barometer_history — 那条 SQL 才是晴雨表的权威口径
+    (走 overview + index_daily + market_fflow + sector_fund_flow + leaderboard),
+    不是 market_barometer 表 (那张表只有 3 行, 且大量字段为空).
+
+    query:
+      date  YYYYMMDD, 给了就只回那一天
+      limit 默认 60, 上限 1000
+    """
+    date = (request.args.get('date') or '').strip()
+    if date and not re.fullmatch(r'\d{8}', date):
+        return jsonify({'error': '日期格式错误, 需 YYYYMMDD'}), 400
+    limit = min(max(int(request.args.get('limit', 60) or 60), 1), 1000)
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        try:
+            from mobile_data import SavedData  # 与手机端共享同一份口径
+        except ImportError as e:
+            return jsonify({'error': f'加载 mobile_data 失败: {e}'}), 500
+        sd = SavedData(conn)
+        rows = sd.barometer_history(limit=limit, date=date or None)
+    finally:
+        conn.close()
+    if not rows:
+        return jsonify({'count': 0, 'rows': [], 'message': '暂无晴雨表数据'})
+    return jsonify({'count': len(rows), 'rows': [dict(r) for r in rows]})
+
+
+@app.route('/api/simple/stock', methods=['GET'])
+def api_simple_stock():
+    """简易版个股搜索: 主力净流入字段 + 3/5/10/20/30 日累计净流入.
+
+    在 /api/flow/market (period=today) 的基础上, 额外给每只票算近 N 个交易日
+    的主力净流入累计 (N ∈ {3,5,10,20,30}), 用 trading_dates_cache 取"近 N 个
+    交易日"而不是"近 N 个日历日".
+
+    口径说明: 累计窗口以**每只票自己的最新有数据日**为锚点往回取, 而不是全市场
+    最新交易日 — 否则停牌/新股的累计会莫名其妙对齐到别人的日期.
+
+    query:
+      search  代码或名称, 模糊匹配 (可空 → 返回全市场 top N)
+      market  all / sh / sz / cy / kcb
+      date    基准交易日 YYYYMMDD (默认全市场最新有数据日)
+      limit   默认 50, 上限 500
+    """
+    search = (request.args.get('search') or '').strip()
+    market = (request.args.get('market') or 'all').strip().lower()
+    date = (request.args.get('date') or '').strip()
+    if date and not re.fullmatch(r'\d{8}', date):
+        return jsonify({'error': '日期格式错误, 需 YYYYMMDD'}), 400
+    limit = min(max(int(request.args.get('limit', 50) or 50), 1), 500)
+    src = 'eastmoney-push2'
+    window = (3, 5, 10, 20, 30)
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        # 1) 基准日: 指定则用它, 否则取最新有数据的交易日
+        if not date:
+            row = conn.execute(
+                'SELECT MAX(trade_date) AS d FROM fund_flow WHERE source = ?', (src,)
+            ).fetchone()
+            date = row['d'] or ''
+        if not date:
+            return jsonify({'count': 0, 'rows': [], 'message': '还没有主力净流入数据'})
+
+        # 2) 当日截面: 该日全部个股 (搜索/市场过滤在 Python 侧做, 与 /api/flow/market 一致)
+        rows = conn.execute("""
+            SELECT f.trade_date, f.ts_code, f.code, f.name,
+                   sd.close AS close, sd.change AS change_pct,
+                   f.main_net_inflow, f.main_net_pct,
+                   f.super_net, f.big_net, f.mid_net, f.small_net
+            FROM fund_flow f
+            LEFT JOIN stock_daily sd
+              ON sd.ts_code = f.ts_code AND sd.trade_date = f.trade_date
+            WHERE f.trade_date = ? AND f.source = ?
+        """, (date, src)).fetchall()
+
+        # 3) 多日累计: 以各自最新日 (≤ date) 为锚, 往前取 N 个交易日窗口内的 main_net_inflow 之和.
+        #    窗口用 correlated count 取"该票自己"的交易日, 停牌/新股自然只会累加已有的天数.
+        sum_cols = ', '.join(
+            f'SUM(CASE WHEN rn <= {n} THEN main_net_inflow ELSE 0 END) AS net_{n}d' for n in window
+        )
+        day_cols = ', '.join(
+            f'COUNT(CASE WHEN rn <= {n} THEN 1 END) AS days_{n}d' for n in window
+        )
+        agg = conn.execute(f"""
+            WITH ranked AS (
+                SELECT ts_code, main_net_inflow,
+                       ROW_NUMBER() OVER (PARTITION BY ts_code ORDER BY trade_date DESC) AS rn
+                FROM fund_flow
+                WHERE source = ? AND trade_date <= ?
+            )
+            SELECT ts_code, {sum_cols}, {day_cols}
+            FROM ranked WHERE rn <= 30
+            GROUP BY ts_code
+        """, (src, date)).fetchall()
+    finally:
+        conn.close()
+
+    agg_by = {r['ts_code']: r for r in agg}
+
+    # market 过滤 (按 code 前缀, 与 /api/flow/market 同口径)
+    out = []
+    for r in rows:
+        code = r['code'] or ''
+        if market == 'sh' and not code.startswith(('6', '9')):
+            continue
+        if market == 'sz' and not code.startswith(('0', '2', '3')):
+            continue
+        if market == 'cy' and not code.startswith('3'):
+            continue
+        if market == 'kcb' and not code.startswith('688'):
+            continue
+        d = dict(r)
+        a = agg_by.get(r['ts_code'])
+        for n in window:
+            d[f'net_{n}d'] = a[f'net_{n}d'] if a else None
+            d[f'days_{n}d'] = a[f'days_{n}d'] if a else 0
+        out.append(d)
+
+    # search 模糊
+    if search:
+        s = search.lower()
+        out = [r for r in out if s in (r['name'] or '').lower() or s in (r['code'] or '')]
+
+    # 默认按当日主力净流入 desc (空搜索时给的是"当日最强票"而不是任意顺序)
+    out.sort(key=lambda r: (r['main_net_inflow'] or 0), reverse=True)
+    out = out[:limit]
+    _attach_sector(out, key='ts_code')  # 补板块, 与主力净流入 tab 一致
+    return jsonify({
+        'count': len(out), 'date': date, 'search': search, 'market': market,
+        'rows': out,
+    })
+
+
+@app.route('/api/barometer/feishu/push', methods=['POST'])
+def api_barometer_feishu_push():
+    """手动把本地最新一行盘面晴雨表 push 到飞书表格 (A2 插入); date 缺省 = 今天."""
+    date = (request.args.get('date') or '').strip()
+    if not date:
+        date = datetime.now().strftime('%Y%m%d')
+    if not re.fullmatch(r'\d{8}', date):
+        raise ValueError('日期格式错误')
+    return jsonify(push_barometer_to_feishu(date))
 
 
 @app.route('/api/overview/sync', methods=['POST'])
@@ -3580,29 +4321,52 @@ def stats():
 
 
 # 顶栏「数据拉取情况」: 最近交易日各数据源是否拉全
-# (key, 名称, 表, 日期列, 当日算「拉全」的最小行数)
+# (key, 名称, 表, 日期列, 当日算「拉全」的最小行数, 可选 WHERE 额外条件)
 SYNC_STATUS_SOURCES = [
-    ('index',         '指数日线',        'index_daily',        'date',       4),
-    ('stock_daily',   '个股日线',        'stock_daily',        'trade_date', 5000),
-    ('overview',      '盘面概览',        'overview',           'date',       1),
-    ('leaderboard',   '阶段涨幅榜',      'leaderboard',        'date',       30),
-    ('limitup',       '涨停拆解',        'limitup',            'date',       1),
-    ('lz',            '涨停合集',        'limitup_collection', 'trade_date', 1),
-    ('flow',          '主力净流入·东财', 'fund_flow',          'trade_date', 4500),
-    ('flow_ths',      '资金流·同花顺',   'fund_flow_ths',      'trade_date', 4500),
-    ('flow_sector',   '板块资金流',      'sector_fund_flow',   'trade_date', 100),
-    ('market_fflow',  '大盘资金分时',    'market_fflow',       'trade_date', 1),
-    ('minline_idx',   '指数分钟线',      'index_minline_bars', 'trade_date', 100),
-    ('minline_stock', '个股分钟线',      'stock_minline_bars', 'trade_date', 50000),
-    ('picks',         '选股·东财',       'stock_picks',        'trade_date', 1),
-    ('picks_ths',     '选股·同花顺',     'stock_picks_ths',    'trade_date', 1),
-    ('cond',          '条件选股快照',    'conditional_picks_snapshot',     'trade_date', 1),
-    ('comb',          '组合选股快照',    'combined_picks_snapshot',        'trade_date', 1),
-    ('cond_pref',     '条件优选快照',    'conditional_picks_preferred_snapshot', 'trade_date', 1),
-    ('cond_ths',      '同花顺条件快照',  'conditional_picks_snapshot_ths', 'trade_date', 1),
-    ('comb_ths',      '同花顺组合快照',  'combined_picks_snapshot_ths',    'trade_date', 1),
+    ('index',         '指数日线',        'index_daily',        'date',       4,        ''),
+    ('stock_daily',   '个股日线',        'stock_daily',        'trade_date', 5000,     ''),
+    ('overview',      '盘面概览',        'overview',           'date',       1,        ''),
+    ('leaderboard',   '阶段涨幅榜',      'leaderboard',        'date',       30,       ''),
+    ('limitup',       '涨停拆解',        'limitup',            'date',       1,        ''),
+    ('lz',            '涨停合集',        'limitup_collection', 'trade_date', 1,        ''),
+    ('flow',          '主力净流入·东财', 'fund_flow',          'trade_date', 4500,     ''),
+    ('flow_ths',      '资金流·同花顺',   'fund_flow_ths',      'trade_date', 4500,     ''),
+    ('flow_sector_industry', '板块资金流·行业', 'sector_fund_flow', 'trade_date', 496, "sector_type='industry'"),
+    ('flow_sector_concept',  '板块资金流·概念', 'sector_fund_flow', 'trade_date', 504, "sector_type='concept'"),
+    ('market_fflow',  '大盘资金分时',    'market_fflow',       'trade_date', 1,        ''),
+    ('minline_idx',   '指数分钟线',      'index_minline_bars', 'trade_date', 960,      ''),
+    ('minline_stock', '个股分钟线',      'stock_minline_bars', 'trade_date', 50000,    ''),
+    ('picks',         '选股·东财',       'stock_picks',        'trade_date', 1,        ''),
+    ('picks_ths',     '选股·同花顺',     'stock_picks_ths',    'trade_date', 1,        ''),
+    ('cond',          '条件选股快照',    'conditional_picks_snapshot',     'trade_date', 1, ''),
+    ('cond_new',      '条件选股新',      'conditional_picks_new_snapshot', 'trade_date', 1, ''),
+    ('comb',          '组合选股快照',    'combined_picks_snapshot',        'trade_date', 1, ''),
+    ('cond_pref',     '条件优选快照',    'conditional_picks_preferred_snapshot', 'trade_date', 1, ''),
+    ('cond_ths',      '同花顺条件快照',  'conditional_picks_snapshot_ths', 'trade_date', 1, ''),
+    ('comb_ths',      '同花顺组合快照',  'combined_picks_snapshot_ths',    'trade_date', 1, ''),
 ]
 _sync_status_cache = {}  # {ref_date: (timestamp, data)}
+
+
+def _index_minline_status(count, latest):
+    """指数分钟线特殊判断: 盘中由 fetch_index_minline_daily 盘后跑, 盘前/盘中不强求满 960.
+
+    盘前 (< 09:30):  无当日数据 → empty(还没开盘); 有当日数据(历史 lazy) → ok
+    盘中 (09:30 ~ 15:30): 任何 count > 0 → ok (允许 partial, 收盘后 fetch 会补)
+    盘后 (>= 15:30): >= 960 → ok; < 960 但 > 0 → partial (yellow); == 0 → missing
+    """
+    if latest is None:
+        return 'empty'
+    hm = datetime.now().hour * 60 + datetime.now().minute
+    if hm < 9 * 60 + 30:
+        return 'ok' if count > 0 else 'empty'
+    if hm < 15 * 60 + 30:
+        return 'ok' if count > 0 else 'missing'
+    if count >= 960:
+        return 'ok'
+    if count == 0:
+        return 'missing'
+    return 'partial'
 
 
 @app.route('/api/sync/overview', methods=['GET'])
@@ -3618,14 +4382,17 @@ def sync_status_overview():
     sources = []
     conn = sqlite3.connect(DB_PATH, timeout=5)
     try:
-        for key, name, table, col, expect in SYNC_STATUS_SOURCES:
+        for key, name, table, col, expect, extra_where in SYNC_STATUS_SOURCES:
             try:
                 row = conn.execute(f'SELECT {col} FROM {table} ORDER BY {col} DESC LIMIT 1').fetchone()
                 latest = row[0] if row else None
-                count = conn.execute(f'SELECT COUNT(*) FROM {table} WHERE {col} = ?', (ref,)).fetchone()[0] if ref else 0
+                where_extra = f' AND {extra_where}' if extra_where else ''
+                count = conn.execute(f'SELECT COUNT(*) FROM {table} WHERE {col} = ?{where_extra}', (ref,)).fetchone()[0] if ref else 0
             except sqlite3.Error:
                 latest, count = None, 0
-            if latest is None:
+            if key == 'minline_idx':
+                status = _index_minline_status(count, latest)
+            elif latest is None:
                 status = 'empty'
             elif count == 0:
                 status = 'missing'
@@ -3647,6 +4414,149 @@ def sync_status_overview():
     }
     _sync_status_cache[ref] = (now, data)
     return jsonify(data)
+
+
+# ── 单项拉取 (点击「拉取目标」面板里某项触发) ──
+# sync 模式: 同步阻塞, 等内部函数跑完返回结果. 一次请求一个完整任务.
+# async 模式: 后台线程 fire-and-forget (主力净流入/板块资金流/同花顺/大盘资金分时/韭研爬取),
+#             立即返回 started, 前端轮询 _xxx_sync_status 端点看 done.
+def _post_internal(path, force=False, type_param=None):
+    with app.test_client() as c:
+        url = path + (f'?type={type_param}' if type_param else '')
+        body = {'force': True} if force else {}
+        r = c.post(url, json=body)
+        try:
+            return r.get_json()
+        except Exception:
+            return {'status_code': r.status_code, 'text': r.get_data(as_text=True)[:200]}
+
+def _get_internal(path, date_str):
+    with app.test_client() as c:
+        qs = f'?date={date_str}' if date_str else ''
+        r = c.get(path + qs)
+        try:
+            return r.get_json()
+        except Exception:
+            return {'status_code': r.status_code, 'text': r.get_data(as_text=True)[:200]}
+
+def _yyyymmdd_to_dash(s):
+    return f'{s[0:4]}-{s[4:6]}-{s[6:8]}' if s and len(s) == 8 and re.fullmatch(r'\d{8}', s) else (s or '')
+
+def _resolve_ref_date(date_str):
+    return date_str or last_trading_date(datetime.now().strftime('%Y%m%d'))
+
+def _run_index(date):           return _post_internal('/api/index/sync')
+def _run_stock_daily(date):     return _post_internal('/api/stock/sync')
+def _run_overview(date):        return _post_internal('/api/overview/sync')
+def _run_leaderboard(date):     return _post_internal('/api/leaderboard/sync')
+def _run_picks(date):           return _post_internal('/api/picks/sync')
+def _run_picks_ths(date):       return _post_internal('/api/picks/ths/sync')
+
+def _run_limitup_ak(date):
+    ds = _yyyymmdd_to_dash(date)
+    with app.test_client() as c:
+        r = c.post('/api/limitup/ak/sync', json={'date': ds} if ds else {})
+        try:
+            return r.get_json()
+        except Exception:
+            return {'status_code': r.status_code, 'text': r.get_data(as_text=True)[:200]}
+
+def _run_lz(date):
+    from app import collect_limitup_snapshot
+    return collect_limitup_snapshot()
+
+def _run_minline_idx(date):
+    from fetch_index_minline_daily import run as run_idx_minline
+    # skip_existing=False: 点击 = 强制重抓 (覆盖已有), 符合"重新拉取"语义
+    return run_idx_minline(skip_existing=False, verbose=True)
+
+def _run_minline_stock(date):
+    from fetch_stock_minline_daily import run as run_minline
+    return run_minline(skip_existing=False, verbose=True)
+
+# cond/cond_new/comb/cond_pref/cond_ths/comb_ths 走 GET 触发实时计算后写快照
+def _run_cond(date):        return _get_internal('/api/conditional-picks', _resolve_ref_date(date))
+def _run_cond_new(date):    return _get_internal('/api/conditional-picks/new', _resolve_ref_date(date))
+def _run_comb(date):        return _get_internal('/api/combined-picks', _resolve_ref_date(date))
+def _run_cond_pref(date):   return _get_internal('/api/conditional-picks/preferred', _resolve_ref_date(date))
+def _run_cond_ths(date):    return _get_internal('/api/picks/ths/conditional', _resolve_ref_date(date))
+def _run_comb_ths(date):    return _get_internal('/api/picks/ths/combined', _resolve_ref_date(date))
+
+# async fire-and-forget (后台线程, 立即返回 started)
+def _start_flow(date):                  return _post_internal('/api/flow/sync-market', force=True)
+def _start_flow_ths(date):              return _post_internal('/api/flow/ths/sync', force=True)
+def _start_flow_sector_industry(date):  return _post_internal('/api/flow/sector/sync', force=True, type_param='industry')
+def _start_flow_sector_concept(date):   return _post_internal('/api/flow/sector/sync', force=True, type_param='concept')
+def _start_market_fflow(date):
+    with app.test_client() as c:
+        r = c.post('/api/market/fflow/sync')
+        try:
+            return r.get_json()
+        except Exception:
+            return {'status_code': r.status_code, 'text': r.get_data(as_text=True)[:200]}
+def _start_limitup_fetch(date):
+    ds = _yyyymmdd_to_dash(date) or datetime.now().strftime('%Y-%m-%d')
+    with app.test_client() as c:
+        r = c.post('/api/limitup/fetch', json={'date': ds})
+        try:
+            return r.get_json()
+        except Exception:
+            return {'status_code': r.status_code, 'text': r.get_data(as_text=True)[:200]}
+
+SYNC_RUNNERS = {
+    'index':                ('sync',  _run_index),
+    'stock_daily':          ('sync',  _run_stock_daily),
+    'overview':             ('sync',  _run_overview),
+    'leaderboard':          ('sync',  _run_leaderboard),
+    'limitup':              ('sync',  _run_limitup_ak),
+    'lz':                   ('sync',  _run_lz),
+    'flow':                 ('async', _start_flow),
+    'flow_ths':             ('async', _start_flow_ths),
+    'flow_sector_industry': ('async', _start_flow_sector_industry),
+    'flow_sector_concept':  ('async', _start_flow_sector_concept),
+    'market_fflow':         ('async', _start_market_fflow),
+    'minline_idx':          ('sync',  _run_minline_idx),
+    'minline_stock':        ('sync',  _run_minline_stock),
+    'picks':                ('sync',  _run_picks),
+    'picks_ths':            ('sync',  _run_picks_ths),
+    'cond':                 ('sync',  _run_cond),
+    'cond_new':             ('sync',  _run_cond_new),
+    'comb':                 ('sync',  _run_comb),
+    'cond_pref':            ('sync',  _run_cond_pref),
+    'cond_ths':             ('sync',  _run_cond_ths),
+    'comb_ths':             ('sync',  _run_comb_ths),
+}
+
+@app.route('/api/sync/run/<key>', methods=['POST'])
+def sync_run_one(key):
+    """点击「拉取目标」面板里某项触发.
+
+    sync 模式: 内部函数跑完才返回 (一般几秒, 韭研类的我们走 limitup 走 ak/sync 几秒即可).
+    async 模式: 后台线程启动后立刻返回 started (主力净流入/同花顺/板块资金流/大盘资金分时/韭研 OCR 4-5 分钟),
+                前端轮询 _xxx_sync_status 端点看 done 后再刷新.
+    """
+    if key not in SYNC_RUNNERS:
+        return jsonify({'status': 'error', 'message': f'unknown key: {key}, 有效 key 列表见 SYNC_RUNNERS'}), 400
+    mode, runner = SYNC_RUNNERS[key]
+    date_str = request.args.get('date', '')
+    if date_str and not re.fullmatch(r'\d{8}', date_str):
+        return jsonify({'status': 'error', 'message': 'date 格式应为 YYYYMMDD'}), 400
+    t0 = time.time()
+    try:
+        result = runner(date_str)
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({'status': 'error', 'key': key, 'message': str(e)}), 500
+    elapsed = round(time.time() - t0, 1)
+    _sync_status_cache.clear()  # 让下次 refreshSyncStatus 立刻看到新数据
+    return jsonify({
+        'status': 'success',
+        'key': key,
+        'mode': mode,
+        'date': date_str,
+        'elapsed': elapsed,
+        'result': result,
+    })
 
 
 @app.route('/api/stock/dates-check', methods=['GET'])
@@ -7309,7 +8219,7 @@ def api_flow_market():
     默认 source=eastmoney-push2 (Skill 抓取的数据). 传 source=all 看全部来源.
     """
     period = request.args.get('period', 'today').lower().strip()
-    period_map = {'today': 1, '3d': 3, '5d': 5, '10d': 10, '20d': 20}
+    period_map = {'today': 1, '3d': 3, '5d': 5, '10d': 10, '20d': 20, '30d': 30, '60d': 60, '90d': 90}
     if period not in period_map:
         period = 'today'
     period_days = period_map[period]
@@ -8372,7 +9282,7 @@ def api_flow_sector_market():
     if stype not in ('industry', 'concept'):
         return jsonify({'error': f'invalid type: {stype}'}), 400
     period = request.args.get('period', 'today').lower().strip()
-    period_map = {'today': 1, '3d': 3, '5d': 5, '10d': 10, '20d': 20}
+    period_map = {'today': 1, '3d': 3, '5d': 5, '10d': 10, '20d': 20, '30d': 30, '60d': 60, '90d': 90}
     if period not in period_map:
         period = 'today'
     period_days = period_map[period]
@@ -8683,7 +9593,7 @@ def api_flow_ths_market():
     close/change_pct/turnover_pct 直接用同花顺页面的值, 不 JOIN stock_daily.
     """
     period = request.args.get('period', 'today').lower().strip()
-    period_map = {'today': 1, '3d': 3, '5d': 5, '10d': 10, '20d': 20}
+    period_map = {'today': 1, '3d': 3, '5d': 5, '10d': 10, '20d': 20, '30d': 30, '60d': 60, '90d': 90}
     if period not in period_map:
         period = 'today'
     period_days = period_map[period]
@@ -10339,6 +11249,136 @@ def api_picks_ths_sync():
         return jsonify({'status': 'error', 'message': str(e)})
 
 
+# ============ 优选分 (edge_score) ============
+# 2026-09-29 立项. 背景: 用 6626 条可统计样本 (20260616~20260928, 73 个入选日) 回测发现,
+# 现行 `score` 在入选池内对 T+1~T+5 命中率**几乎没有排序能力** (walk-forward 每日 Top20
+# 命中率 33.11%, 与随机基准 34.43% 无差异). 优选分是另起炉灶的经验加权分, 只用
+# 「训练段/测试段方向一致」的特征, 换掉默认排序.
+#
+# 验证 (backend/scripts/validate_picks_score_oos.py):
+#   walk-forward 每 5 个交易日重训一次, 权重只见过过去的数据 ——
+#     每日 Top10: 现行评分 32.26% → 优选分 43.21% (随机 30.38%)
+#     每日 Top20: 现行评分 33.11% → 优选分 40.75% (随机 34.43%)
+#   按入选日 bootstrap 2000 次, Top20 差值 95%CI [+3.68, +11.70]pp, 不含 0.
+#
+# 刻意**不**纳入的项 (有共性但不该固化进打分):
+#   - 行业 (电子/有色/轻工/传媒 命中率高 8pp): 板块轮动性强, 静态名单会随时间失效,
+#     只在前端做展示标签, 不进分数.
+#   - 当日主力强度: 训练段 +4.02pp / 测试段 -3.16pp, 符号翻转, 不可靠.
+#   - MA5 陡峭 / 5 日均额 / 入选前 20 日涨幅: 方向对但两段幅度差 5 倍以上, 权重不稳.
+#
+# 口径: 输入全部是入选日当天及之前可得的数据, 无未来函数. 数据缺失按"中性"处理
+# (该特征贡献 0), 不用极端值猜.
+EDGE_WEIGHTS = {
+    'limitup': 0.51659,        # 入选日涨停 (涨跌幅 ≥9.8%) — 最强单项, 训练 +14.6 / 测试 +8.9pp
+    'below_ma60': 0.18917,    # 收盘跌破 MA60 — 未过度拉伸, 训练 +5.6 / 测试 +2.9pp
+    'low_price': -0.16056,    # 股价 < 20 元 — 低价小票明显差, 训练 -1.7 / 测试 -8.8pp
+    'bull3_not4': 0.14785,    # MA5>MA10>MA20 但没站上 MA30 — 启动初期好, 涨透了就差
+    'vol_mult': -0.12646,     # 量比 (对前 5 日均量) — 放量反而差, 训练 -1.5 / 测试 -3.8pp
+    'drawdown20': -0.04250,   # 距 20 日高点百分比 — 追高惩罚, 训练 -2.4 / 测试 -6.2pp
+    'small_pct': -0.01133,    # 小单净额占比 (负=散户净流出) — 散户流出越大越好
+    'change_pct': 0.01126,    # 入选日涨跌幅 (线性项)
+    'change_pct2': 0.00013,   # 入选日涨跌幅平方 — 与线性项合成 U 型 (0-2% 最差, 涨停最好)
+    'prev5': 0.00565,         # 入选前 5 日涨幅 — 有启动迹象的更好
+}
+EDGE_INTERCEPT = -0.91723
+
+
+def _attach_edge_scores(picks, trade_date):
+    """给 picks 原地挂 edge_score (0~100, 越大越好) + edge_flags (可读标签).
+
+    只依赖 stock_daily 的历史 (入选日往前 60 根) + picks 自带的字段, 因此历史日期也能
+    立刻算出来, 不需要回填数据库.
+    """
+    import math
+    if not picks:
+        return picks
+    codes = [p.get('ts_code') for p in picks if p.get('ts_code')]
+    if not codes:
+        return picks
+    cal_conn = sqlite3.connect(f'file:{DB_PATH}?mode=ro', uri=True)
+    try:
+        cal_rows = [r[0] for r in cal_conn.execute(
+            'SELECT cal_date FROM trading_dates_cache WHERE cal_date<=? '
+            'ORDER BY cal_date DESC LIMIT 61', (trade_date,)).fetchall()]
+    finally:
+        cal_conn.close()
+    cal_rows = sorted(cal_rows)
+    if len(cal_rows) < 61:
+        return picks
+    start_day = cal_rows[0]
+    placeholders = ','.join('?' * len(codes))
+    conn = sqlite3.connect(f'file:{DB_PATH}?mode=ro', uri=True)
+    try:
+        rows = conn.execute(
+            f'SELECT ts_code,trade_date,close,high,volume FROM stock_daily '
+            f'WHERE ts_code IN ({placeholders}) AND trade_date>=? AND trade_date<=?',
+            [*codes, start_day, trade_date]).fetchall()
+    finally:
+        conn.close()
+    hist = {}
+    for r in rows:
+        hist.setdefault(r[0], []).append(r)
+    for k in hist:
+        hist[k].sort(key=lambda x: x[1])
+
+    flags_all = []
+    for p in picks:
+        p.setdefault('trade_date', trade_date)
+        series = hist.get(p.get('ts_code')) or []
+        idx = next((i for i, r in enumerate(series) if r[1] == p['trade_date']), -1)
+        feats, flags = {}, []
+        close = p.get('close')
+        chg = p.get('change_pct')
+        feats['change_pct'] = chg if chg is not None else 0.0
+        feats['change_pct2'] = (chg or 0.0) ** 2
+        feats['limitup'] = 1.0 if (chg is not None and chg >= 9.8) else 0.0
+        if feats['limitup']:
+            flags.append('涨停启动')
+        if close is not None and close < 20:
+            feats['low_price'] = 1.0
+            flags.append('低价股')
+        ma5, ma10, ma20, ma30 = p.get('ma5'), p.get('ma10'), p.get('ma20'), p.get('ma30')
+        if None not in (ma5, ma10, ma20, ma30):
+            bull3 = ma5 > ma10 > ma20
+            bull4 = bull3 and ma20 > ma30
+            feats['bull3_not4'] = (1.0 if bull3 else 0.0) - (1.0 if bull4 else 0.0)
+            if bull3 and not bull4:
+                flags.append('三线启动未涨透')
+            elif bull4:
+                flags.append('多头已涨透')
+        if close is not None and idx > 0:
+            prior = [r for r in series[:idx] if r[2] and r[2] > 0]
+            if len(prior) >= 60:
+                ma60 = sum(r[2] for r in prior[-60:]) / 60
+                feats['below_ma60'] = 1.0 if close < ma60 else 0.0
+                if close < ma60:
+                    flags.append('仍在MA60下')
+            if len(prior) >= 20:
+                hi20 = max(r[3] for r in prior[-20:] if r[3]) or 0
+                if hi20 > 0:
+                    feats['drawdown20'] = (close / hi20 - 1) * 100
+                    if feats['drawdown20'] > -2:
+                        flags.append('紧贴20日高')
+            vols = [r[4] for r in prior[-5:] if r[4]]
+            if len(vols) >= 5 and sum(vols) > 0 and series[idx][4]:
+                feats['vol_mult'] = series[idx][4] / (sum(vols) / 5)
+            ref5 = prior[-6][2] if len(prior) >= 6 else 0
+            if ref5 > 0:
+                feats['prev5'] = (close / ref5 - 1) * 100
+        sp = p.get('small_pct')
+        if sp is not None and math.isfinite(sp):
+            feats['small_pct'] = sp
+            if sp < -8:
+                flags.append('散户大幅流出')
+        raw = EDGE_INTERCEPT + sum(EDGE_WEIGHTS.get(k, 0.0) * v for k, v in feats.items())
+        # logistic 概率 → 0~100 分, 便于展示和排序
+        p['edge_score'] = round(100 / (1 + math.exp(-max(-30, min(30, raw)))), 1)
+        p['edge_flags'] = flags
+        flags_all.append(flags)
+    return picks
+
+
 @app.route('/api/picks', methods=['GET'])
 def api_picks():
     """获取选股推荐列表"""
@@ -10434,10 +11474,27 @@ def api_picks():
             except Exception as e:
                 print(f'[api_picks] sina 拉取失败 (不影响主流程): {e}')
 
+    # 入选后 T+1~T+5 (收盘复利 + 第N日最高/入选日收盘)
+    next_dates, live_next_index = [], 0
+    if picks:
+        try:
+            next_dates, live_next_index = _attach_preferred_outcomes(
+                picks, picks[0]['trade_date'], key='post_pick_outcomes')
+        except Exception as e:
+            print(f'[api_picks] T+N 计算失败 (不影响主流程): {e}')
+
+    # 优选分 (替代 score 做默认排序, 见 _attach_edge_scores 注释)
+    try:
+        _attach_edge_scores(picks, picks[0]['trade_date'] if picks else '')
+    except Exception as e:
+        print(f'[api_picks] 优选分计算失败 (不影响主流程): {e}')
+
     return jsonify({
         'picks': picks,
         'date': rows[0]['trade_date'] if rows else '',
-        'count': len(picks)
+        'count': len(picks),
+        'next_dates': next_dates,
+        'live_next_index': live_next_index,
     })
 
 
@@ -10596,6 +11653,20 @@ def api_user_picks_list():
             except Exception as e:
                 print(f'[api_user_picks] sina 拉取失败 (不影响主流程): {e}')
 
+    # 入选后 T+1~T+5 (跟系统推荐/条件优选同口径; 我的选股跟系统推荐共用同一张表)
+    next_dates, live_next_index = [], 0
+    if picks:
+        try:
+            next_dates, live_next_index = _attach_preferred_outcomes(
+                picks, picks[0]['trade_date'], key='post_pick_outcomes')
+        except Exception as e:
+            print(f'[api_user_picks] T+N 计算失败 (不影响主流程): {e}')
+
+    try:
+        _attach_edge_scores(picks, picks[0]['trade_date'] if picks else '')
+    except Exception as e:
+        print(f'[api_user_picks] 优选分计算失败 (不影响主流程): {e}')
+
     return jsonify({
         'picks': picks,
         'date': picks[0]['trade_date'] if picks else '',
@@ -10603,6 +11674,8 @@ def api_user_picks_list():
         'group': 'user',
         'added_count': len(codes),
         'added_at_map': added_at_map,
+        'next_dates': next_dates,
+        'live_next_index': live_next_index,
     })
 
 
@@ -10666,8 +11739,32 @@ def _apply_cond_threshold(rows, threshold_amt):
     return out
 
 
+def _parse_volume_ratio_pct(value, default=80):
+    """解析缩量阈值。约定 0 = 关闭缩量过滤 (只保留收盘 ≥ MA10 等其余规则);
+    合法开启区间是 1~100, 越界/无法解析一律回落到 default。"""
+    try:
+        pct = float(value)
+    except (TypeError, ValueError):
+        return default
+    if pct == 0:
+        return 0
+    if pct < 0 or pct > 100 or pct < 1:
+        return default
+    return pct
+
+
+def _volume_rule_text(volume_ratio_pct):
+    """缩量规则说明 (给前端汇总行/预览图用)。"""
+    if not volume_ratio_pct:
+        return '缩量过滤已关闭 (不按成交量比剔除)'
+    return f'当天成交量 ≤ 前一有效交易记录成交量 × {volume_ratio_pct:g}%'
+
+
 def _filter_conditional_new(rows, trade_date, volume_ratio_pct=80, conn=None):
-    """在既有条件选股结果上叠加收盘价/MA10 与成交量缩量规则。"""
+    """在既有条件选股结果上叠加收盘价/MA10 与成交量缩量规则。
+
+    volume_ratio_pct == 0 时只跳过"缩量"这一项 (收盘 ≥ MA10 照旧), 开关由前端控制。"""
+    volume_filter_on = float(volume_ratio_pct or 0) > 0
     stats = {
         'base_count': len(rows),
         'missing_current_daily': 0,
@@ -10676,6 +11773,7 @@ def _filter_conditional_new(rows, trade_date, volume_ratio_pct=80, conn=None):
         'below_ma10': 0,
         'volume_not_shrunk': 0,
         'matched': 0,
+        'volume_filter_on': volume_filter_on,
     }
     if not rows:
         return [], stats
@@ -10733,7 +11831,7 @@ def _filter_conditional_new(rows, trade_date, volume_ratio_pct=80, conn=None):
             stats['below_ma10'] += 1
             continue
         actual_ratio_pct = current_volume / previous_volume * 100
-        if current_volume > previous_volume * ratio_limit:
+        if volume_filter_on and current_volume > previous_volume * ratio_limit:
             stats['volume_not_shrunk'] += 1
             continue
         item = dict(source_row)
@@ -10979,18 +12077,11 @@ def _compute_conditional_picks_internal_ths(date, intraday_close=False):
         return None, [None] * NEXT_DAYS
 
     # 2) 入选日 T 的下 1..5 个交易日 (工作日历推算)
-    next_dates = []
-    try:
-        from datetime import date as _d2, timedelta as _td2
-        _cur = _d2(int(date[:4]), int(date[4:6]), int(date[6:8]))
-        for _ in range(NEXT_DAYS):
-            _cur = _cur + _td2(days=1)
-            while _cur.weekday() >= 5:
-                _cur = _cur + _td2(days=1)
-            next_dates.append(_cur.strftime('%Y%m%d'))
-    except Exception as _e:
-        print(f'[ths cond] next_dates 工作日历计算失败: {_e}', flush=True)
+    next_dates, _cal_ok = _next_trading_days(date, NEXT_DAYS)
+    if len(next_dates) < NEXT_DAYS:
+        print('[ths cond] 交易日历覆盖不足, 兜底 stock_daily/fund_flow_ths', flush=True)
         cur_lower = date
+        next_dates = []
         for _ in range(NEXT_DAYS):
             row = conn.execute(
                 'SELECT MIN(trade_date) AS d FROM stock_daily WHERE trade_date > ?',
@@ -11172,19 +12263,13 @@ def _compute_conditional_picks_internal(date, source, intraday_close=False):
 
     # 3) 入选日 T 的下 1..5 个交易日
     next_dates = []
-    # 工作日历推算 (首选, 不依赖 stock_daily / fund_flow, 保证"未来"也能算出)
-    try:
-        from datetime import date as _d2, timedelta as _td2
-        _cur = _d2(int(date[:4]), int(date[4:6]), int(date[6:8]))
-        for _ in range(NEXT_DAYS):
-            _cur = _cur + _td2(days=1)
-            while _cur.weekday() >= 5:  # 周六周日顺延
-                _cur = _cur + _td2(days=1)
-            next_dates.append(_cur.strftime('%Y%m%d'))
-    except Exception as _e:
-        print(f'[next_dates] 工作日历计算失败, 兜底 stock_daily: {_e}', flush=True)
-        # 兜底: 查 stock_daily; 再不行 fallback fund_flow
+    # 真实交易日历推算 (跳周末 + 法定节假日, 与 _attach_preferred_outcomes / 顶栏标注同源)
+    next_dates, _cal_ok = _next_trading_days(date, NEXT_DAYS)
+    if len(next_dates) < NEXT_DAYS:
+        # 历表不可用 → 兜底查 stock_daily; 再不行 fallback fund_flow
+        print('[next_dates] 交易日历覆盖不足, 兜底 stock_daily/fund_flow', flush=True)
         cur_lower = date
+        next_dates = []
         for _ in range(NEXT_DAYS):
             row = conn.execute(
                 'SELECT MIN(trade_date) AS d FROM stock_daily WHERE trade_date > ?',
@@ -11430,8 +12515,8 @@ def _enrich_intraday_payload(payload, today=None, quotes=None, has_daily=None):
     return payload
 
 
-def _next_workdays(ymd, n):
-    """工作日历推算 T+1..T+n (纯周末顺延, 同 _compute_conditional_picks_internal 首选路径)."""
+def _next_workdays_weekend_only(ymd, n):
+    """纯周末顺延 (不含法定节假日) —— 只作 _next_workdays 的降级兜底, 不要直接用."""
     from datetime import date as _d, timedelta as _td
     out = []
     cur = _d(int(ymd[:4]), int(ymd[4:6]), int(ymd[6:8]))
@@ -11441,6 +12526,111 @@ def _next_workdays(ymd, n):
             cur = cur + _td(days=1)
         out.append(cur.strftime('%Y%m%d'))
     return out
+
+
+def _trading_calendar_max(conn):
+    row = conn.execute('SELECT MAX(cal_date) FROM trading_dates_cache').fetchone()
+    return row[0] if row and row[0] else ''
+
+
+def _extend_trading_calendar(horizon, conn=None):
+    """把 trading_dates_cache 向后补到 horizon (YYYYMMDD), 含未来日期 (交易所已公布全年日历).
+
+    历表原本只灌到当天, 导致跨节假日时 T+N 推不出来 (如节后首个交易日缺失).
+    TuShare 不可用时静默跳过 —— 调用方会退回纯周末顺延, 不因日历缺失而报错."""
+    owns = conn is None
+    if owns:
+        try:
+            conn = sqlite3.connect(DB_PATH, timeout=5)
+        except Exception:
+            return False
+    try:
+        if _trading_calendar_max(conn) >= horizon:
+            return True
+        start = _trading_calendar_max(conn) or horizon
+        try:
+            pro = get_pro()
+            df = pro.trade_cal(exchange='SSE', start_date=start, end_date=horizon)
+            dates = df[df['is_open'] == 1]['cal_date'].tolist() if df is not None else []
+        except Exception as exc:
+            print(f'[trading calendar] TuShare 补日历失败 ({start}→{horizon}): {exc}', flush=True)
+            return False
+        if not dates:
+            return False
+        conn.executemany('INSERT OR IGNORE INTO trading_dates_cache (cal_date) VALUES (?)',
+                         [(d,) for d in dates])
+        conn.commit()
+        print(f'[trading calendar] 已补 {len(dates)} 个交易日 → {max(dates)}', flush=True)
+        return True
+    except Exception as exc:
+        print(f'[trading calendar] 写入失败: {exc}', flush=True)
+        return False
+    finally:
+        if owns:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+_TRADING_CAL_LAST_ATTEMPT = 0.0
+_TRADING_CAL_THROTTLE_SEC = 600.0
+
+
+def _trading_days_after(ymd, n):
+    """取 ymd 之后的前 n 个真实交易日 (含法定节假日), 历表覆盖不足时先向后补.
+    返回升序日期列表; 历表完全不可用时返回空列表.
+
+    补日历是「拉 TuShare + 写库」的重操作, 而本函数在每个选股请求里都会走到 —— 所以按
+    horizon 节流: 同一进程内对相同 horizon 最多每 10 分钟补一次, 避免历表够不到时把每个
+    请求都拖成一次网络往返 + 写锁竞争."""
+    global _TRADING_CAL_LAST_ATTEMPT
+    from datetime import date as _d, timedelta as _td
+    base = _d(int(ymd[:4]), int(ymd[4:6]), int(ymd[6:8]))
+    # 覆盖 n 个交易日所需日历天: A股最长连休 (春节) 约 9 天, n*3+20 是安全余量
+    horizon = (base + _td(days=n * 3 + 20)).strftime('%Y%m%d')
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_PATH, timeout=5)
+        if _trading_calendar_max(conn) < horizon:
+            now = time.time()
+            if now - _TRADING_CAL_LAST_ATTEMPT >= _TRADING_CAL_THROTTLE_SEC:
+                _TRADING_CAL_LAST_ATTEMPT = now
+                _extend_trading_calendar(horizon, conn)
+        return [r[0] for r in conn.execute(
+            'SELECT cal_date FROM trading_dates_cache WHERE cal_date > ? AND cal_date <= ? '
+            'ORDER BY cal_date LIMIT ?', (ymd, horizon, n)).fetchall()]
+    except Exception as exc:
+        print(f'[trading calendar] 读取失败: {exc}', flush=True)
+        return []
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+def _next_trading_days(ymd, n):
+    """取入选日之后 T+1..T+n 的真实交易日.
+
+    返回 (dates, from_calendar): from_calendar=False 表示交易日历覆盖不足 (TuShare 不可用等),
+    dates 为空列表 —— 调用方需要自己兜底 (查 stock_daily / fund_flow), 别直接当成空数据."""
+    if not ymd or not n:
+        return [], False
+    days = _trading_days_after(ymd, n)
+    return (days[:n], True) if len(days) >= n else ([], False)
+
+
+def _next_workdays(ymd, n):
+    """推算入选日之后 T+1..T+n 对应的真实交易日 (跳周末 + 法定节假日).
+
+    口径与 _attach_preferred_outcomes 取数用的 trading_dates_cache 一致, 保证界面顶栏
+    标注的 T+N 日期和表格 T+N 列里实际装的行情是同一天 (历史版本这里按"纯周末顺延"数日子,
+    遇中秋/国庆会整体错位). 日历不可用时降级为纯周末顺延, 调用方若能兜底应改用 _next_trading_days."""
+    days, ok = _next_trading_days(ymd, n)
+    return days if ok else _next_workdays_weekend_only(ymd, n)
+
 
 
 def _snapshot_tn_stale(conn, results, next_dates):
@@ -11533,14 +12723,22 @@ def _save_conditional_new_snapshot(date, hits, exclusions, threshold_yi, volume_
     if date > today_ymd or (date == today_ymd and (today.hour, today.minute) < (15, 5)):
         return
     try:
+        # 同 _save_conditional_preferred_snapshot: REPLACE 会删旧行, 漏写 next_date 列会被清空
+        next_dates = _next_workdays(date, 5)
         _conn = sqlite3.connect(DB_PATH)
         _conn.execute(
             'INSERT OR REPLACE INTO conditional_picks_new_snapshot '
-            '(trade_date, count, results_json, exclusions_json, threshold_yi, volume_ratio_pct) '
-            'VALUES (?,?,?,?,?,?)',
+            '(trade_date, count, results_json, exclusions_json, threshold_yi, volume_ratio_pct, '
+            'next_date, next_date_2, next_date_3, next_date_4, next_date_5) '
+            'VALUES (?,?,?,?,?,?,?,?,?,?,?)',
             (date, len(hits), json.dumps(hits, ensure_ascii=False),
              json.dumps(exclusions, ensure_ascii=False),
-             threshold_yi, volume_ratio_pct))
+             threshold_yi, volume_ratio_pct,
+             next_dates[0] if len(next_dates) > 0 else None,
+             next_dates[1] if len(next_dates) > 1 else None,
+             next_dates[2] if len(next_dates) > 2 else None,
+             next_dates[3] if len(next_dates) > 3 else None,
+             next_dates[4] if len(next_dates) > 4 else None))
         _conn.commit()
         _conn.close()
     except Exception as _e:
@@ -11614,7 +12812,7 @@ def _read_conditional_new_snapshot(date, threshold_yi, volume_ratio_pct):
             'base': '复用条件选股全部规则及资金门槛',
             'close_vs_ma10': '收盘价 ≥ MA10 (含当天最近 10 个有效收盘价)',
             'max_volume_ratio_pct': volume_ratio_pct,
-            'volume_rule': f'当天成交量 ≤ 前一有效交易记录成交量 × {volume_ratio_pct:g}%',
+            'volume_rule': _volume_rule_text(volume_ratio_pct),
             'completed_daily_only': True,
         },
         'note': '快照库直读',
@@ -11629,14 +12827,23 @@ def _save_conditional_preferred_snapshot(date, hits, stats, threshold_yi, volume
     if date > today_ymd or (date == today_ymd and (today.hour, today.minute) < (15, 5)):
         return
     try:
+        # 必须带上 next_date_1..5: INSERT OR REPLACE 会删旧行重建, 不写这几列就会被清成
+        # NULL, 之后读快照直读时顶栏 T+N 标注就空了 (历史日期尤其明显)
+        next_dates = _next_workdays(date, 5)
         _conn = sqlite3.connect(DB_PATH)
         _conn.execute(
             'INSERT OR REPLACE INTO conditional_picks_preferred_snapshot '
-            '(trade_date, count, results_json, exclusions_json, threshold_yi, volume_ratio_pct) '
-            'VALUES (?,?,?,?,?,?)',
+            '(trade_date, count, results_json, exclusions_json, threshold_yi, volume_ratio_pct, '
+            'next_date, next_date_2, next_date_3, next_date_4, next_date_5) '
+            'VALUES (?,?,?,?,?,?,?,?,?,?,?)',
             (date, len(hits), json.dumps(hits, ensure_ascii=False),
              json.dumps(stats, ensure_ascii=False),
-             threshold_yi, volume_ratio_pct))
+             threshold_yi, volume_ratio_pct,
+             next_dates[0] if len(next_dates) > 0 else None,
+             next_dates[1] if len(next_dates) > 1 else None,
+             next_dates[2] if len(next_dates) > 2 else None,
+             next_dates[3] if len(next_dates) > 3 else None,
+             next_dates[4] if len(next_dates) > 4 else None))
         _conn.commit()
         _conn.close()
     except Exception as _e:
@@ -12230,9 +13437,7 @@ def api_conditional_picks_new():
     except Exception:
         threshold_yi = 3
     try:
-        volume_ratio_pct = float(request.args.get('volume_ratio_pct') or '80')
-        if volume_ratio_pct < 1 or volume_ratio_pct > 100:
-            volume_ratio_pct = 80
+        volume_ratio_pct = _parse_volume_ratio_pct(request.args.get('volume_ratio_pct'))
     except Exception:
         volume_ratio_pct = 80
 
@@ -12242,7 +13447,7 @@ def api_conditional_picks_new():
         'base': '复用条件选股全部规则及资金门槛',
         'close_vs_ma10': '收盘价 ≥ MA10（含当天最近 10 个有效收盘价）',
         'max_volume_ratio_pct': volume_ratio_pct,
-        'volume_rule': f'当天成交量 ≤ 前一有效交易记录成交量 × {volume_ratio_pct:g}%',
+        'volume_rule': _volume_rule_text(volume_ratio_pct),
         'completed_daily_only': True,
     }
     if not daily_ready:
@@ -12393,8 +13598,17 @@ def _filter_conditional_preferred(rows, trade_date, conn=None):
             conn.close()
 
 
-def _attach_preferred_outcomes(rows, trade_date, conn=None):
-    """相加口径；历史日用收盘日线，今天所在的 T+N 用已核验实时价/日高。"""
+def _attach_preferred_outcomes(rows, trade_date, conn=None, key='preferred_outcomes'):
+    """复利口径；历史日用收盘日线，今天所在的 T+N 用已核验实时价/日高。
+
+    key: 挂载结果的字段名 (条件优选用 preferred_outcomes, 系统推荐/我的选股用 post_pick_outcomes)。
+    返回 (入选日之后 T+1..T+5 的交易日, 其中"今天"落在第几个; 没落在窗口内为 0)。
+
+    口径 (2026-10 改, 与条件选股表格统一):
+      close_sum_pct = 第 N 日收盘 / 入选日收盘 - 1          —— 复利, 真实可成交
+      high_sum_pct  = 第 N 日最高 / 入选日收盘 - 1 —— 当天冲高相对成本
+    旧实现是逐日涨跌幅相加 (复利会漏、先跌后涨会高估), 最高值也只混了第 N 日, 不是这个分母。
+    """
     import math
     owns_conn = conn is None
     if owns_conn:
@@ -12415,8 +13629,10 @@ def _attach_preferred_outcomes(rows, trade_date, conn=None):
             except Exception as exc:
                 print(f'[preferred intraday] 实时行情失败: {exc}', flush=True)
         for row in rows:
-            row['preferred_outcomes'] = []
-            cumulative, previous, blocked = 0.0, row['close'], None
+            row[key] = []
+            entry_close = row.get('close')
+            previous = entry_close
+            blocked = None
             for index in range(5):
                 day = days[index] if index < len(days) else None
                 result = {'date': day, 'high_sum_pct': None, 'close_sum_pct': None,
@@ -12434,8 +13650,8 @@ def _attach_preferred_outcomes(rows, trade_date, conn=None):
                             blocked = 'reference_mismatch'
                         else:
                             result.update(
-                                high_sum_pct=round(cumulative + (high / previous - 1) * 100, 4),
-                                close_sum_pct=round(cumulative + (price / previous - 1) * 100, 4),
+                                high_sum_pct=round((high / entry_close - 1) * 100, 4) if entry_close else None,
+                                close_sum_pct=round((price / entry_close - 1) * 100, 4) if entry_close else None,
                                 reason='intraday')
                             blocked = 'waiting_close'
                     else:
@@ -12453,14 +13669,14 @@ def _attach_preferred_outcomes(rows, trade_date, conn=None):
                             if d['change'] is None or not math.isfinite(d['change']) or abs(change - d['change']) > .15:
                                 blocked = 'reference_mismatch'
                             else:
-                                result.update(high_sum_pct=round(cumulative + (d['high'] / previous - 1) * 100, 4),
-                                              close_sum_pct=round(cumulative + change, 4), reason=None)
-                                cumulative += change
+                                result.update(high_sum_pct=round((d['high'] / entry_close - 1) * 100, 4),
+                                              close_sum_pct=round((d['close'] / entry_close - 1) * 100, 4),
+                                              reason=None)
                                 previous = d['close']
                 if blocked and result['high_sum_pct'] is None:
                     result['reason'] = blocked
-                row['preferred_outcomes'].append(result)
-        return days
+                row[key].append(result)
+        return days, live_index
     finally:
         if owns_conn:
             conn.close()
@@ -12509,7 +13725,7 @@ def api_conditional_picks_preferred():
         except Exception:
             threshold_yi = 3
         try:
-            volume_ratio_pct = float(request.args.get('volume_ratio_pct') or '80')
+            volume_ratio_pct = _parse_volume_ratio_pct(request.args.get('volume_ratio_pct'))
         except Exception:
             volume_ratio_pct = 80
         cached = _read_conditional_preferred_snapshot(payload['date'], threshold_yi, volume_ratio_pct)
@@ -12546,11 +13762,166 @@ def api_conditional_picks_preferred():
         except Exception:
             threshold_yi = 3
         try:
-            volume_ratio_pct = float(request.args.get('volume_ratio_pct') or '80')
+            volume_ratio_pct = _parse_volume_ratio_pct(request.args.get('volume_ratio_pct'))
         except Exception:
             volume_ratio_pct = 80
         _save_conditional_preferred_snapshot(payload['date'], rows, stats, threshold_yi, volume_ratio_pct)
     return jsonify(payload)
+
+
+# ===== 条件优选历史涨幅分布 (跨全部入选日回测 T+N 累计最高涨幅分桶占比) =====
+# 8 档固定分桶: 涨跌幅区间 → (标签, 下界含, 上界不含)
+PREFERRED_HIST_BUCKETS = (
+    ('drop',   '跌 (<0%)', None,  0.0),
+    ('b0_3',   '0~3%',     0.0,   3.0),
+    ('b3_5',   '3~5%',     3.0,   5.0),
+    ('b5_10',  '5~10%',    5.0,  10.0),
+    ('b10_15', '10~15%',  10.0,  15.0),
+    ('b15_20', '15~20%',  15.0,  20.0),
+    ('b20_30', '20~30%',  20.0,  30.0),
+    ('b30',    '≥30%',    30.0,  None),
+)
+PREFERRED_HIST_WINDOWS = (1, 3, 5)
+
+
+def _bucket_preferred_high_gain(gain_pct):
+    """把累计最高涨幅落进 8 档之一, 返回 (key, label) 或 (None, None)."""
+    for key, label, low, high in PREFERRED_HIST_BUCKETS:
+        if (low is None or gain_pct >= low) and (high is None or gain_pct < high):
+            return key, label
+    return None, None
+
+
+def _collect_preferred_history(window, volume_ratio_pct=0):
+    """扫 conditional_picks_preferred_snapshot 全量入选记录, 算每条记录在 T+1..T+window 的
+    累计最高涨幅 (当日最高价 / 入选日收盘价 - 1, 取窗口内最大值).
+    每次入选算一个独立样本 (同一只股票多次入选计多次).
+    窗口内任一天缺数据 (future_unavailable / reference_mismatch 等) 的记录整条排除并计数.
+
+    volume_ratio_pct > 0 时再按「该条记录自己的成交量比」筛一遍样本 —— 只影响这里的统计,
+    不改条件优选名单, 也不动库里的快照。0 = 不过滤 (默认)。
+    注意: 快照表一个日期只存一套参数, 早期用 90/99 算的日期里, 成交量比高于那套阈值的股票
+    当时就没被记录, 无法事后补回来; 这部分覆盖缺口由 filtered_out / unfiltered_days 暴露出来."""
+    volume_filter_on = float(volume_ratio_pct or 0) > 0
+    volume_limit = float(volume_ratio_pct or 0)
+    counts = {key: 0 for key, _, _, _ in PREFERRED_HIST_BUCKETS}
+    samples = []
+    pending = 0
+    settled = 0
+    filtered_out = 0
+    dates = []
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            'SELECT trade_date, count, results_json, threshold_yi, volume_ratio_pct '
+            'FROM conditional_picks_preferred_snapshot ORDER BY trade_date').fetchall()
+    except Exception as exc:
+        conn.close()
+        return {'error': f'读取条件优选快照失败: {exc}'}
+    for row in rows:
+        trade_date = row['trade_date']
+        try:
+            results = json.loads(row['results_json'] or '[]')
+        except Exception:
+            results = []
+        day_total = 0
+        day_settled = 0
+        for item in results or []:
+            outcomes = (item.get('preferred_outcomes') or [])[:window]
+            day_total += 1
+            values = [o.get('high_sum_pct') for o in outcomes]
+            if len(values) < window or any(v is None for v in values):
+                pending += 1
+                continue
+            gain = max(values)
+            key, label = _bucket_preferred_high_gain(gain)
+            if key is None:
+                pending += 1
+                continue
+            # 样本级缩量筛选: 只看这条记录自己那天的成交量比 (不追溯选股时的快照参数)
+            sample_ratio = item.get('volume_ratio_pct')
+            if volume_filter_on and (sample_ratio is None or float(sample_ratio) > volume_limit):
+                filtered_out += 1
+                continue
+            counts[key] += 1
+            settled += 1
+            day_settled += 1
+            samples.append({
+                'trade_date': trade_date,
+                'ts_code': item.get('ts_code'),
+                'name': item.get('name'),
+                'close': item.get('close'),
+                'volume_ratio_pct': sample_ratio,
+                'gain_pct': round(gain, 4),
+                'bucket': key,
+                'bucket_label': label,
+                'path': [round(v, 4) for v in values],
+            })
+        if day_total:
+            dates.append({
+                'trade_date': trade_date,
+                'count': day_total,
+                'settled': day_settled,
+                'threshold_yi': row['threshold_yi'],
+                'volume_ratio_pct': row['volume_ratio_pct'],
+            })
+    conn.close()
+    samples.sort(key=lambda s: (-s['gain_pct'], s['trade_date']))
+    buckets = []
+    for key, label, low, high in PREFERRED_HIST_BUCKETS:
+        cnt = counts[key]
+        buckets.append({
+            'key': key, 'label': label, 'low': low, 'high': high,
+            'count': cnt,
+            'pct': round(cnt / settled * 100, 2) if settled else 0.0,
+        })
+    # 覆盖缺口: 快照本身带缩量阈值的天数, 其样本天然缺 "高于该阈值" 的票, 事后补不回来
+    prefiltered_days = sum(1 for d in dates if (d.get('volume_ratio_pct') or 0) > 0)
+    return {
+        'window': window,
+        'buckets': buckets,
+        'samples': samples,
+        'dates': dates,
+        'settled': settled,
+        'pending': pending,
+        'filtered_out': filtered_out,
+        'total': settled + pending + filtered_out,
+        'date_count': len(dates),
+        'date_from': dates[0]['trade_date'] if dates else None,
+        'date_to': dates[-1]['trade_date'] if dates else None,
+        'unique_stocks': len({s['ts_code'] for s in samples}),
+        'volume_filter_on': volume_filter_on,
+        'volume_ratio_pct': volume_limit if volume_filter_on else None,
+        'prefiltered_days': prefiltered_days,
+    }
+
+
+@app.route('/api/conditional-picks/preferred/historical-distribution', methods=['GET'])
+def api_conditional_picks_preferred_historical_distribution():
+    """条件优选历史涨幅分布: 入参 days=1|3|5 (默认 5), volume_ratio_pct=0 表示不按成交量比筛,
+    返 8 档占比 + 逐条明细 + 每日入选数.
+    口径: 每次入选算独立样本; 累计最高涨幅 = 入选后 T+1..T+days 中任一天的最高价 / 入选日收盘价 - 1.
+
+    volume_ratio_pct 只作用于这里的样本筛选, 与条件优选名单用的缩量开关互不影响。"""
+    try:
+        window = int(request.args.get('days') or 5)
+    except Exception:
+        window = 5
+    if window not in PREFERRED_HIST_WINDOWS:
+        window = min(PREFERRED_HIST_WINDOWS, key=lambda w: abs(w - window))
+    volume_ratio_pct = _parse_volume_ratio_pct(request.args.get('volume_ratio_pct'), default=0)
+    data = _collect_preferred_history(window, volume_ratio_pct)
+    if data.get('error'):
+        return jsonify({'status': 'error', 'note': data['error']}), 500
+    return jsonify({
+        'status': 'success',
+        'strategy': 'conditional-preferred-v1',
+        'metric': 'max_high_sum_pct',
+        'metric_label': f'入选后 T+1~T+{window} 累计最高涨幅',
+        'windows': list(PREFERRED_HIST_WINDOWS),
+        **data,
+    })
 
 
 # ===== 条件选股预览图: 手动生成 PNG 长图存 backend/previews/ =====
@@ -12712,7 +14083,7 @@ def _build_preferred_preview_html(payload):
   <div style="font-size:12px;color:#cbd5e0;line-height:1.7;background:rgba(122,200,255,0.06);padding:10px 12px;border-radius:4px">
     继承「条件选股新」与上方门槛：<strong>当日小单净流出</strong>，且<strong>最近 5 个交易日主力净流入 / 对应成交额 ≥ 5%</strong>。五日记录须完整。<br>
     辅助排序：量比 70%～80%、收盘 ≤ MA60，每项命中优先一级；同级按主力强度排序。MA60 不足仅不加分。<br>
-    <span style="color:#8892a4">T+1 为次日最高涨幅；T+N 为前 N−1 日收盘涨跌幅相加，再加第 N 日最高涨幅。盘后更新，非可成交收益。</span>
+    <span style="color:#8892a4">累计收盘 = 第 N 日收盘 / 入选日收盘（复利，真实可成交）；累计最高 = 第 N 日最高 / 入选日收盘（当天冲高相对成本，非可成交收益）。</span>
   </div>
   <div style="margin-top:12px;font-size:12px;color:#cbd5e0">{_html_mod.escape(summary)}</div>
   <div style="font-size:12px;color:#7ac8ff;margin-top:4px;font-weight:600">📋 {date_md} · 命中 {len(rows)} 只</div>
@@ -12789,9 +14160,7 @@ def api_conditional_picks_new_preview_image():
     except Exception:
         threshold_yi = 3
     try:
-        volume_ratio_pct = float(body.get('volume_ratio_pct') or 80)
-        if volume_ratio_pct < 1 or volume_ratio_pct > 100:
-            volume_ratio_pct = 80
+        volume_ratio_pct = _parse_volume_ratio_pct(body.get('volume_ratio_pct'))
     except Exception:
         volume_ratio_pct = 80
 
@@ -12853,9 +14222,7 @@ def api_conditional_picks_preferred_preview_image():
     except Exception:
         threshold_yi = 3
     try:
-        volume_ratio_pct = float(body.get('volume_ratio_pct') or 80)
-        if volume_ratio_pct < 1 or volume_ratio_pct > 100:
-            volume_ratio_pct = 80
+        volume_ratio_pct = _parse_volume_ratio_pct(body.get('volume_ratio_pct'))
     except Exception:
         volume_ratio_pct = 80
 
@@ -13015,9 +14382,7 @@ def api_conditional_picks_preferred_page_preview():
     except Exception:
         threshold_yi = 3
     try:
-        volume_ratio_pct = float(body.get('volume_ratio_pct') or 80)
-        if volume_ratio_pct < 1 or volume_ratio_pct > 100:
-            volume_ratio_pct = 80
+        volume_ratio_pct = _parse_volume_ratio_pct(body.get('volume_ratio_pct'))
     except Exception:
         volume_ratio_pct = 80
 
@@ -13574,6 +14939,18 @@ def api_user_picks_add():
         'action': 'added',
         'id': new_id,
     })
+
+
+@app.route('/api/user-picks/feishu-sync', methods=['POST'])
+def api_user_picks_feishu_sync():
+    """加自选按钮专用: 把某日 user_picks 名单刷进飞书盘面晴雨表「当日低吸成功票」列.
+
+    只由前端「➕ 自选」按钮调用 (手动输入 / 上传识别 不走这条).
+    date 缺省 = 今天; 传 YYYYMMDD 或 YYYY-MM-DD 都认.
+    """
+    data = request.get_json(silent=True) or request.form or {}
+    date = (data.get('date') or request.args.get('date') or '').strip()
+    return jsonify(sync_user_picks_to_feishu(date))
 
 
 @app.route('/api/user-picks/<ts_code>', methods=['DELETE'])
@@ -15225,6 +16602,14 @@ def api_user_sector_detail(name):
     })
 
 
+# 冲高观察独立只读查询；沿用现有数据库路径。
+from surge_picks import register_surge_picks
+register_surge_picks(app, lambda: DB_PATH)
+
+from dip_picks import register_dip_picks
+register_dip_picks(app, lambda: DB_PATH, outcome_loader=_attach_preferred_outcomes)
+
+
 if __name__ == '__main__':
     init_db()
     print(f"数据库初始化完成: {DB_PATH}")
@@ -15237,6 +16622,7 @@ if __name__ == '__main__':
                                register_stock_daily_backfill, register_picks_resync_after_close,
                                register_conditional_combined_snapshot,
                                register_market_fflow_after_close,
+                               register_barometer_after_close,
                                register_stock_minline_after_close,
                                register_index_minline_after_close,
                                register_ths_flow_after_close,
@@ -15249,6 +16635,7 @@ if __name__ == '__main__':
         register_picks_resync_after_close()      # 收盘口径重算系统推荐 (16:00)
         register_conditional_combined_snapshot() # 盘后写条件/组合选股快照 (17:00)
         register_market_fflow_after_close()      # 盘后落盘大盘资金流 (15:35)
+        register_barometer_after_close()       # 盘后汇总盘面晴雨表 (15:37, 供手机端晴雨 tab)
         register_bk_flow_after_close()           # 盘后落盘板块资金流 (15:35 行业 / 15:36 概念 / 16:30 兜底)
         register_stock_minline_after_close()     # 盘后批量抓全市场个股分时入库 (15:05 / 16:30)
         register_index_minline_after_close()     # 盘后批量抓 4 大指数分时入库 (15:05 / 16:30)

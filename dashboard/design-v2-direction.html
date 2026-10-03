@@ -1,0 +1,1299 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TradeIQ · 界面重设计方向稿</title>
+<script>
+/* 防闪烁：在首帧之前套用已保存的主题，避免刷新时白底闪一下 */
+(function () {
+  try {
+    var m = localStorage.getItem('tq-theme');
+    var dark = m === 'dark' ||
+               (m !== 'light' && !window.matchMedia('(prefers-color-scheme: light)').matches);
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  } catch (e) {}
+})();
+</script>
+<style>
+/* ══════════════════════════════════════════════════════════════
+   TRADEIQ · DESIGN SYSTEM v2
+   方向：Professional Dark Desk —— 用层级表面 + 克制描边表达空间
+   ══════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── 表面阶：用亮度而非发光表达层级 ── */
+  --surface-0: #0b0f17;   /* 页面底 */
+  --surface-1: #121826;   /* 卡片 */
+  --surface-2: #1a2233;   /* 卡片 hover / 嵌套 */
+  --surface-3: #212b3f;   /* 浮层 / 弹窗 / 下拉 */
+
+  /* ── 描边阶 ── */
+  --border-subtle:  #1c2434;
+  --border-default: #26314a;
+  --border-strong:  #36435f;
+
+  /* ── 文字阶 ── */
+  --text-primary:   #e6ecf5;
+  --text-secondary: #93a1b8;
+  --text-muted:     #5d6b83;
+  --text-inverse:   #0b0f17;
+
+  /* ── 语义色：红涨绿跌（A 股约定，命名自解释） ── */
+  --up:   #ff5a68;
+  --down: #12c78f;
+  --flat: #5d6b83;
+  --warn: #f5b73d;
+  --info: #4c8dff;
+
+  /* ── 品牌主色：仅用于「选中态 / 主操作 / 焦点环」 ── */
+  --brand:      #4c8dff;
+  --brand-soft: rgba(76, 141, 255, 0.14);
+  --brand-line: rgba(76, 141, 255, 0.40);
+  --brand-ink:  #ffffff;
+
+  /* ── 布局 ── */
+  --nav-w: 216px;
+  --topbar-h: 56px;
+  --gutter: clamp(16px, 1.6vw, 32px);
+
+  /* ── 间距：4px 基准 ── */
+  --s1: 4px;  --s2: 8px;  --s3: 12px; --s4: 16px;
+  --s5: 20px; --s6: 24px; --s7: 32px; --s8: 40px; --s9: 56px;
+
+  /* ── 圆角：3 档 ── */
+  --r-sm: 6px;     /* 控件 */
+  --r-md: 10px;    /* 卡片 / 面板 */
+  --r-full: 999px; /* 胶囊 */
+
+  /* ── 字号：7 档 ── */
+  --fs-micro: 11px;
+  --fs-sm:   12px;
+  --fs-base: 13px;
+  --fs-md:   15px;
+  --fs-lg:   18px;
+  --fs-xl:   24px;
+  --fs-hero: 28px;
+
+  /* ── 字体：3 角色 ── */
+  --font-ui: -apple-system, BlinkMacSystemFont, "PingFang SC",
+             "Noto Sans SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+  --font-num: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo,
+              "Cascadia Mono", Consolas, monospace;
+
+  --row-h: 36px;
+  --ease: cubic-bezier(.4, 0, .2, 1);
+
+  /* ── 主题元信息 ── */
+  --line-warm: rgba(255, 90, 104, .30);
+  --line-warn: rgba(245, 183, 61, .32);
+  --glow-warm: rgba(255, 90, 104, .13);   /* --up 的半透明底 */
+  --glow-cool: rgba(18, 199, 143, .13);   /* --down 的半透明底 */
+  --glow-warn: rgba(245, 183, 61, .11);
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, .28);
+  --shadow-2: 0 6px 24px rgba(0, 0, 0, .40);
+  --topbar-bg: rgba(11, 15, 23, .82);
+  color-scheme: dark;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   白天模式 —— 不是把背景反过来，是重定一遍
+   · 涨跌色整体压深，否则白底上 3:1 的对比度撑不住小字
+   · 描边加深、白底上需要靠阴影而不是发光表达层级
+   · 表面阶明度差拉大（4% → 6%），白底下的层级感比暗色难做
+   ══════════════════════════════════════════════════════════════ */
+[data-theme="light"] {
+  --surface-0: #f4f6f9;   /* 页面底 */
+  --surface-1: #ffffff;   /* 卡片 */
+  --surface-2: #eef1f5;   /* hover / 嵌套 / 表头 */
+  --surface-3: #ffffff;   /* 浮层 / 弹窗 / 下拉 */
+
+  --border-subtle:  #e4e8ee;
+  --border-default: #d3d9e2;
+  --border-strong:  #b3bcca;
+
+  --text-primary:   #111721;
+  --text-secondary: #4b5567;
+  --text-muted:     #7b8698;
+  --text-inverse:   #ffffff;
+
+  /* 红涨绿跌：同色相压深，保证白底可读 */
+  --up:   #d12839;
+  --down: #088058;
+  --flat: #7b8698;
+  --warn: #b0760a;
+  --info: #2563eb;
+
+  --brand:      #2563eb;
+  --brand-soft: rgba(37, 99, 235, .10);
+  --brand-line: rgba(37, 99, 235, .32);
+  --brand-ink:  #ffffff;
+
+  --line-warm: rgba(217, 43, 60, .28);
+  --line-warn: rgba(176, 118, 10, .30);
+  --glow-warm: rgba(209, 40, 57, .10);
+  --glow-cool: rgba(8, 128, 88, .10);
+  --glow-warn: rgba(176, 118, 10, .10);
+  --shadow-1: 0 1px 2px rgba(16, 24, 40, .06);
+  --shadow-2: 0 6px 24px rgba(16, 24, 40, .12);
+  --topbar-bg: rgba(255, 255, 255, .84);
+  color-scheme: light;
+}
+
+/* ── reset ── */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: calc(var(--topbar-h) + 20px); }
+body {
+  font-family: var(--font-ui);
+  font-size: var(--fs-base);
+  line-height: 1.6;
+  background: var(--surface-0);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  min-height: 100vh;
+}
+/* 页面底：极淡径向渐晕，取代现状的硬网格纹理 */
+body::before {
+  content: '';
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background: radial-gradient(ellipse 90% 60% at 50% -10%, var(--brand-soft), transparent 60%);
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+::selection { background: var(--brand-soft); color: var(--text-primary); }
+
+/* ── 等宽数字：只用于数字 / 代码 ── */
+.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+
+/* ── 微标签 ── */
+.eyebrow {
+  font-size: var(--fs-micro);
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.up { color: var(--up); }
+.down { color: var(--down); }
+.flat { color: var(--flat); }
+
+/* ══════════════ 顶栏 ══════════════ */
+.topbar {
+  height: var(--topbar-h);
+  position: sticky; top: 0; z-index: 50;
+  display: flex; align-items: center; gap: var(--s4);
+  padding: 0 var(--gutter);
+  background: var(--topbar-bg);
+  backdrop-filter: saturate(160%) blur(16px);
+  -webkit-backdrop-filter: saturate(160%) blur(16px);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand-mark {
+  width: 30px; height: 30px; border-radius: 8px;
+  display: grid; place-items: center;
+  background: var(--brand-soft);
+  border: 1px solid var(--brand-line);
+  color: var(--brand);
+  font-family: var(--font-num); font-weight: 700; font-size: 12px;
+  letter-spacing: -.5px;
+}
+.brand-name { font-size: var(--fs-md); font-weight: 650; letter-spacing: .2px; }
+.brand-name i { font-style: normal; color: var(--brand); }
+.brand-tag {
+  font-size: 10px; letter-spacing: 1.2px; color: var(--text-muted);
+  border: 1px solid var(--border-default); border-radius: var(--r-full);
+  padding: 2px 9px; margin-left: 4px;
+}
+.topbar nav { display: flex; gap: 2px; margin-left: auto; }
+.topbar nav a {
+  color: var(--text-secondary); text-decoration: none;
+  font-size: var(--fs-sm); padding: 6px 12px; border-radius: var(--r-sm);
+  transition: color .15s var(--ease), background .15s var(--ease);
+}
+.topbar nav a:hover { color: var(--text-primary); background: var(--surface-1); }
+
+/* ── 主题切换：三态（跟随系统 / 白天 / 夜间） ── */
+.theme-switch {
+  display: inline-flex; gap: 2px; padding: 3px; flex-shrink: 0;
+  background: var(--surface-1); border: 1px solid var(--border-subtle);
+  border-radius: var(--r-sm);
+}
+.ts-btn {
+  background: transparent; border: 0; color: var(--text-muted);
+  font-size: var(--fs-sm); line-height: 1; padding: 5px 10px;
+  border-radius: 4px; transition: all .13s var(--ease); min-width: 30px;
+}
+.ts-btn:hover { color: var(--text-primary); background: var(--surface-2); }
+.ts-btn.on { background: var(--brand-soft); color: var(--brand); font-weight: 550; box-shadow: inset 0 0 0 1px var(--brand-line); }
+@media (max-width: 720px) { .ts-btn[data-theme-set="auto"] { display: none; } }
+
+/* ══════════════ 页面骨架 ══════════════ */
+.wrap { position: relative; z-index: 1; max-width: 1560px; margin: 0 auto; padding: 0 var(--gutter); }
+
+.hero { padding: var(--s9) 0 var(--s8); border-bottom: 1px solid var(--border-subtle); }
+.hero h1 {
+  font-size: 40px; line-height: 1.2; font-weight: 680; letter-spacing: -1px;
+  margin: var(--s3) 0 var(--s4); max-width: 22ch;
+}
+.hero h1 em { font-style: normal; color: var(--brand); }
+.hero-lead { font-size: var(--fs-md); color: var(--text-secondary); max-width: 68ch; line-height: 1.75; }
+.hero-meta { display: flex; flex-wrap: wrap; gap: var(--s2); margin-top: var(--s6); }
+.hero-meta span {
+  font-size: var(--fs-sm); color: var(--text-secondary);
+  border: 1px solid var(--border-default); background: var(--surface-1);
+  border-radius: var(--r-full); padding: 4px 12px;
+}
+
+/* ══════════════ 区块 ══════════════ */
+section { padding: var(--s8) 0; border-bottom: 1px solid var(--border-subtle); }
+.sec-head { display: flex; align-items: baseline; gap: var(--s3); margin-bottom: var(--s3); }
+.sec-num { font-family: var(--font-num); font-size: var(--fs-sm); color: var(--brand); }
+.sec-title { font-size: var(--fs-lg); font-weight: 620; letter-spacing: -.2px; }
+.sec-desc { color: var(--text-secondary); max-width: 76ch; margin-bottom: var(--s6); }
+
+.grid { display: grid; gap: var(--s4); }
+.g2 { grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); }
+.g3 { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.g4 { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+
+.panel {
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+  padding: var(--s5);
+}
+.panel > .eyebrow { margin-bottom: var(--s3); }
+.stack { display: flex; flex-direction: column; gap: var(--s2); }
+.row { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
+
+/* ══════════════ 方向卡 ══════════════ */
+.dir-card { border-left: 2px solid var(--border-strong); padding-left: var(--s4); }
+.dir-card.on { border-left-color: var(--brand); }
+.dir-card h4 { font-size: var(--fs-md); font-weight: 600; margin-bottom: 6px; }
+.dir-card p { font-size: var(--fs-sm); color: var(--text-secondary); line-height: 1.7; }
+.dir-card .was { color: var(--text-muted); font-size: var(--fs-sm); margin-top: var(--s2); }
+.dir-card .was s { color: var(--text-muted); opacity: .7; }
+
+/* ══════════════ 色板 ══════════════ */
+.swatch-list { display: flex; flex-direction: column; gap: 1px; border-radius: var(--r-sm); overflow: hidden; border: 1px solid var(--border-subtle); }
+.swatch { display: flex; align-items: center; gap: var(--s3); padding: 9px var(--s3); }
+.swatch .chipbox { width: 30px; height: 30px; border-radius: var(--r-sm); flex-shrink: 0; border: 1px solid rgba(255,255,255,.06); }
+.swatch .nm { font-family: var(--font-num); font-size: var(--fs-sm); color: var(--text-primary); }
+.swatch .ds { font-size: var(--fs-sm); color: var(--text-secondary); }
+.swatch .hx { margin-left: auto; font-family: var(--font-num); font-size: var(--fs-micro); color: var(--text-muted); }
+
+/* 主色切换 */
+.accent-picker { display: flex; gap: var(--s2); flex-wrap: wrap; }
+.accent-opt {
+  display: flex; align-items: center; gap: 9px;
+  padding: 9px 15px 9px 11px;
+  background: var(--surface-2); border: 1px solid var(--border-default);
+  border-radius: var(--r-sm); color: var(--text-secondary);
+  font-size: var(--fs-sm); transition: all .15s var(--ease);
+}
+.accent-opt:hover { border-color: var(--border-strong); color: var(--text-primary); }
+.accent-opt .dot { width: 16px; height: 16px; border-radius: 5px; }
+.accent-opt.on { border-color: var(--brand-line); background: var(--brand-soft); color: var(--text-primary); }
+.accent-opt .rec { font-size: 10px; color: var(--brand); border: 1px solid var(--brand-line); border-radius: var(--r-full); padding: 1px 7px; }
+
+/* ══════════════ 字阶 ══════════════ */
+.type-row {
+  display: grid; grid-template-columns: 150px 1fr 116px;
+  gap: var(--s4); align-items: baseline;
+  padding: var(--s3) 0; border-bottom: 1px solid var(--border-subtle);
+}
+.type-row:last-child { border-bottom: 0; }
+.type-tok { font-family: var(--font-num); font-size: var(--fs-sm); color: var(--brand); }
+.type-spec { font-family: var(--font-num); font-size: var(--fs-micro); color: var(--text-muted); text-align: right; }
+.s1 { font-size: var(--fs-micro); line-height: 1.5; }
+.s2 { font-size: var(--fs-sm); line-height: 1.6; }
+.s3 { font-size: var(--fs-base); line-height: 1.6; }
+.s4 { font-size: var(--fs-md); line-height: 1.5; font-weight: 550; }
+.s5 { font-size: var(--fs-lg); line-height: 1.4; font-weight: 600; }
+.s6 { font-size: var(--fs-xl); line-height: 1.3; font-weight: 620; letter-spacing: -.5px; }
+.s7 { font-size: var(--fs-hero); line-height: 1.2; font-weight: 660; letter-spacing: -1px; }
+
+/* ══════════════ 间距尺 ══════════════ */
+.space-row { display: flex; align-items: center; gap: var(--s4); padding: 7px 0; }
+.space-bar { height: 10px; background: var(--brand-soft); border: 1px solid var(--brand-line); border-radius: 3px; flex-shrink: 0; }
+.space-nm { font-family: var(--font-num); font-size: var(--fs-sm); color: var(--text-primary); width: 64px; }
+.space-px { font-family: var(--font-num); font-size: var(--fs-sm); color: var(--text-muted); }
+.space-use { font-size: var(--fs-sm); color: var(--text-secondary); margin-left: auto; }
+
+/* 12 列栅格 */
+.grid12 { display: grid; grid-template-columns: repeat(12, 1fr); gap: var(--s2); }
+.grid12 span { height: 34px; background: var(--surface-2); border: 1px solid var(--border-subtle); border-radius: var(--r-sm); display: grid; place-items: center; font-family: var(--font-num); font-size: var(--fs-micro); color: var(--text-muted); }
+
+/* ══════════════ 组件：指数卡 ══════════════ */
+.idx-card {
+  position: relative; overflow: hidden;
+  background: var(--surface-1); border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md); padding: var(--s5);
+  transition: border-color .15s var(--ease);
+}
+.idx-card::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 2px; }
+.idx-card.u::before { background: linear-gradient(90deg, var(--up), transparent 70%); }
+.idx-card.d::before { background: linear-gradient(90deg, var(--down), transparent 70%); }
+.idx-card:hover { border-color: var(--border-strong); }
+.idx-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--s2); }
+.idx-name { font-size: var(--fs-sm); color: var(--text-secondary); font-weight: 550; }
+.idx-code { font-family: var(--font-num); font-size: var(--fs-micro); color: var(--text-muted); display: block; margin-top: 1px; }
+.badge { font-size: var(--fs-micro); font-weight: 600; padding: 2px 8px; border-radius: var(--r-sm); letter-spacing: .3px; }
+.badge.u { background: var(--glow-warm); color: var(--up); }
+.badge.d { background: var(--glow-cool); color: var(--down); }
+.idx-price { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-size: var(--fs-hero); font-weight: 650; letter-spacing: -1px; margin: var(--s3) 0 6px; }
+.idx-chg { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-size: var(--fs-base); font-weight: 550; }
+.idx-foot { display: flex; justify-content: space-between; font-size: var(--fs-micro); color: var(--text-muted); margin-top: var(--s4); padding-top: var(--s3); border-top: 1px solid var(--border-subtle); }
+
+/* ══════════════ 组件：指标块 ══════════════ */
+.stat { background: var(--surface-1); border: 1px solid var(--border-subtle); border-radius: var(--r-md); padding: var(--s4) var(--s5); }
+.stat-lbl { font-size: var(--fs-micro); letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; font-weight: 600; }
+.stat-val { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-size: var(--fs-xl); font-weight: 620; letter-spacing: -.6px; }
+
+/* ══════════════ 组件：数据表 ══════════════ */
+.tbl-wrap { background: var(--surface-1); border: 1px solid var(--border-subtle); border-radius: var(--r-md); overflow: hidden; }
+table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--fs-base); }
+th {
+  position: sticky; top: 0; z-index: 2;
+  background: var(--surface-2);
+  text-align: right; padding: 9px var(--s3);
+  font-size: var(--fs-micro); font-weight: 600; letter-spacing: .8px;
+  text-transform: uppercase; color: var(--text-muted);
+  border-bottom: 1px solid var(--border-default);
+  white-space: nowrap;
+}
+th:first-child, td:first-child { text-align: left; }
+td {
+  padding: 0 var(--s3); height: var(--row-h);
+  text-align: right; white-space: nowrap;
+  font-family: var(--font-num); font-variant-numeric: tabular-nums;
+  border-bottom: 1px solid var(--border-subtle);
+}
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr:hover td { background: var(--surface-2); }
+td.nm { font-family: var(--font-ui); font-weight: 500; }
+.stk-link { color: var(--brand); cursor: pointer; }
+.stk-link:hover { text-decoration: underline; }
+.sort-arrow { color: var(--text-muted); font-size: 9px; opacity: .5; margin-left: 3px; }
+th.on { color: var(--brand); }
+th.on .sort-arrow { color: var(--brand); opacity: 1; }
+
+/* ══════════════ 组件：分段控件 ══════════════ */
+.segbar {
+  display: inline-flex; gap: 2px; padding: 3px;
+  background: var(--surface-1); border: 1px solid var(--border-subtle);
+  border-radius: var(--r-sm); max-width: 100%; overflow-x: auto; scrollbar-width: none;
+}
+.segbar::-webkit-scrollbar { display: none; }
+.seg {
+  background: transparent; border: 0; color: var(--text-secondary);
+  font-size: var(--fs-sm); padding: 5px 13px; border-radius: 4px;
+  white-space: nowrap; transition: all .13s var(--ease); font-family: var(--font-ui);
+}
+.seg:hover { color: var(--text-primary); background: var(--surface-2); }
+.seg.on { background: var(--brand-soft); color: var(--brand); font-weight: 550; box-shadow: inset 0 0 0 1px var(--brand-line); }
+.seg .cnt { font-family: var(--font-num); font-size: var(--fs-micro); opacity: .8; margin-left: 5px; }
+
+/* 导航变体：页面级元素不是控件，不要底板内边距、也不要描边。
+   选中态靠底色 + 字重区分，不叠 inset 描边。 */
+.segbar.navflat {
+  padding: 0; gap: 0; background: transparent; border: 0; border-radius: 0;
+}
+.segbar.navflat .seg { border-radius: 0; }
+.segbar.navflat .seg.on { box-shadow: none; }
+
+/* ══════════════ 组件：按钮 ══════════════ */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 32px; padding: 0 14px;
+  font-size: var(--fs-sm); font-weight: 500; white-space: nowrap;
+  border-radius: var(--r-sm); border: 1px solid transparent;
+  transition: all .13s var(--ease); font-family: var(--font-ui);
+}
+.btn-primary { background: var(--brand); color: var(--brand-ink); }
+.btn-primary:hover { filter: brightness(1.1); }
+.btn-secondary { background: var(--surface-2); color: var(--text-primary); border-color: var(--border-default); }
+.btn-secondary:hover { border-color: var(--border-strong); }
+.btn-ghost { background: transparent; color: var(--text-secondary); }
+.btn-ghost:hover { background: var(--surface-1); color: var(--text-primary); }
+.btn-danger { background: transparent; color: var(--up); border-color: var(--line-warm); }
+.btn-danger:hover { background: var(--glow-warm); }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+.icon-btn {
+  width: 32px; height: 32px; padding: 0; justify-content: center;
+  background: var(--surface-1); border: 1px solid var(--border-subtle);
+  color: var(--text-secondary); border-radius: var(--r-sm); font-size: 15px;
+}
+.icon-btn:hover { border-color: var(--border-strong); color: var(--text-primary); }
+
+/* ══════════════ 组件：pill / tag ══════════════ */
+.pill { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-micro); padding: 2px 9px; border-radius: var(--r-full); border: 1px solid var(--border-default); color: var(--text-secondary); background: var(--surface-1); }
+.pill.brand { color: var(--brand); border-color: var(--brand-line); background: var(--brand-soft); }
+.pill.warn { color: var(--warn); border-color: var(--line-warn); background: var(--glow-warn); }
+.dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.dot.live { background: var(--down); box-shadow: 0 0 0 3px var(--glow-cool); }
+.dot.idle { background: var(--text-muted); }
+
+/* ══════════════ 组件：进度 / 空态 / 载入 ══════════════ */
+.prog { height: 4px; background: var(--surface-2); border-radius: var(--r-full); overflow: hidden; }
+.prog > i { display: block; height: 100%; background: var(--brand); border-radius: var(--r-full); transition: width .3s var(--ease); }
+.empty {
+  border: 1px dashed var(--border-default); border-radius: var(--r-md);
+  padding: var(--s8) var(--s5); text-align: center;
+  color: var(--text-muted); font-size: var(--fs-sm); line-height: 1.9;
+}
+.empty .em { font-size: 22px; display: block; margin-bottom: var(--s2); opacity: .5; }
+.loading { display: flex; align-items: center; justify-content: center; gap: var(--s3); height: 180px; color: var(--text-muted); font-size: var(--fs-sm); }
+.spinner { width: 15px; height: 15px; border: 2px solid var(--border-strong); border-top-color: var(--brand); border-radius: 50%; animation: spin .75s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ══════════════ 布局稿 ══════════════ */
+.mock-shell {
+  display: grid;
+  grid-template-columns: var(--nav-w) 1fr;
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  background: var(--surface-0);
+  height: 520px;
+}
+.mock-top {
+  grid-column: 1 / -1;
+  height: var(--topbar-h);
+  display: flex; align-items: center; gap: var(--s3);
+  padding: 0 var(--s4);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-1);
+}
+.mock-nav { border-right: 1px solid var(--border-subtle); padding: var(--s4) 0; overflow-y: auto; }
+.mock-nav .grp { padding: 0 var(--s4) var(--s2); }
+.mock-nav .grp-t { font-size: 10px; letter-spacing: 1.3px; text-transform: uppercase; color: var(--text-muted); font-weight: 600; }
+.mock-nav a {
+  display: flex; align-items: center; gap: 9px;
+  padding: 6px var(--s4); color: var(--text-secondary);
+  text-decoration: none; font-size: var(--fs-sm);
+  border-left: 2px solid transparent; transition: all .13s var(--ease);
+}
+.mock-nav a:hover { color: var(--text-primary); background: var(--surface-1); }
+.mock-nav a.on { color: var(--brand); background: var(--brand-soft); border-left-color: var(--brand); font-weight: 550; }
+.mock-nav a .mini { font-size: 13px; width: 15px; text-align: center; opacity: .85; }
+.mock-main { display: flex; flex-direction: column; min-width: 0; }
+.mock-subbar {
+  display: flex; align-items: center; gap: var(--s3);
+  padding: var(--s3) var(--s5); border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-1);
+}
+.mock-subbar .crumb { font-size: var(--fs-md); font-weight: 600; }
+.mock-split { flex: 1; display: grid; grid-template-columns: 1fr 300px; min-height: 0; }
+.mock-pane { overflow: hidden; }
+.mock-detail { border-left: 1px solid var(--border-subtle); background: var(--surface-1); display: flex; flex-direction: column; }
+.mock-detail-hd { padding: var(--s3) var(--s4); border-bottom: 1px solid var(--border-subtle); display: flex; align-items: center; gap: var(--s2); }
+.mock-chart { flex: 1; padding: var(--s3) var(--s4); display: flex; align-items: center; }
+.mock-chart svg { width: 100%; height: auto; }
+.mock-collapse {
+  width: 22px; height: 100%; border-left: 1px solid var(--border-subtle);
+  background: var(--surface-1); display: grid; place-items: center;
+  color: var(--text-muted); font-size: 11px;
+}
+
+.anno { font-size: var(--fs-sm); color: var(--text-muted); margin-top: var(--s3); display: flex; align-items: center; gap: 7px; }
+.anno b { color: var(--brand); font-family: var(--font-num); font-weight: 600; }
+
+/* ══════════════ Before/After ══════════════ */
+.ba { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s4); }
+.ba-card { border: 1px solid var(--border-subtle); border-radius: var(--r-md); overflow: hidden; background: var(--surface-1); }
+.ba-hd { padding: 9px var(--s4); font-size: var(--fs-micro); letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-muted); font-weight: 600; border-bottom: 1px solid var(--border-subtle); display: flex; align-items: center; gap: 8px; }
+.ba-bd { padding: var(--s5); min-height: 190px; display: flex; flex-direction: column; justify-content: center; gap: var(--s3); }
+.ba-slot { border: 1px dashed var(--border-default); border-radius: var(--r-sm); padding: var(--s7) var(--s4); text-align: center; color: var(--text-muted); font-size: var(--fs-sm); line-height: 1.8; }
+
+/* 旧版缩样：模拟现状的观感 */
+.old-strip { height: 2px; border-radius: 2px; background: linear-gradient(90deg, #448aff, transparent); }
+.old-tabs { display: flex; gap: 0; border-bottom: 1px solid #1e2a3a; overflow: hidden; }
+.old-tabs span { padding: 7px 11px; font-size: 11px; color: #4a5568; white-space: nowrap; }
+.old-tabs span.on { color: #18ffff; box-shadow: inset 0 -2px 0 #18ffff; }
+.old-card { border: 1px solid #1e2a3a; background: #111827; border-radius: 12px; padding: 14px; position: relative; overflow: hidden; }
+.old-card::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 3px; background: linear-gradient(90deg, #ff5252, transparent); }
+.old-num { font-family: 'JetBrains Mono', monospace; font-size: 21px; color: #e2e8f0; margin: 8px 0 4px; }
+.old-sm { font-size: 11px; color: #4a5568; font-family: 'JetBrains Mono', monospace; }
+.old-sub { padding: 6px 13px; font-size: 12px; color: #4a5568; font-family: 'JetBrains Mono', monospace; border-bottom: 2px solid transparent; }
+.old-sub.on { color: #18ffff; border-bottom-color: #18ffff; }
+
+/* ══════════════ 页脚 ══════════════ */
+footer { padding: var(--s8) 0 var(--s9); color: var(--text-muted); font-size: var(--fs-sm); }
+footer .fr { display: flex; gap: var(--s5); flex-wrap: wrap; }
+
+/* ══════════════ 响应式 ══════════════ */
+@media (max-width: 1180px) {
+  .mock-split { grid-template-columns: 1fr; }
+  .mock-detail { display: none; }
+  .ba { grid-template-columns: 1fr; }
+}
+@media (max-width: 860px) {
+  .type-row { grid-template-columns: 1fr; gap: var(--s1); }
+  .type-spec { text-align: left; }
+  .mock-shell { grid-template-columns: 1fr; }
+  .mock-nav { display: none; }
+  .hero h1 { font-size: 30px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  html { scroll-behavior: auto; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════ 顶栏 ═══════════ -->
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-mark">TQ</div>
+    <div class="brand-name">Trade<i>IQ</i></div>
+    <span class="brand-tag">DESIGN DIRECTION v2</span>
+  </div>
+  <nav>
+    <a href="#direction">方向</a>
+    <a href="#color">色彩</a>
+    <a href="#type">排版</a>
+    <a href="#space">间距</a>
+    <a href="#comp">组件</a>
+    <a href="#layout">布局</a>
+    <a href="#compare">对照</a>
+  </nav>
+  <div class="theme-switch" id="themeSwitch" role="group" aria-label="主题切换">
+    <button class="ts-btn on" data-theme-set="auto" title="跟随系统">跟随</button>
+    <button class="ts-btn" data-theme-set="light" title="白天模式">☀</button>
+    <button class="ts-btn" data-theme-set="dark" title="夜间模式">☾</button>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- ═══════════ Hero ═══════════ -->
+  <div class="hero">
+    <p class="eyebrow">界面重设计 · 方向稿 · 2026.10</p>
+    <h1>把「能用」变成<em>「想每天盯着看」</em></h1>
+    <p class="hero-lead">
+      现有页面不是配色不好看，而是<strong style="color:var(--text-primary);font-weight:550">没有设计系统</strong>——
+      1204 处内联样式、约 20 种圆角、14 种字号、颜色散落硬编码，容器还写死 1400px 上限。
+      这次重做的核心动作是<strong style="color:var(--text-primary);font-weight:550">先立 token 层，再把内联样式收敛回 class</strong>，
+      而不是在现有 CSS 上打补丁。功能结构、选股逻辑、数据口径一律不动。
+    </p>
+    <div class="hero-meta">
+      <span>范围：仅桌面端</span>
+      <span>原页面零改动，另开预览版</span>
+      <span>8 个页面全部保留</span>
+      <span>Tab 收敛为 4 个一级域</span>
+      <span>主从两栏替代弹窗</span>
+      <span>白天 / 夜间双主题</span>
+    </div>
+  </div>
+
+  <!-- ═══════════ §1 方向 ═══════════ -->
+  <section id="direction">
+    <div class="sec-head">
+      <span class="sec-num">01</span>
+      <h2 class="sec-title">设计方向</h2>
+    </div>
+    <p class="sec-desc">
+      方向代号 <strong style="color:var(--text-primary)">Professional Dark Desk</strong> ——
+      用<strong style="color:var(--text-primary)">层级表面 + 克制描边</strong>表达空间关系，取代现有的发光与渐变堆叠。
+      界面应该像一台安静的专业设备：信息密度高，但不吵。
+    </p>
+    <div class="grid g3">
+      <div class="panel dir-card on">
+        <p class="eyebrow" style="color:var(--brand)">主轴</p>
+        <h4 style="margin-top:var(--s2)">层级靠明度，不靠发光</h4>
+        <p>4 级表面（surface-0→3）+ 3 级描边构成全部空间关系。卡片不再有渐变顶条动画和 hover 位移，只在 hover 时描边加深一档。</p>
+        <p class="was">现状：<s>霓虹 cyan 高亮</s> · 顶部渐变条 · translateY 位移 · 蓝红网格纹理</p>
+      </div>
+      <div class="panel dir-card">
+        <p class="eyebrow" style="color:var(--brand)">主轴</p>
+        <h4 style="margin-top:var(--s2)">强调色只做三件事</h4>
+        <p>品牌主色严格限定用于「当前选中态」「主操作按钮」「焦点环」。涨跌色只出现在数值和徽标上，不做边框和背景填充。</p>
+        <p class="was">现状：<s>同一个 cyan 同时当链接色 / 选中色 / 下划线 / 排序色</s></p>
+      </div>
+      <div class="panel dir-card">
+        <p class="eyebrow" style="color:var(--brand)">主轴</p>
+        <h4 style="margin-top:var(--s2)">数字是主角</h4>
+        <p>所有数值走等宽字体 + tabular-nums，右对齐；中文标签回归系统 UI 字体（现状给中文套了 JetBrains Mono，靠 fallback 硬撑）。</p>
+        <p class="was">现状：<s>中文标签套等宽字体</s> · 字号 14 档并存</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ §2 色彩 ═══════════ -->
+  <section id="color">
+    <div class="sec-head">
+      <span class="sec-num">02</span>
+      <h2 class="sec-title">色彩体系</h2>
+    </div>
+    <p class="sec-desc">
+      四个层级共 13 个 token，覆盖页面全部着色需求。任意裸 hex 都应被 token 取代——
+      验收时会用 <code class="num" style="color:var(--brand)">grep -oE '#[0-9a-fA-F]{3,6}'</code> 核查残留。
+    </p>
+
+    <div class="grid g2">
+      <div class="panel">
+        <p class="eyebrow">表面阶 · Surface</p>
+        <div class="swatch-list">
+          <div class="swatch" style="background:var(--surface-0)"><span class="chipbox" style="background:var(--surface-0)"></span><span class="nm">--surface-0</span><span class="ds">页面底</span><span class="hx">#0b0f17</span></div>
+          <div class="swatch" style="background:var(--surface-1)"><span class="chipbox" style="background:var(--surface-1)"></span><span class="nm">--surface-1</span><span class="ds">卡片 / 表格</span><span class="hx">#121826</span></div>
+          <div class="swatch" style="background:var(--surface-2)"><span class="chipbox" style="background:var(--surface-2)"></span><span class="nm">--surface-2</span><span class="ds">hover / 嵌套 / 表头</span><span class="hx">#1a2233</span></div>
+          <div class="swatch" style="background:var(--surface-3)"><span class="chipbox" style="background:var(--surface-3)"></span><span class="nm">--surface-3</span><span class="ds">浮层 / 弹窗 / 下拉</span><span class="hx">#212b3f</span></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <p class="eyebrow">描边阶 · Border</p>
+        <div class="swatch-list">
+          <div class="swatch" style="background:var(--surface-1)"><span class="chipbox" style="background:var(--surface-0);border-color:var(--border-subtle)"></span><span class="nm">--border-subtle</span><span class="ds">行分隔 / 卡片描边</span><span class="hx">#1c2434</span></div>
+          <div class="swatch" style="background:var(--surface-1)"><span class="chipbox" style="background:var(--surface-0);border-color:var(--border-default)"></span><span class="nm">--border-default</span><span class="ds">控件描边 / 表头底</span><span class="hx">#26314a</span></div>
+          <div class="swatch" style="background:var(--surface-1)"><span class="chipbox" style="background:var(--surface-0);border-color:var(--border-strong)"></span><span class="nm">--border-strong</span><span class="ds">hover / 强调描边</span><span class="hx">#36435f</span></div>
+        </div>
+        <p class="eyebrow" style="margin-top:var(--s5)">文字阶 · Text</p>
+        <div class="swatch-list">
+          <div class="swatch" style="background:var(--surface-1)"><span class="nm" style="color:var(--text-primary)">Aa 主要</span><span class="ds">数值 · 标题 · 表体</span><span class="hx">#e6ecf5</span></div>
+          <div class="swatch" style="background:var(--surface-1)"><span class="nm" style="color:var(--text-secondary)">Aa 次要</span><span class="ds">标签 · 说明</span><span class="hx">#93a1b8</span></div>
+          <div class="swatch" style="background:var(--surface-1)"><span class="nm" style="color:var(--text-muted)">Aa 弱化</span><span class="ds">微标签 · 代码 · 角标</span><span class="hx">#5d6b83</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid g2" style="margin-top:var(--s4)">
+      <div class="panel">
+        <p class="eyebrow">语义色 · 红涨绿跌</p>
+        <div class="swatch-list">
+          <div class="swatch" style="background:var(--surface-1)"><span class="chipbox" style="background:var(--up)"></span><span class="nm">--up</span><span class="ds">上涨</span><span class="hx">#ff5a68</span></div>
+          <div class="swatch" style="background:var(--surface-1)"><span class="chipbox" style="background:var(--down)"></span><span class="nm">--down</span><span class="ds">下跌</span><span class="hx">#12c78f</span></div>
+          <div class="swatch" style="background:var(--surface-1)"><span class="chipbox" style="background:var(--flat)"></span><span class="nm">--flat</span><span class="ds">平盘</span><span class="hx">#5d6b83</span></div>
+          <div class="swatch" style="background:var(--surface-1)"><span class="chipbox" style="background:var(--warn)"></span><span class="nm">--warn</span><span class="ds">缺口 / 待确认</span><span class="hx">#f5b73d</span></div>
+          <div class="swatch" style="background:var(--surface-1)"><span class="chipbox" style="background:var(--info)"></span><span class="nm">--info</span><span class="ds">中性信息</span><span class="hx">#4c8dff</span></div>
+        </div>
+        <p style="font-size:var(--fs-sm);color:var(--text-secondary);margin-top:var(--s3);line-height:1.7">
+          <strong style="color:var(--warn)">注意</strong>：现状 <code class="num">--accent-green</code> 存的是红色 <code class="num">#ff5252</code>、
+          <code class="num">--accent-red</code> 存的是绿色 <code class="num">#00e676</code>（A 股约定，命名与色值故意相反）。
+          新体系改用自解释的 <code class="num">--up</code> / <code class="num">--down</code>，但<strong>实际渲染色值不得调换</strong>。
+        </p>
+      </div>
+
+      <div class="panel">
+        <p class="eyebrow">品牌主色 · 选一个</p>
+        <p style="font-size:var(--fs-sm);color:var(--text-secondary);margin-bottom:var(--s3)">
+          点击即时换肤，整页跟着变。三个候选都不与红/绿冲突。
+        </p>
+        <div class="accent-picker" id="accentPicker">
+          <button class="accent-opt on" data-brand="#4c8dff" data-soft="rgba(76,141,255,.14)" data-line="rgba(76,141,255,.40)"
+                  data-brand-light="#2563eb" data-soft-light="rgba(37,99,235,.10)" data-line-light="rgba(37,99,235,.32)">
+            <span class="dot" style="background:#4c8dff"></span>专业蓝<span class="rec">推荐</span>
+          </button>
+          <button class="accent-opt" data-brand="#21c3c8" data-soft="rgba(33,195,200,.14)" data-line="rgba(33,195,200,.40)"
+                  data-brand-light="#0d8a90" data-soft-light="rgba(13,138,144,.10)" data-line-light="rgba(13,138,144,.34)">
+            <span class="dot" style="background:#21c3c8"></span>冷青
+          </button>
+          <button class="accent-opt" data-brand="#8b7cf6" data-soft="rgba(139,124,246,.14)" data-line="rgba(139,124,246,.40)"
+                  data-brand-light="#6d55d9" data-soft-light="rgba(109,85,217,.10)" data-line-light="rgba(109,85,217,.32)">
+            <span class="dot" style="background:#8b7cf6"></span>暮紫
+          </button>
+        </div>
+        <div class="row" style="margin-top:var(--s4)">
+          <button class="btn btn-primary">主操作</button>
+          <button class="btn btn-secondary">次操作</button>
+          <button class="btn btn-ghost">幽灵</button>
+          <button class="btn btn-danger">危险</button>
+        </div>
+        <div class="row" style="margin-top:var(--s3)">
+          <span class="pill brand"><span class="dot live"></span>实时</span>
+          <span class="pill warn">数据缺口 2</span>
+          <span class="pill">同花顺</span>
+          <span class="pill">东财</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:var(--s4)">
+      <div class="row" style="justify-content:space-between;margin-bottom:var(--s3)">
+        <p class="eyebrow" style="margin:0">白天模式 · 不是把背景反过来</p>
+        <div class="row" style="gap:var(--s2)">
+          <span style="font-size:var(--fs-sm);color:var(--text-muted)">当前</span>
+          <span class="pill num" id="themeNow" style="min-width:64px;justify-content:center">—</span>
+        </div>
+      </div>
+      <div class="grid g4" style="gap:var(--s3)">
+        <div>
+          <p style="font-size:var(--fs-sm);font-weight:550;margin-bottom:5px">涨跌色压深</p>
+          <p style="font-size:var(--fs-sm);color:var(--text-secondary);line-height:1.7">
+            红 <code class="num" data-token="--up" style="color:var(--up)">—</code> / 绿 <code class="num" data-token="--down" style="color:var(--down)">—</code>。
+            暗色下 <code class="num">#ff5a68</code> 在白底只有约 3:1，撑不住表格小字，白天版整体压深一档。
+          </p>
+        </div>
+        <div>
+          <p style="font-size:var(--fs-sm);font-weight:550;margin-bottom:5px">描边换层级</p>
+          <p style="font-size:var(--fs-sm);color:var(--text-secondary);line-height:1.7">
+            暗色靠明度差分层，白底明度差不够，描边整体加深，并启用一层极淡投影托住卡片。
+          </p>
+        </div>
+        <div>
+          <p style="font-size:var(--fs-sm);font-weight:550;margin-bottom:5px">表面差拉大</p>
+          <p style="font-size:var(--fs-sm);color:var(--text-secondary);line-height:1.7">
+            暗色相邻表面差约 4%，白天拉到约 6%（<code class="num" data-token="--surface-0" style="color:var(--text-secondary)">—</code> →
+            <code class="num" data-token="--surface-1" style="color:var(--text-secondary)">—</code>），否则白底一片糊。
+          </p>
+        </div>
+        <div>
+          <p style="font-size:var(--fs-sm);font-weight:550;margin-bottom:5px">主色同步降饱和</p>
+          <p style="font-size:var(--fs-sm);color:var(--text-secondary);line-height:1.7">
+            三个品牌色各配一个白天版（<code class="num" data-token="--brand" style="color:var(--brand)">—</code>），切换主题时自动跟换，不会拿亮色去压白底。
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ §3 排版 ═══════════ -->
+  <section id="type">
+    <div class="sec-head">
+      <span class="sec-num">03</span>
+      <h2 class="sec-title">字体与字阶</h2>
+    </div>
+    <p class="sec-desc">
+      三种角色：<strong style="color:var(--text-primary)">UI 文本</strong>用系统中文字体（不再下载 webfont，首屏更快、字形更原生）、
+      <strong style="color:var(--text-primary)">等宽数字</strong>只用于数值与代码、<strong style="color:var(--text-primary)">微标签</strong>统一大写字距。
+      字阶从现状的 14 档收到 7 档。
+    </p>
+    <div class="grid g2">
+      <div class="panel">
+        <p class="eyebrow">字阶 Scale</p>
+        <div class="type-row"><span class="type-tok">--fs-micro</span><span class="s1" style="color:var(--text-secondary)">微标签 · 表头 · 角标</span><span class="type-spec">11px / 1.5</span></div>
+        <div class="type-row"><span class="type-tok">--fs-sm</span><span class="s2" style="color:var(--text-secondary)">次要说明 · chip · 按钮</span><span class="type-spec">12px / 1.6</span></div>
+        <div class="type-row"><span class="type-tok">--fs-base</span><span class="s3">表格正文 · 默认 UI</span><span class="type-spec">13px / 1.6</span></div>
+        <div class="type-row"><span class="type-tok">--fs-md</span><span class="s4">卡片标题 · 面板标题</span><span class="type-spec">15px / 1.5</span></div>
+        <div class="type-row"><span class="type-tok">--fs-lg</span><span class="s5">区块标题</span><span class="type-spec">18px / 1.4</span></div>
+        <div class="type-row"><span class="type-tok">--fs-xl</span><span class="s6 num">3,284.16</span><span class="type-spec">24px / 1.3</span></div>
+        <div class="type-row"><span class="type-tok">--fs-hero</span><span class="s7 num">3,284.16</span><span class="type-spec">28px / 1.2</span></div>
+      </div>
+
+      <div class="stack">
+        <div class="panel">
+          <p class="eyebrow">角色 1 · UI 文本</p>
+          <p style="font-size:var(--fs-md);font-weight:550;margin:var(--s2) 0 6px">主力净流入 · 东方财富</p>
+          <p style="font-size:var(--fs-sm);color:var(--text-secondary)">中文一律走系统栈。现状给中文套了 JetBrains Mono，实际靠 fallback 渲染，字重和字距都不对。</p>
+          <code class="num" style="font-size:var(--fs-micro);color:var(--brand);display:block;margin-top:var(--s2)">-apple-system, "PingFang SC", "Noto Sans SC"</code>
+        </div>
+        <div class="panel">
+          <p class="eyebrow">角色 2 · 等宽数字</p>
+          <p class="num" style="font-size:var(--fs-lg);font-weight:620;margin:var(--s2) 0 6px">+1,284.36 <span class="up">+9.87%</span></p>
+          <p style="font-size:var(--fs-sm);color:var(--text-secondary)">强制 <code class="num">tabular-nums</code>，右对齐时小数点才能对齐成列。</p>
+          <code class="num" style="font-size:var(--fs-micro);color:var(--brand);display:block;margin-top:var(--s2)">"JetBrains Mono", ui-monospace, Menlo</code>
+        </div>
+        <div class="panel">
+          <p class="eyebrow">角色 3 · 微标签</p>
+          <p class="eyebrow" style="color:var(--brand);margin:var(--s2) 0 6px">MARKET OVERVIEW</p>
+          <p style="font-size:var(--fs-sm);color:var(--text-secondary)">11px · letter-spacing 1.4px · uppercase · 弱化色</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ §4 间距 ═══════════ -->
+  <section id="space">
+    <div class="sec-head">
+      <span class="sec-num">04</span>
+      <h2 class="sec-title">间距与栅格</h2>
+    </div>
+    <p class="sec-desc">4px 基准，9 级间距；圆角从现状约 20 种收到 3 种；表格行高锁 36px。</p>
+    <div class="grid g2">
+      <div class="panel">
+        <p class="eyebrow">间距尺</p>
+        <div class="space-row"><span class="space-nm">--s1</span><span class="space-bar" style="width:4px"></span><span class="space-px">4px</span><span class="space-use">图标与文字</span></div>
+        <div class="space-row"><span class="space-nm">--s2</span><span class="space-bar" style="width:8px"></span><span class="space-px">8px</span><span class="space-use">控件内间距 · 工具条间隙</span></div>
+        <div class="space-row"><span class="space-nm">--s3</span><span class="space-bar" style="width:12px"></span><span class="space-px">12px</span><span class="space-use">表格单元格 · 标签组</span></div>
+        <div class="space-row"><span class="space-nm">--s4</span><span class="space-bar" style="width:16px"></span><span class="space-px">16px</span><span class="space-use">卡片网格 gap</span></div>
+        <div class="space-row"><span class="space-nm">--s5</span><span class="space-bar" style="width:20px"></span><span class="space-px">20px</span><span class="space-use">卡片内边距</span></div>
+        <div class="space-row"><span class="space-nm">--s6</span><span class="space-bar" style="width:24px"></span><span class="space-px">24px</span><span class="space-use">区块节奏</span></div>
+        <div class="space-row"><span class="space-nm">--s7</span><span class="space-bar" style="width:32px"></span><span class="space-px">32px</span><span class="space-use">区块之间</span></div>
+        <div class="space-row"><span class="space-nm">--s8</span><span class="space-bar" style="width:40px"></span><span class="space-px">40px</span><span class="space-use">大区块留白</span></div>
+        <p class="eyebrow" style="margin-top:var(--s5)">圆角 · Radius</p>
+        <div class="row" style="margin-top:var(--s2)">
+          <span class="pill" style="border-radius:var(--r-sm)">--r-sm 6px 控件</span>
+          <span class="pill" style="border-radius:var(--r-md)">--r-md 10px 卡片</span>
+          <span class="pill" style="border-radius:var(--r-full)">--r-full 胶囊</span>
+        </div>
+      </div>
+
+      <div class="stack">
+        <div class="panel">
+          <p class="eyebrow">12 列栅格</p>
+          <div class="grid12">
+            <span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span>
+            <span>7</span><span>8</span><span>9</span><span>10</span><span>11</span><span>12</span>
+          </div>
+          <p style="font-size:var(--fs-sm);color:var(--text-secondary);margin-top:var(--s3)">
+            主栏 <code class="num" style="color:var(--brand)">1fr</code>（自适应） + 详情栏 <code class="num" style="color:var(--brand)">460–560px</code>。
+            详情栏 ≥1600px 常驻，1200–1600px 变覆盖抽屉，&lt;1200px 退回居中弹窗。
+          </p>
+        </div>
+        <div class="panel">
+          <p class="eyebrow">断点</p>
+          <div class="stack" style="gap:10px">
+            <div class="row" style="gap:var(--s3)"><span class="pill brand num" style="min-width:96px;justify-content:center">≥ 1600px</span><span style="font-size:var(--fs-sm);color:var(--text-secondary)">两栏常驻，详情栏 460–560px</span></div>
+            <div class="row" style="gap:var(--s3)"><span class="pill num" style="min-width:96px;justify-content:center">1200–1600</span><span style="font-size:var(--fs-sm);color:var(--text-secondary)">详情栏改为右侧覆盖抽屉</span></div>
+            <div class="row" style="gap:var(--s3)"><span class="pill num" style="min-width:96px;justify-content:center">&lt; 1200px</span><span style="font-size:var(--fs-sm);color:var(--text-secondary)">单栏，详情退回弹窗（等同现状）</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ §5 组件 ═══════════ -->
+  <section id="comp">
+    <div class="sec-head">
+      <span class="sec-num">05</span>
+      <h2 class="sec-title">组件样式</h2>
+    </div>
+    <p class="sec-desc">
+      现状里每个组件各写各的内联样式（1204 处）。以下是把它们收敛成 class 之后的样子——
+      <strong style="color:var(--text-primary)">HTML 结构不变，只换样式来源</strong>。
+    </p>
+
+    <p class="eyebrow" style="margin-bottom:var(--s3)">指数卡 · hover 只改描边，无位移</p>
+    <div class="grid g4" style="margin-bottom:var(--s6)">
+      <div class="idx-card u">
+        <div class="idx-top">
+          <div><div class="idx-name">上证指数</div><span class="idx-code">000001.SH</span></div>
+          <span class="badge u">上涨</span>
+        </div>
+        <div class="idx-price up">3,284.16</div>
+        <div class="idx-chg up">+31.42 &nbsp;+0.97%</div>
+        <div class="idx-foot"><span>额 4,182 亿</span><span>换手 1.2%</span></div>
+      </div>
+      <div class="idx-card d">
+        <div class="idx-top">
+          <div><div class="idx-name">深证成指</div><span class="idx-code">399001.SZ</span></div>
+          <span class="badge d">下跌</span>
+        </div>
+        <div class="idx-price down">10,652.83</div>
+        <div class="idx-chg down">−86.17 &nbsp;−0.80%</div>
+        <div class="idx-foot"><span>额 5,031 亿</span><span>换手 1.8%</span></div>
+      </div>
+      <div class="idx-card">
+        <div class="idx-top">
+          <div><div class="idx-name">创业板指</div><span class="idx-code">399006.SZ</span></div>
+          <span class="badge u">上涨</span>
+        </div>
+        <div class="idx-price up">2,148.62</div>
+        <div class="idx-chg up">+24.90 &nbsp;+1.17%</div>
+        <div class="idx-foot"><span>额 2,240 亿</span><span>换手 2.4%</span></div>
+      </div>
+      <div class="idx-card">
+        <div class="idx-top">
+          <div><div class="idx-name">科创50</div><span class="idx-code">000688.SH</span></div>
+          <span class="badge" style="background:var(--surface-2);color:var(--text-muted)">平盘</span>
+        </div>
+        <div class="idx-price flat">1,012.44</div>
+        <div class="idx-chg flat">+0.03 &nbsp;+0.00%</div>
+        <div class="idx-foot"><span>额 682 亿</span><span>换手 3.1%</span></div>
+      </div>
+    </div>
+
+    <p class="eyebrow" style="margin-bottom:var(--s3)">数据表 · 吸顶表头 · hover 行 · 排序指示</p>
+    <div class="grid g2" style="margin-bottom:var(--s6)">
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>股票</th>
+              <th>最新价 <span class="sort-arrow">▼</span></th>
+              <th>涨跌幅 <span class="sort-arrow">▼</span></th>
+              <th>主力净额</th>
+              <th>换手</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td class="nm"><span class="stk-link">中际旭创</span> 300308</td><td>182.44</td><td class="up">+10.00%</td><td class="up">+4.28 亿</td><td>8.4%</td></tr>
+            <tr><td class="nm"><span class="stk-link">新易盛</span> 300502</td><td>96.18</td><td class="up">+9.98%</td><td class="up">+3.11 亿</td><td>12.7%</td></tr>
+            <tr><td class="nm"><span class="stk-link">工业富联</span> 601138</td><td>28.06</td><td class="up">+6.42%</td><td class="up">+2.04 亿</td><td>3.1%</td></tr>
+            <tr><td class="nm"><span class="stk-link">沪电股份</span> 002463</td><td>34.72</td><td class="down">−4.18%</td><td class="down">−1.62 亿</td><td>5.6%</td></tr>
+            <tr><td class="nm"><span class="stk-link">胜宏科技</span> 300476</td><td>41.03</td><td class="down">−3.05%</td><td class="flat">−0.04 亿</td><td>6.2%</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="stack">
+        <p class="eyebrow">指标块 · auto-fit 自适应列数</p>
+        <div class="grid g2" style="gap:var(--s2)">
+          <div class="stat"><div class="stat-lbl">持仓市值</div><div class="stat-val">286,420</div></div>
+          <div class="stat"><div class="stat-lbl">浮动盈亏</div><div class="stat-val up">+12,880</div></div>
+          <div class="stat"><div class="stat-lbl">今日盈亏</div><div class="stat-val down">−2,140</div></div>
+          <div class="stat"><div class="stat-lbl">持仓占比</div><div class="stat-val">64.2%</div></div>
+        </div>
+      </div>
+    </div>
+
+    <p class="eyebrow" style="margin-bottom:var(--s3)">分段控件 · 全站统一（原 .pos-subtab 改造）</p>
+    <div class="panel" style="margin-bottom:var(--s6)">
+      <div class="stack" style="gap:var(--s3)">
+        <div class="row" style="gap:var(--s3)">
+          <span class="eyebrow" style="width:76px;flex-shrink:0">持仓子页</span>
+          <div class="segbar navflat">
+            <button class="seg on">现持仓</button>
+            <button class="seg">买入<span class="cnt">3</span></button>
+            <button class="seg">卖出<span class="cnt">1</span></button>
+            <button class="seg">对账日志<span class="cnt">2</span></button>
+            <button class="seg">交割分析</button>
+          </div>
+        </div>
+        <div class="row" style="gap:var(--s3)">
+          <span class="eyebrow" style="width:76px;flex-shrink:0">资金期间</span>
+          <div class="segbar navflat">
+            <button class="seg">当日</button>
+            <button class="seg on">3 日累计</button>
+            <button class="seg">5 日累计</button>
+            <button class="seg">10 日</button>
+            <button class="seg">20 日</button>
+            <button class="seg">30 日</button>
+            <button class="seg">60 日</button>
+            <button class="seg">90 日</button>
+          </div>
+        </div>
+        <p class="anno">超过 5 项时横向滚动，不换行、不挤压——<b>8 个期间也不会撑破工具条</b></p>
+      </div>
+    </div>
+
+    <p class="eyebrow" style="margin-bottom:var(--s3)">进度 · 空态 · 载入</p>
+    <div class="grid g3">
+      <div class="panel">
+        <div class="row" style="justify-content:space-between;margin-bottom:var(--s2)">
+          <span style="font-size:var(--fs-sm);color:var(--text-secondary)">同步东方财富</span>
+          <span class="num" style="font-size:var(--fs-sm);color:var(--brand)">62%</span>
+        </div>
+        <div class="prog"><i style="width:62%"></i></div>
+        <p style="font-size:var(--fs-micro);color:var(--text-muted);margin-top:var(--s2)" class="num">1,842 / 2,968</p>
+      </div>
+      <div class="panel" style="display:flex;align-items:center">
+        <div class="empty" style="width:100%;padding:var(--s6) var(--s4)">
+          <span class="em">◇</span>
+          该交易日无涨停数据<br>换个日期或点「拉取韭研」
+        </div>
+      </div>
+      <div class="panel" style="display:grid;place-items:center">
+        <div class="loading"><span class="spinner"></span>正在加载数据…</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ §6 布局稿 ═══════════ -->
+  <section id="layout">
+    <div class="sec-head">
+      <span class="sec-num">06</span>
+      <h2 class="sec-title">布局稿</h2>
+    </div>
+    <p class="sec-desc">
+      一条原则贯穿全站：<strong style="color:var(--text-primary)">导航层 = 一级域 + 二级页面；页面内的一切切换 = 面板工具条</strong>。
+      任何 tab 内的层级不超过 1 层工具条（现状主力净流入 3 层、选股推荐 2 层）。
+    </p>
+
+    <div class="mock-shell">
+      <!-- 顶栏 -->
+      <div class="mock-top">
+        <div class="brand-mark" style="width:26px;height:26px;font-size:11px">TQ</div>
+        <span style="font-size:var(--fs-sm);font-weight:600">A 股行情看板</span>
+        <span class="pill" style="margin-left:auto"><span class="dot live"></span>数据拉取完成</span>
+        <span style="font-size:var(--fs-micro);color:var(--text-muted)" class="num">更新 15:04</span>
+      </div>
+
+      <!-- 左侧导航：4 域 -->
+      <nav class="mock-nav">
+        <div class="grp"><div class="grp-t">行情</div></div>
+        <a class="on" href="#layout"><span class="mini">◧</span>核心指数</a>
+        <a href="#layout"><span class="mini">▲</span>涨停拆解</a>
+        <a href="#layout"><span class="mini">▤</span>涨停合集</a>
+        <a href="#layout"><span class="mini">◫</span>板块合集</a>
+        <div class="grp" style="margin-top:var(--s3)"><div class="grp-t">资金</div></div>
+        <a href="#layout"><span class="mini">⇅</span>主力净流入</a>
+        <div class="grp" style="margin-top:var(--s3)"><div class="grp-t">选股</div></div>
+        <a href="#layout"><span class="mini">≡</span>阶段涨幅榜</a>
+        <a href="#layout"><span class="mini">✦</span>选股推荐</a>
+        <div class="grp" style="margin-top:var(--s3)"><div class="grp-t">交易</div></div>
+        <a href="#layout"><span class="mini">◱</span>持仓</a>
+      </nav>
+
+      <!-- 主区 -->
+      <div class="mock-main">
+        <div class="mock-subbar">
+          <span class="crumb">核心指数</span>
+          <div class="segbar navflat" style="margin-left:var(--s3)">
+            <button class="seg on">上证指数</button>
+            <button class="seg">深证成指</button>
+            <button class="seg">创业板指</button>
+          </div>
+          <div class="row" style="margin-left:auto;gap:var(--s2)">
+            <button class="icon-btn">‹</button>
+            <span class="pill num" style="min-width:96px;justify-content:center">2026-09-30</span>
+            <button class="icon-btn">›</button>
+            <button class="btn btn-secondary">全部日期</button>
+          </div>
+        </div>
+        <div class="mock-split">
+          <div class="mock-pane" style="padding:var(--s4) var(--s5)">
+            <div class="grid g3" style="gap:var(--s3);margin-bottom:var(--s4)">
+              <div class="stat" style="padding:var(--s3) var(--s4)"><div class="stat-lbl">成交额</div><div class="stat-val" style="font-size:var(--fs-lg)">9,213 <span style="font-size:var(--fs-sm);color:var(--text-muted)">亿</span></div></div>
+              <div class="stat" style="padding:var(--s3) var(--s4)"><div class="stat-lbl">涨停家数</div><div class="stat-val" style="font-size:var(--fs-lg)">68</div></div>
+              <div class="stat" style="padding:var(--s3) var(--s4)"><div class="stat-lbl">跌停家数</div><div class="stat-val" style="font-size:var(--fs-lg)">7</div></div>
+            </div>
+            <p class="eyebrow" style="margin-bottom:var(--s2)">主栏 · 指标块 + 图表 + 表格</p>
+            <div class="tbl-wrap">
+              <table>
+                <thead><tr><th>时段</th><th>价格</th><th>涨跌</th><th>成交额</th></tr></thead>
+                <tbody>
+                  <tr><td class="nm">09:30</td><td>3,281.04</td><td class="flat">—</td><td>184 亿</td></tr>
+                  <tr><td class="nm">10:30</td><td>3,290.55</td><td class="up">+9.51</td><td>1,842 亿</td></tr>
+                  <tr><td class="nm">11:30</td><td>3,288.72</td><td class="up">+7.68</td><td>2,610 亿</td></tr>
+                  <tr><td class="nm">14:00</td><td>3,282.10</td><td class="down">−7.06</td><td>4,108 亿</td></tr>
+                  <tr><td class="nm">15:00</td><td>3,284.16</td><td class="up">+31.42</td><td>4,182 亿</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- 详情栏 -->
+          <div class="mock-detail">
+            <div class="mock-detail-hd">
+              <div>
+                <div style="font-size:var(--fs-sm);font-weight:600">中际旭创</div>
+                <span class="num" style="font-size:var(--fs-micro);color:var(--text-muted)">300308.SZ</span>
+              </div>
+              <span class="badge u" style="margin-left:auto">+10.00%</span>
+              <button class="icon-btn" style="width:24px;height:24px;font-size:13px">×</button>
+            </div>
+            <div class="row" style="padding:0 var(--s4) var(--s2)">
+              <div class="segbar navflat" style="flex:1">
+                <button class="seg on" style="flex:1">分时</button>
+                <button class="seg" style="flex:1">日K</button>
+              </div>
+            </div>
+            <div class="mock-chart">
+              <svg viewBox="0 0 260 170" preserveAspectRatio="none" aria-label="分时走势示意">
+                <defs>
+                  <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="var(--up)" stop-opacity=".22"/>
+                    <stop offset="100%" stop-color="var(--up)" stop-opacity="0"/>
+                  </linearGradient>
+                </defs>
+                <g stroke="var(--border-subtle)" stroke-width="1">
+                  <line x1="0" y1="28" x2="260" y2="28"/><line x1="0" y1="62" x2="260" y2="62"/>
+                  <line x1="0" y1="96" x2="260" y2="96"/><line x1="0" y1="130" x2="260" y2="130"/>
+                </g>
+                <line x1="0" y1="96" x2="260" y2="96" stroke="var(--border-strong)" stroke-width="1" stroke-dasharray="3 3"/>
+                <path d="M0,104 L22,100 L44,106 L66,92 L88,86 L110,78 L132,82 L154,68 L176,60 L198,52 L220,44 L242,34 L260,26 L260,104 L0,104 Z" fill="url(#g)"/>
+                <path d="M0,104 L22,100 L44,106 L66,92 L88,86 L110,78 L132,82 L154,68 L176,60 L198,52 L220,44 L242,34 L260,26"
+                      fill="none" stroke="var(--up)" stroke-width="1.6" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <div style="padding:var(--s2) var(--s4) var(--s4);border-top:1px solid var(--border-subtle)">
+              <p class="num" style="font-size:var(--fs-micro);color:var(--text-muted);line-height:1.8">
+                额 68.4亿 &nbsp; 换手 8.4%<br>MA5 178.20 &nbsp; MA10 172.66
+              </p>
+              <button class="btn btn-secondary" style="width:100%;justify-content:center;margin-top:var(--s2)">东财详情 ↗</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid g3" style="margin-top:var(--s4)">
+      <p class="anno"><b>①</b>一级域收敛为 4 个（行情 / 资金 / 选股 / 交易），消除 8 个平铺 tab 的无序感</p>
+      <p class="anno"><b>②</b>页内所有切换降为单行工具条分段控件，工具条最多 1 层</p>
+      <p class="anno"><b>③</b>K 线从 980px 居中弹窗改为右侧常驻详情栏，宽屏白赚一栏</p>
+    </div>
+  </section>
+
+  <!-- ═══════════ §7 对照 ═══════════ -->
+  <section id="compare">
+    <div class="sec-head">
+      <span class="sec-num">07</span>
+      <h2 class="sec-title">Before / After</h2>
+    </div>
+    <p class="sec-desc">左边是现状的关键症状（可对照 <code class="num" style="color:var(--brand)">dashboard/index.html</code>），右边是新体系。</p>
+
+    <div class="grid g2" style="margin-bottom:var(--s4)">
+      <div class="ba-card">
+        <div class="ba-hd"><span class="dot idle"></span>现状 · 导航</div>
+        <div class="ba-bd">
+          <div class="old-tabs">
+            <span class="on">核心指数</span><span>阶段涨幅榜单</span><span>涨停拆解明细</span><span>涨停合集</span><span>主力净流入</span><span>持仓</span><span>选股推荐</span><span>板块合集</span>
+          </div>
+          <p class="old-sm" style="line-height:1.8">
+            8 个 tab 平铺，无分组语义；子 tab 最深 3 层（数据源 → 8 个期间 → 行业/概念）；
+            子 tab 套了等宽字体渲染中文。
+          </p>
+        </div>
+      </div>
+      <div class="ba-card">
+        <div class="ba-hd"><span class="dot live"></span>新方案 · 导航</div>
+        <div class="ba-bd">
+          <div style="display:grid;grid-template-columns:126px 1fr;gap:var(--s4)">
+            <div>
+              <p class="eyebrow" style="margin-bottom:5px">行情</p>
+              <p class="eyebrow" style="margin-bottom:5px">资金</p>
+              <p class="eyebrow" style="margin-bottom:5px">选股</p>
+              <p class="eyebrow">交易</p>
+            </div>
+            <div class="stack" style="gap:2px">
+              <div class="segbar navflat"><button class="seg on">核心指数</button><button class="seg">涨停拆解</button><button class="seg">涨停合集</button><button class="seg">板块合集</button></div>
+              <div class="segbar navflat"><button class="seg on">主力净流入</button></div>
+              <div class="segbar navflat"><button class="seg on">阶段涨幅榜</button><button class="seg">选股推荐</button></div>
+              <div class="segbar navflat"><button class="seg on">持仓</button></div>
+            </div>
+          </div>
+          <p style="font-size:var(--fs-sm);color:var(--text-muted);line-height:1.7">
+            4 个一级域 + 域内页面，域内层级 0–1 级。
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid g2">
+      <div class="ba-card">
+        <div class="ba-hd"><span class="dot idle"></span>现状 · 指标卡</div>
+        <div class="ba-bd">
+          <div class="old-card">
+            <div class="old-strip" style="position:absolute;inset:0 0 auto 0;height:3px"></div>
+            <div class="old-sm" style="display:flex;justify-content:space-between">
+              <span>中际旭创</span><span style="color:#ff5252">上涨</span>
+            </div>
+            <div class="old-num">182.44</div>
+            <div class="old-sm" style="color:#ff5252">+16.58 &nbsp;+10.00%</div>
+          </div>
+          <p class="old-sm" style="line-height:1.8">
+            顶部 3px 渐变条 · hover 位移 · 字号 28px 直接硬写 · 14 档字号并存 · 20 种圆角
+          </p>
+        </div>
+      </div>
+      <div class="ba-card">
+        <div class="ba-hd"><span class="dot live"></span>新方案 · 指标卡</div>
+        <div class="ba-bd">
+          <div class="idx-card u">
+            <div class="idx-top">
+              <div><div class="idx-name">中际旭创</div><span class="idx-code">300308.SZ</span></div>
+              <span class="badge u">上涨</span>
+            </div>
+            <div class="idx-price up">182.44</div>
+            <div class="idx-chg up">+16.58 &nbsp;+10.00%</div>
+            <div class="idx-foot"><span>额 68.4 亿</span><span>换手 8.4%</span></div>
+          </div>
+          <p style="font-size:var(--fs-sm);color:var(--text-muted);line-height:1.7">
+            渐变条降饱和 · hover 只改描边 · 字号取 <code class="num" style="color:var(--brand)">--fs-hero</code> · 圆角 <code class="num" style="color:var(--brand)">--r-md</code>
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <p class="eyebrow" style="margin-top:var(--s6);margin-bottom:var(--s3)">现状页面截图位</p>
+    <div class="ba-slot">
+      把现有 <code class="num" style="color:var(--brand)">dashboard/index.html</code> 的截图放到
+      <code class="num" style="color:var(--brand)">docs/design/</code> 后贴在这里，作为最终对照基准。
+    </div>
+  </section>
+
+  <footer>
+    <div class="fr">
+      <span>TRADEIQ · 界面重设计方向稿</span>
+      <span>2026-10-01</span>
+      <span>仅桌面端 · mobile 保持现状</span>
+      <span>原 dashboard/index.html 零改动</span>
+      <span>白天 / 夜间双主题 · 跟随系统</span>
+    </div>
+  </footer>
+</div>
+
+<script>
+/* ══════════════════════════════════════════════════════════════
+   1) 主题：跟随系统 / 白天 / 夜间
+   ══════════════════════════════════════════════════════════════ */
+(function () {
+  var root = document.documentElement;
+  var KEY = 'tq-theme';
+  var mq = window.matchMedia('(prefers-color-scheme: light)');
+
+  function apply(mode) {
+    var dark = mode === 'dark' || (mode === 'auto' && !mq.matches);
+    root.setAttribute('data-theme', dark ? 'dark' : 'light');
+    document.querySelectorAll('.ts-btn').forEach(function (b) {
+      b.classList.toggle('on', b.dataset.themeSet === mode);
+    });
+  }
+
+  // 读回已存模式（无则 auto）
+  var saved = (function () { try { return localStorage.getItem(KEY); } catch (e) { return null; } })();
+  var mode = saved === 'light' || saved === 'dark' || saved === 'auto' ? saved : 'auto';
+  apply(mode);
+
+  document.getElementById('themeSwitch').addEventListener('click', function (e) {
+    var btn = e.target.closest('.ts-btn');
+    if (!btn) return;
+    mode = btn.dataset.themeSet;
+    try { localStorage.setItem(KEY, mode); } catch (e) {}
+    apply(mode);
+  });
+
+  // auto 模式下跟随系统实时切换
+  var onChange = function () { if (mode === 'auto') apply('auto'); };
+  if (mq.addEventListener) mq.addEventListener('change', onChange);
+  else if (mq.addListener) mq.addListener(onChange);
+})();
+
+/* ══════════════════════════════════════════════════════════════
+   2) 主色即时换肤：只改 3 个 CSS 变量，整页跟随
+   ══════════════════════════════════════════════════════════════ */
+(function () {
+  var root = document.documentElement;
+  var picker = document.getElementById('accentPicker');
+  if (!picker) return;
+  picker.addEventListener('click', function (e) {
+    var btn = e.target.closest('.accent-opt');
+    if (!btn) return;
+    picker.querySelectorAll('.accent-opt').forEach(function (b) { b.classList.remove('on'); });
+    btn.classList.add('on');
+    // 浅色模式需要一套更深的品牌色, 保证白底上可读
+    var light = root.getAttribute('data-theme') === 'light';
+    var pick = light ? btn.dataset.brandLight : btn.dataset.brand;
+    root.style.setProperty('--brand', pick);
+    root.style.setProperty('--brand-soft', light ? btn.dataset.softLight : btn.dataset.soft);
+    root.style.setProperty('--brand-line', light ? btn.dataset.lineLight : btn.dataset.line);
+  });
+})();
+
+/* ══════════════════════════════════════════════════════════════
+   3) 色值实时读取 token —— 切主题时跟着更新, 不会显示过期 hex
+   ══════════════════════════════════════════════════════════════ */
+(function () {
+  // .swatch 里的 token 名写在 .nm 上, 自动认领给同行的 .hx
+  document.querySelectorAll('.swatch .nm').forEach(function (nm) {
+    var token = nm.textContent.trim();
+    if (token.indexOf('--') !== 0) return;
+    var hx = nm.parentElement.querySelector('.hx');
+    if (hx) hx.dataset.token = token;
+  });
+
+  var LABEL = { dark: '夜间', light: '白天' };
+  function fill() {
+    var cs = getComputedStyle(document.documentElement);
+    document.querySelectorAll('[data-token]').forEach(function (el) {
+      var v = cs.getPropertyValue(el.dataset.token).trim();
+      if (v) el.textContent = v;
+    });
+    var now = document.getElementById('themeNow');
+    if (now) {
+      var t = document.documentElement.getAttribute('data-theme');
+      now.textContent = LABEL[t] || '—';
+    }
+  }
+  fill();
+  new MutationObserver(fill).observe(document.documentElement, {
+    attributes: true, attributeFilter: ['data-theme', 'style']
+  });
+})();
+</script>
+</body>
+</html>

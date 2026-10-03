@@ -25,6 +25,7 @@ const context = vm.createContext({
   fetch(url) { return new Promise(resolve => requests.push({ url, resolve })); },
   echarts: { init(box) {
     const chart = { box, disposed: false, setOption(option) { this.option = option; },
+      off() { return this; }, on(event, handler) { (this.handlers ||= {})[event] = handler; return this; },
       dispose() { this.disposed = true; }, resize(size) { this.size = size; } };
     charts.push(chart); return chart;
   } },
@@ -57,7 +58,7 @@ const reply = async (request, data, ok = true) => {
     '交割分析的 B/S 标签应距离 K 线 16 像素');
   assert.match(source, /const KLINE_MA_COLORS = \{ 5: '#7ac8ff', 10: '#e8a45a', 20: '#c89cff', 30: '#4dd0e1', 60: '#6fbf73' \}/,
     '每条均线应有固定且不同的颜色');
-  assert.equal((html.match(/\{pickDate:/g) || []).length, 15, '选股推荐和条件优选的名称/代码入口都应传入选股日期');
+  assert.equal((html.match(/\{pickDate:/g) || []).length, 17, '选股推荐和条件优选的名称/代码入口都应传入选股日期');
   await run("showKlineModal('000001.SH','上证指数',{kind:'index',date:'20250102'})");
   const oldMin = requests.at(-1);
   assert.match(oldMin.url, /index\/minline.*date=20250102/);
@@ -109,7 +110,7 @@ const reply = async (request, data, ok = true) => {
 
   // 个股仍使用个股接口、250 日和盘中补 K 参数。
   await run("showKlineModal('000001.SZ','平安银行',{pickDate:'20250121'})");
-  assert.equal(requests.at(-1).url, '/api/stock/minline?ts_code=000001.SZ&date=');
+  assert.equal(requests.at(-1).url, '/api/stock/minline?ts_code=000001.SZ&date=20250121');
   run("_klineSwitchTab('daily')");
   assert.equal(requests.at(-1).url, '/api/stock/daily?ts_code=000001.SZ&limit=250&intraday=1');
   assert.equal(elements.get('klineContext').hidden, true);

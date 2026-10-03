@@ -86,9 +86,10 @@ def create_app(db_path=None, hostname=None):
         source = request.args.get('source', 'eastmoney-push2')
         if module == 'flow-sector' and source not in ('industry', 'concept'):
             source = 'industry'
-        # 手机流量下大 payload 易超时: 大列表模块默认截断到 200 条
+        # 手机流量下大 payload 易超时: 大列表模块默认截断; barometer 默认 1000 (≈ 4 年交易日, 覆盖全量)
         limit_arg = request.args.get('limit')
-        limit = int(limit_arg) if limit_arg else (200 if module in ('flow', 'flow-sector', 'limitup', 'lz', 'sectors') else None)
+        default_limit = 1000 if module == 'barometer' else (200 if module in ('flow', 'flow-sector', 'limitup', 'lz', 'sectors') else None)
+        limit = int(limit_arg) if limit_arg else default_limit
         if limit is not None and not 1 <= limit <= 1000:
             raise ValueError('limit 须在 1–1000 之间')
         with connect_readonly(app.config['DB_PATH']) as conn:
@@ -139,6 +140,16 @@ def create_app(db_path=None, hostname=None):
             items = SavedData(conn).user_sectors()
         return jsonify(items=items, readonly=True)
 
+    @app.get('/api/mobile/preferred-history')
+    def preferred_history():
+        """条件优选历史涨幅分布 (只读版, 弹窗用): days=1|3|5, 跟桌面同口径."""
+        days = int(request.args.get('days', 5))
+        if days not in (1, 3, 5):
+            raise ValueError('统计窗口须为 1、3 或 5')
+        with connect_readonly(app.config['DB_PATH']) as conn:
+            result = SavedData(conn).preferred_history(days)
+        return jsonify(status='ok', readonly=True, **result)
+
     return app
 
 
@@ -150,5 +161,5 @@ if __name__ == '__main__':
         parser.error('--hostname 必须是完整的 ts.net 主机名，不包含协议或端口')
     from waitress import serve
     print('TradeIQ 手机只读服务：http://127.0.0.1:5556（数据库不会初始化）', flush=True)
-    serve(create_app(hostname=args.hostname), host='127.0.0.1', port=5556, threads=4,
+    serve(create_app(hostname=args.hostname), host='0.0.0.0', port=5556, threads=4,
           expose_tracebacks=False)

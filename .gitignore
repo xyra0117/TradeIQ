@@ -2,6 +2,18 @@
 .DS_Store
 **/.DS_Store
 
+# AI 工具自动生成的本地 skills 副本 (各 IDE/agent 自己的缓存, 不入库)
+.agents/
+.codebuddy/
+.hermes/
+.kiro/
+.minimax/
+.qoder/
+.trae/
+.zcode/
+skills/
+skills-lock.json
+
 # 用户上传文件 (含私人券商导出数据, 严禁入库)
 backend/uploads/
 **/uploads/
@@ -47,6 +59,9 @@ backend/scripts/__pycache__/
 *.db-wal
 *.db-shm
 backend/tradeiq-backend.log
+backend/logs/
+tradeiq-backend.log
+tradeiq-mobile.log
 
 # Claude Code 本地配置 (会话记忆/项目设置, 不入库)
 .claude/

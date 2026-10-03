@@ -23,6 +23,25 @@ PICKS = {
     'conditional-new': 'conditional_picks_new_snapshot',
     'conditional-preferred': 'conditional_picks_preferred_snapshot',
 }
+# 条件优选历史涨幅分布的 8 档固定区间 (key, label, low 含, high 不含; None 表示无界)
+PREFERRED_HIST_BUCKETS = (
+    ('drop', '跌 (<0%)', None, 0.0),
+    ('b0_3', '0~3%', 0.0, 3.0),
+    ('b3_5', '3~5%', 3.0, 5.0),
+    ('b5_10', '5~10%', 5.0, 10.0),
+    ('b10_15', '10~15%', 10.0, 15.0),
+    ('b15_20', '15~20%', 15.0, 20.0),
+    ('b20_30', '20~30%', 20.0, 30.0),
+    ('b30', '≥30%', 30.0, None),
+)
+
+
+def bucket_preferred_high_gain(gain_pct):
+    """把累计最高涨幅落进 8 档之一, 返回 (key, label); 超出所有区间返回 (None, None)."""
+    for key, label, low, high in PREFERRED_HIST_BUCKETS:
+        if (low is None or gain_pct >= low) and (high is None or gain_pct < high):
+            return key, label
+    return None, None
 
 
 def date_arg(value):
@@ -68,6 +87,9 @@ class SavedData:
         return [dict(r) for r in self.conn.execute(sql, args)]
 
     def table_for(self, module, kind='system', source='eastmoney-push2'):
+        if module == 'barometer':
+            # 走专属分支 (LEFT JOIN overview + index_daily + market_fflow ...), 不在 TABLES 里
+            return 'overview', 'date'
         if module not in TABLES:
             raise ValueError('未知模块')
         if module == 'picks':
@@ -154,7 +176,11 @@ class SavedData:
             extra['note'] = '当前自选名单，价格为所选日期已保存日线。'
         else:
             items = self.day_rows(table, col, day)
-            if module == 'index':
+            if module == 'barometer':
+                # 盘面晴雨表: 一次性 LEFT JOIN 原始表 (overview/index_daily/market_fflow/sector_fund_flow/leaderboard)
+                # 输出行字段直接对应 xlsx 同款列; 字段未计算留 None
+                items = self.barometer_history(limit)
+            elif module == 'index':
                 reverse = {name: code for code, name in INDEX_CODES.items()}
                 items = [dict(r, ts_code=reverse[r['name']], change_pct=r['change']) for r in items if r['name'] in reverse]
                 extra['overview'] = next(iter(self.day_rows('overview', 'date', day)), None)
@@ -274,6 +300,66 @@ class SavedData:
         for r in items:
             r['stocks'] = self.rows('SELECT ts_code,name,role,rank FROM user_sector_stocks WHERE sector_id=? ORDER BY role,rank', (r['id'],)) if self.exists('user_sector_stocks') else []
         return items
+
+    def preferred_history(self, window=5):
+        """条件优选历史涨幅分布 (跟桌面 /api/conditional-picks/preferred/historical-distribution 同口径).
+        扫全部已保存优选快照, 每条入选记录取入选后 T+1..T+window 任一天的最高价 / 入选日收盘价 − 1
+        作为累计最高涨幅, 落进 8 档固定区间. 每次入选算 1 个独立样本 (同股多次入选计多次);
+        窗口内任一天缺数据的记录整条排除并计入 pending."""
+        if window not in (1, 3, 5):
+            raise ValueError('统计窗口须为 1、3 或 5')
+        if not self.exists('conditional_picks_preferred_snapshot'):
+            return dict(window=window, buckets=[b[:2] + [b[2], b[3], 0, 0.0] for b in PREFERRED_HIST_BUCKETS],
+                        samples=[], dates=[], settled=0, pending=0, total=0, date_count=0,
+                        date_from=None, date_to=None, unique_stocks=0, windows=[1, 3, 5],
+                        metric_label=f'入选后 T+1~T+{window} 累计最高涨幅')
+        counts = {key: 0 for key, _, _, _ in PREFERRED_HIST_BUCKETS}
+        samples, dates = [], []
+        settled = pending = 0
+        rows = self.rows('SELECT trade_date, results_json, threshold_yi, volume_ratio_pct '
+                         'FROM conditional_picks_preferred_snapshot ORDER BY trade_date')
+        for row in rows:
+            try:
+                results = json.loads(row['results_json'] or '[]')
+            except (TypeError, json.JSONDecodeError) as error:
+                raise sqlite3.DatabaseError('Invalid saved snapshot') from error
+            if not isinstance(results, list) or any(not isinstance(r, dict) for r in results):
+                raise sqlite3.DatabaseError('Invalid saved snapshot')
+            day_settled = 0
+            for item in results:
+                outcomes = (item.get('preferred_outcomes') or [])[:window]
+                values = [o.get('high_sum_pct') for o in outcomes]
+                if len(values) < window or any(v is None for v in values):
+                    pending += 1
+                    continue
+                gain = max(values)
+                key, label = bucket_preferred_high_gain(gain)
+                if key is None:
+                    pending += 1
+                    continue
+                counts[key] += 1
+                settled += 1
+                day_settled += 1
+                samples.append({
+                    'trade_date': row['trade_date'], 'ts_code': item.get('ts_code'),
+                    'name': item.get('name'), 'close': item.get('close'),
+                    'gain_pct': round(gain, 4), 'bucket': key, 'bucket_label': label,
+                    'path': [round(v, 4) for v in values],
+                })
+            if results:
+                dates.append({'trade_date': row['trade_date'], 'count': len(results),
+                              'settled': day_settled, 'threshold_yi': row['threshold_yi'],
+                              'volume_ratio_pct': row['volume_ratio_pct']})
+        samples.sort(key=lambda s: (-s['gain_pct'], s['trade_date']))
+        buckets = [{'key': key, 'label': label, 'low': low, 'high': high, 'count': counts[key],
+                    'pct': round(counts[key] / settled * 100, 2) if settled else 0.0}
+                   for key, label, low, high in PREFERRED_HIST_BUCKETS]
+        return dict(window=window, buckets=buckets, samples=samples, dates=dates,
+                    settled=settled, pending=pending, total=settled + pending,
+                    date_count=len(dates), date_from=dates[0]['trade_date'] if dates else None,
+                    date_to=dates[-1]['trade_date'] if dates else None,
+                    unique_stocks=len({s['ts_code'] for s in samples}), windows=[1, 3, 5],
+                    metric_label=f'入选后 T+1~T+{window} 累计最高涨幅')
 
     def market_flow(self, day):
         rows = self.day_rows('market_fflow', 'trade_date', day)
@@ -407,6 +493,146 @@ class SavedData:
                 except (ValueError, AttributeError):
                     pass
         return rows
+
+    def barometer_history(self, limit=1000, date=None):
+        """盘面晴雨表 (手机端): 一次 LEFT JOIN overview/index_daily/market_fflow/sector_fund_flow/leaderboard,
+        输出行字段直接对应前端 renderBarometer 期望的 xlsx 同款列.
+        取近 limit 个有 overview 数据的交易日; 概念板块 TOP1/2/3 从 sector_fund_flow (change_pct DESC) 取; 涨幅榜从 leaderboard 取.
+        默认 1000 (≈ 4 年交易日), 覆盖所有历史; mobile_app 上限 1000.
+        date: YYYYMMDD 8 位字符串 (None = 不过滤). 过滤时只返回那一天的单行.
+        """
+        if not self.exists('overview'):
+            return []
+        # 主框架: overview + index_daily × 2 (上证/科创50) + market_fflow
+        # 概念板块 TOP1/2/3: CTE 按 trade_date 分组, change_pct DESC + name ASC 排序, 取前 3
+        if date:
+            sql = """
+                WITH top AS (
+                  SELECT trade_date, name, change_pct, main_net_inflow, lead_stock_name,
+                         ROW_NUMBER() OVER (PARTITION BY trade_date ORDER BY change_pct DESC, name ASC) AS rn
+                  FROM sector_fund_flow
+                  WHERE sector_type = 'concept'
+                )
+                SELECT
+                    REPLACE(o.date,'-','') AS date,
+                    o.totalVolume AS turnover,
+                    idx_sh.close AS shanghai_index, idx_sh.change AS change_rate,
+                    idx_kc.close AS kechuang50_index, idx_kc.change AS kechuang50_rate,
+                    idx_cyb.close AS chinext_index, idx_cyb.change AS chinext_rate,
+                    o.upCount AS advancers, o.downCount AS decliners,
+                    m.last AS em_last,
+                    t1.name AS top1_name, t1.change_pct AS top1_rate, t1.main_net_inflow AS top1_money, t1.lead_stock_name AS top1_stock,
+                    t2.name AS top2_name, t2.change_pct AS top2_rate, t2.main_net_inflow AS top2_money, t2.lead_stock_name AS top2_stock,
+                    t3.name AS top3_name, t3.change_pct AS top3_rate, t3.main_net_inflow AS top3_money, t3.lead_stock_name AS top3_stock
+                FROM overview o
+                LEFT JOIN index_daily idx_sh ON idx_sh.name='上证指数'
+                    AND REPLACE(idx_sh.date,'-','') = REPLACE(o.date,'-','')
+                LEFT JOIN index_daily idx_kc ON idx_kc.name='科创50'
+                    AND REPLACE(idx_kc.date,'-','') = REPLACE(o.date,'-','')
+                LEFT JOIN index_daily idx_cyb ON idx_cyb.name='创业板指'
+                    AND REPLACE(idx_cyb.date,'-','') = REPLACE(o.date,'-','')
+                LEFT JOIN market_fflow m ON REPLACE(m.trade_date,'-','') = REPLACE(o.date,'-','')
+                LEFT JOIN top t1 ON REPLACE(o.date,'-','') = t1.trade_date AND t1.rn = 1
+                LEFT JOIN top t2 ON REPLACE(o.date,'-','') = t2.trade_date AND t2.rn = 2
+                LEFT JOIN top t3 ON REPLACE(o.date,'-','') = t3.trade_date AND t3.rn = 3
+                WHERE o.upCount > 0 AND REPLACE(o.date,'-','') = ?
+                ORDER BY REPLACE(o.date,'-','') DESC
+            """
+            rows = self.rows(sql, (date,))
+        else:
+            sql = """
+                WITH top AS (
+                  SELECT trade_date, name, change_pct, main_net_inflow, lead_stock_name,
+                         ROW_NUMBER() OVER (PARTITION BY trade_date ORDER BY change_pct DESC, name ASC) AS rn
+                  FROM sector_fund_flow
+                  WHERE sector_type = 'concept'
+                )
+                SELECT
+                    REPLACE(o.date,'-','') AS date,
+                    o.totalVolume AS turnover,
+                    idx_sh.close AS shanghai_index, idx_sh.change AS change_rate,
+                    idx_kc.close AS kechuang50_index, idx_kc.change AS kechuang50_rate,
+                    idx_cyb.close AS chinext_index, idx_cyb.change AS chinext_rate,
+                    o.upCount AS advancers, o.downCount AS decliners,
+                    m.last AS em_last,
+                    t1.name AS top1_name, t1.change_pct AS top1_rate, t1.main_net_inflow AS top1_money, t1.lead_stock_name AS top1_stock,
+                    t2.name AS top2_name, t2.change_pct AS top2_rate, t2.main_net_inflow AS top2_money, t2.lead_stock_name AS top2_stock,
+                    t3.name AS top3_name, t3.change_pct AS top3_rate, t3.main_net_inflow AS top3_money, t3.lead_stock_name AS top3_stock
+                FROM overview o
+                LEFT JOIN index_daily idx_sh ON idx_sh.name='上证指数'
+                    AND REPLACE(idx_sh.date,'-','') = REPLACE(o.date,'-','')
+                LEFT JOIN index_daily idx_kc ON idx_kc.name='科创50'
+                    AND REPLACE(idx_kc.date,'-','') = REPLACE(o.date,'-','')
+                LEFT JOIN index_daily idx_cyb ON idx_cyb.name='创业板指'
+                    AND REPLACE(idx_cyb.date,'-','') = REPLACE(o.date,'-','')
+                LEFT JOIN market_fflow m ON REPLACE(m.trade_date,'-','') = REPLACE(o.date,'-','')
+                LEFT JOIN top t1 ON REPLACE(o.date,'-','') = t1.trade_date AND t1.rn = 1
+                LEFT JOIN top t2 ON REPLACE(o.date,'-','') = t2.trade_date AND t2.rn = 2
+                LEFT JOIN top t3 ON REPLACE(o.date,'-','') = t3.trade_date AND t3.rn = 3
+                WHERE o.upCount > 0
+                ORDER BY REPLACE(o.date,'-','') DESC
+                LIMIT ?
+            """
+            rows = self.rows(sql, (limit,))
+        # 解析 market_fflow.last JSON → main/super/big/small 资金 (单位 亿)
+        for r in rows:
+            em_last = r.pop('em_last', None)
+            r['main_money'] = r['super_money'] = r['big_money'] = r['small_money'] = None
+            if em_last:
+                try:
+                    em = json.loads(em_last)
+                    # 东财 push2 last JSON 字段: main / super / big / mid / small (单位元)
+                    r['main_money'] = em.get('main', 0) / 1e8
+                    r['super_money'] = em.get('super', 0) / 1e8
+                    r['big_money'] = em.get('big', 0) / 1e8
+                    r['small_money'] = em.get('small', 0) / 1e8
+                except (ValueError, AttributeError):
+                    pass
+            # 概念板块 TOP1/2/3: 字段重命名 + 资金转亿
+            for i in (1, 2, 3):
+                name = r.pop(f'top{i}_name', None)
+                rate = r.pop(f'top{i}_rate', None)
+                money = r.pop(f'top{i}_money', None)
+                stock = r.pop(f'top{i}_stock', None)
+                r[f'today_top{i}_concept'] = name
+                r[f'today_top{i}_concept_rate'] = rate
+                r[f'today_top{i}_concept_money'] = (money / 1e8) if money is not None else None
+                r[f'today_top{i}_concept_stock'] = stock
+            # 其它占位字段 (涨幅榜后填, 注释/信号/星期暂留空)
+            for k in ('hot5_sector','hot5_stock','hot10_sector','hot10_stock','hot20_sector','hot20_stock',
+                     'comments','signal','weekdays'):
+                r.setdefault(k, None)
+        # 涨幅榜: hot{N}_stock = leaderboard(type=N日, rank=1).name; hot{N}_sector = 该股在 barometer_date 之前最近一次非「其他」涨停的板块
+        hot_top1 = self._barometer_hot_top1([r['date'] for r in rows])
+        for r in rows:
+            for n in (5, 10, 20):
+                code_name = hot_top1.get((r['date'], f'{n}日'))
+                if not code_name:
+                    r[f'hot{n}_stock'] = None
+                    r[f'hot{n}_sector'] = None
+                    continue
+                r[f'hot{n}_stock'] = code_name[1]
+                r[f'hot{n}_sector'] = self._barometer_hot_sector(code_name[0], r['date'])
+        return rows
+
+    def _barometer_hot_top1(self, dates):
+        """返回 {(YYYYMMDD, '5日'|'10日'|'20日'): (code, name)} 仅 rank=1 行"""
+        if not dates or not self.exists('leaderboard'):
+            return {}
+        rows = self.rows(
+            "SELECT date, type, code, name FROM leaderboard WHERE rank=1 AND type IN ('5日','10日','20日') AND date IN ({})".format(
+                ','.join('?' * len(dates))),
+            tuple(dates))
+        return {(r['date'], r['type']): (r['code'], r['name']) for r in rows}
+
+    def _barometer_hot_sector(self, code, max_date):
+        """返回 code 在 max_date 及之前最近一次非「其他」涨停的 sector; 找不到返回 None"""
+        if not code or not self.exists('limitup'):
+            return None
+        rows = self.rows(
+            "SELECT sector FROM limitup WHERE code=? AND date<=? AND sector!='其他' ORDER BY date DESC, time DESC LIMIT 1",
+            (code, max_date))
+        return rows[0]['sector'] if rows else None
 
     def chart(self, code, kind, day, start=None):
         if kind not in ('index', 'stock'):

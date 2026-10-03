@@ -1,0 +1,344 @@
+{
+  "可比全市场": {
+    "all": {
+      "n": 1545074,
+      "stocks": 5567,
+      "hit_pct": 26.74,
+      "end_median": 0.0,
+      "end_positive_pct": 49.39,
+      "adverse_below5_pct": 46.54,
+      "dates": 334
+    },
+    "early": {
+      "n": 1044118,
+      "stocks": 5490,
+      "hit_pct": 25.25,
+      "end_median": 0.21,
+      "end_positive_pct": 51.01,
+      "adverse_below5_pct": 41.98,
+      "dates": 221
+    },
+    "late": {
+      "n": 500956,
+      "stocks": 5555,
+      "hit_pct": 29.84,
+      "end_median": -0.77,
+      "end_positive_pct": 46.02,
+      "adverse_below5_pct": 56.03,
+      "dates": 113
+    },
+    "nonoverlap": {
+      "n": 145884,
+      "stocks": 5566,
+      "hit_pct": 26.64,
+      "end_median": 0.0,
+      "end_positive_pct": 49.91,
+      "adverse_below5_pct": 46.33,
+      "dates": 332
+    },
+    "mainboard": {
+      "n": 893616,
+      "stocks": 3212,
+      "hit_pct": 23.42,
+      "end_median": 0.0,
+      "end_positive_pct": 49.14,
+      "adverse_below5_pct": 42.82,
+      "dates": 334
+    },
+    "candidates_per_day_median": 4939.5
+  },
+  "高振幅": {
+    "all": {
+      "n": 368030,
+      "stocks": 4680,
+      "hit_pct": 42.04,
+      "end_median": -1.16,
+      "end_positive_pct": 45.83,
+      "adverse_below5_pct": 66.46,
+      "dates": 334
+    },
+    "early": {
+      "n": 185749,
+      "stocks": 4041,
+      "hit_pct": 40.09,
+      "end_median": -1.44,
+      "end_positive_pct": 44.05,
+      "adverse_below5_pct": 65.43,
+      "dates": 221
+    },
+    "late": {
+      "n": 182281,
+      "stocks": 4125,
+      "hit_pct": 44.04,
+      "end_median": -0.76,
+      "end_positive_pct": 47.64,
+      "adverse_below5_pct": 67.51,
+      "dates": 113
+    },
+    "nonoverlap": {
+      "n": 35339,
+      "stocks": 4524,
+      "hit_pct": 42.22,
+      "end_median": -1.04,
+      "end_positive_pct": 46.24,
+      "adverse_below5_pct": 65.31,
+      "dates": 330
+    },
+    "mainboard": {
+      "n": 152966,
+      "stocks": 2471,
+      "hit_pct": 40.31,
+      "end_median": -1.25,
+      "end_positive_pct": 45.41,
+      "adverse_below5_pct": 65.75,
+      "dates": 334
+    },
+    "candidates_per_day_median": 1008.5
+  },
+  "高振幅+趋势动量": {
+    "all": {
+      "n": 113310,
+      "stocks": 4193,
+      "hit_pct": 45.61,
+      "end_median": -2.63,
+      "end_positive_pct": 41.64,
+      "adverse_below5_pct": 73.96,
+      "dates": 334
+    },
+    "early": {
+      "n": 70833,
+      "stocks": 3573,
+      "hit_pct": 45.46,
+      "end_median": -2.51,
+      "end_positive_pct": 41.58,
+      "adverse_below5_pct": 73.09,
+      "dates": 221
+    },
+    "late": {
+      "n": 42477,
+      "stocks": 3008,
+      "hit_pct": 45.86,
+      "end_median": -2.87,
+      "end_positive_pct": 41.74,
+      "adverse_below5_pct": 75.4,
+      "dates": 113
+    },
+    "nonoverlap": {
+      "n": 10526,
+      "stocks": 3448,
+      "hit_pct": 46.07,
+      "end_median": -2.73,
+      "end_positive_pct": 41.28,
+      "adverse_below5_pct": 73.7,
+      "dates": 319
+    },
+    "mainboard": {
+      "n": 48043,
+      "stocks": 2140,
+      "hit_pct": 44.26,
+      "end_median": -2.93,
+      "end_positive_pct": 40.82,
+      "adverse_below5_pct": 73.79,
+      "dates": 334
+    },
+    "candidates_per_day_median": 314.0
+  },
+  "核心+放量": {
+    "all": {
+      "n": 18035,
+      "stocks": 3649,
+      "hit_pct": 46.43,
+      "end_median": -3.56,
+      "end_positive_pct": 39.32,
+      "adverse_below5_pct": 77.26,
+      "dates": 334
+    },
+    "early": {
+      "n": 11186,
+      "stocks": 2937,
+      "hit_pct": 47.1,
+      "end_median": -3.62,
+      "end_positive_pct": 38.72,
+      "adverse_below5_pct": 77.38,
+      "dates": 221
+    },
+    "late": {
+      "n": 6849,
+      "stocks": 2368,
+      "hit_pct": 45.32,
+      "end_median": -3.4,
+      "end_positive_pct": 40.31,
+      "adverse_below5_pct": 77.06,
+      "dates": 113
+    },
+    "nonoverlap": {
+      "n": 1711,
+      "stocks": 1331,
+      "hit_pct": 45.88,
+      "end_median": -3.83,
+      "end_positive_pct": 37.64,
+      "adverse_below5_pct": 77.32,
+      "dates": 286
+    },
+    "mainboard": {
+      "n": 7508,
+      "stocks": 1782,
+      "hit_pct": 45.14,
+      "end_median": -3.8,
+      "end_positive_pct": 38.87,
+      "adverse_below5_pct": 76.77,
+      "dates": 334
+    },
+    "candidates_per_day_median": 48.0,
+    "fund_period_base": {
+      "n": 230710,
+      "stocks": 5208,
+      "hit_pct": 29.59,
+      "end_median": -0.27,
+      "end_positive_pct": 48.28,
+      "adverse_below5_pct": 55.7,
+      "dates": 59
+    },
+    "fund_period_core": {
+      "n": 19922,
+      "stocks": 2371,
+      "hit_pct": 34.81,
+      "end_median": -5.28,
+      "end_positive_pct": 32.26,
+      "adverse_below5_pct": 81.67,
+      "dates": 59
+    }
+  },
+  "核心+5日主力强度": {
+    "all": {
+      "n": 2927,
+      "stocks": 1109,
+      "hit_pct": 39.63,
+      "end_median": -3.58,
+      "end_positive_pct": 37.68,
+      "adverse_below5_pct": 79.02,
+      "dates": 59
+    },
+    "early": {
+      "n": 0,
+      "stocks": 0,
+      "hit_pct": null,
+      "end_median": null,
+      "end_positive_pct": null,
+      "adverse_below5_pct": null,
+      "dates": 0
+    },
+    "late": {
+      "n": 2927,
+      "stocks": 1109,
+      "hit_pct": 39.63,
+      "end_median": -3.58,
+      "end_positive_pct": 37.68,
+      "adverse_below5_pct": 79.02,
+      "dates": 59
+    },
+    "nonoverlap": {
+      "n": 284,
+      "stocks": 264,
+      "hit_pct": 40.14,
+      "end_median": -3.18,
+      "end_positive_pct": 36.27,
+      "adverse_below5_pct": 78.87,
+      "dates": 54
+    },
+    "mainboard": {
+      "n": 1693,
+      "stocks": 616,
+      "hit_pct": 39.63,
+      "end_median": -3.59,
+      "end_positive_pct": 37.27,
+      "adverse_below5_pct": 78.44,
+      "dates": 59
+    },
+    "candidates_per_day_median": 0.0,
+    "fund_period_base": {
+      "n": 230710,
+      "stocks": 5208,
+      "hit_pct": 29.59,
+      "end_median": -0.27,
+      "end_positive_pct": 48.28,
+      "adverse_below5_pct": 55.7,
+      "dates": 59
+    },
+    "fund_period_core": {
+      "n": 19922,
+      "stocks": 2371,
+      "hit_pct": 34.81,
+      "end_median": -5.28,
+      "end_positive_pct": 32.26,
+      "adverse_below5_pct": 81.67,
+      "dates": 59
+    }
+  },
+  "核心+放量+资金": {
+    "all": {
+      "n": 1136,
+      "stocks": 719,
+      "hit_pct": 39.0,
+      "end_median": -3.99,
+      "end_positive_pct": 34.6,
+      "adverse_below5_pct": 81.69,
+      "dates": 59
+    },
+    "early": {
+      "n": 0,
+      "stocks": 0,
+      "hit_pct": null,
+      "end_median": null,
+      "end_positive_pct": null,
+      "adverse_below5_pct": null,
+      "dates": 0
+    },
+    "late": {
+      "n": 1136,
+      "stocks": 719,
+      "hit_pct": 39.0,
+      "end_median": -3.99,
+      "end_positive_pct": 34.6,
+      "adverse_below5_pct": 81.69,
+      "dates": 59
+    },
+    "nonoverlap": {
+      "n": 113,
+      "stocks": 111,
+      "hit_pct": 45.13,
+      "end_median": -2.79,
+      "end_positive_pct": 37.17,
+      "adverse_below5_pct": 80.53,
+      "dates": 40
+    },
+    "mainboard": {
+      "n": 676,
+      "stocks": 408,
+      "hit_pct": 39.64,
+      "end_median": -3.94,
+      "end_positive_pct": 35.36,
+      "adverse_below5_pct": 81.07,
+      "dates": 59
+    },
+    "candidates_per_day_median": 0.0,
+    "fund_period_base": {
+      "n": 230710,
+      "stocks": 5208,
+      "hit_pct": 29.59,
+      "end_median": -0.27,
+      "end_positive_pct": 48.28,
+      "adverse_below5_pct": 55.7,
+      "dates": 59
+    },
+    "fund_period_core": {
+      "n": 19922,
+      "stocks": 2371,
+      "hit_pct": 34.81,
+      "end_median": -5.28,
+      "end_positive_pct": 32.26,
+      "adverse_below5_pct": 81.67,
+      "dates": 59
+    }
+  }
+}

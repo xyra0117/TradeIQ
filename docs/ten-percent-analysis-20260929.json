@@ -1,0 +1,2969 @@
+{
+  "coverage": {
+    "stock_daily": {
+      "n": 2255211,
+      "first": "20200102",
+      "last": "20260928",
+      "dates": 431
+    },
+    "fund_flow": {
+      "n": 381712,
+      "first": "20260420",
+      "last": "20260928",
+      "dates": 111
+    },
+    "fund_flow_ths": {
+      "n": 133333,
+      "first": "20260821",
+      "last": "20260928",
+      "dates": 26
+    },
+    "limitup": {
+      "n": 9810,
+      "first": "20250506",
+      "last": "20260928",
+      "dates": 136
+    },
+    "index_daily": {
+      "n": 1984,
+      "first": "20240910",
+      "last": "20260928",
+      "dates": 496
+    },
+    "overview": {
+      "n": 496,
+      "first": "20240910",
+      "last": "20260928",
+      "dates": 496
+    },
+    "sector_fund_flow": {
+      "n": 8000,
+      "first": "20260915",
+      "last": "20260928",
+      "dates": 8
+    },
+    "stock_minline_bars": {
+      "n": 11574579,
+      "first": "20260915",
+      "last": "20260928",
+      "dates": 9
+    }
+  },
+  "segments": [
+    [
+      "20200102",
+      "20200219",
+      29
+    ],
+    [
+      "20200227",
+      "20200309",
+      8
+    ],
+    [
+      "20250401",
+      "20260928",
+      365
+    ]
+  ],
+  "horizons": {
+    "5": {
+      "samples": 2017970,
+      "stocks": 5783,
+      "hits": 313544,
+      "hit_stocks": 5712,
+      "rate": 15.53759471151702,
+      "first": "20200102",
+      "last": "20260918",
+      "modern_n": 1915928,
+      "modern_rate": 15.309604536287377,
+      "early_n": 102042,
+      "early_rate": 19.818310107602752,
+      "nonoverlap_n": 344087,
+      "nonoverlap_rate": 15.449290441080308,
+      "winner_end_median": 9.510489510489517,
+      "winner_end_above10": 46.37116321792157,
+      "winner_end_negative": 7.978465542316229,
+      "winner_adverse_median": -1.5626621669273255,
+      "winner_adverse_below5": 15.16565458117521,
+      "latest_complete_start": "20260918"
+    },
+    "10": {
+      "samples": 1914111,
+      "stocks": 5778,
+      "hits": 521115,
+      "hit_stocks": 5734,
+      "rate": 27.224910154113317,
+      "first": "20200102",
+      "last": "20260911",
+      "modern_n": 1842658,
+      "modern_rate": 27.191046846457674,
+      "early_n": 71453,
+      "early_rate": 28.098190418876744,
+      "nonoverlap_n": 182086,
+      "nonoverlap_rate": 26.31064442076821,
+      "winner_end_median": 9.24092409240924,
+      "winner_end_above10": 45.593966782763886,
+      "winner_end_negative": 12.867601201270354,
+      "winner_adverse_median": -2.4113475177305,
+      "winner_adverse_below5": 25.868954069639138,
+      "latest_complete_start": "20260911"
+    },
+    "20": {
+      "samples": 1732261,
+      "stocks": 5764,
+      "hits": 743020,
+      "hit_stocks": 5649,
+      "rate": 42.89307442700609,
+      "first": "20200102",
+      "last": "20260828",
+      "modern_n": 1698636,
+      "modern_rate": 43.09852140187774,
+      "early_n": 33625,
+      "early_rate": 32.51449814126394,
+      "nonoverlap_n": 91497,
+      "nonoverlap_rate": 40.48766626228183,
+      "winner_end_median": 9.043245620657926,
+      "winner_end_above10": 45.576700492584315,
+      "winner_end_negative": 18.309332184867163,
+      "winner_adverse_median": -3.6346468667252383,
+      "winner_adverse_below5": 38.7622136685419,
+      "latest_complete_start": "20260828"
+    }
+  },
+  "features": {
+    "5": [
+      {
+        "feature": "近20日平均振幅≥5%",
+        "yes_n": 389650,
+        "no_n": 1253603,
+        "yes_rate": 27.69716412164763,
+        "no_rate": 11.118512001008293,
+        "winner_share": 43.63940736906803,
+        "other_share": 20.181826126885724,
+        "adjusted_pp": 16.144406012765817,
+        "vol_adjusted_pp": null,
+        "early_n": 1092783,
+        "early_diff": 15.692420758359905,
+        "late_n": 550470,
+        "late_diff": 17.449703838266544,
+        "nonoverlap_n": 267491,
+        "nonoverlap_diff": 16.58982566966619,
+        "mainboard_n": 954644,
+        "mainboard_diff": 16.240849967182008,
+        "nonst_n": 1577377,
+        "nonst_diff": 16.77534620783774
+      },
+      {
+        "feature": "近20日平均振幅<3%",
+        "yes_n": 536358,
+        "no_n": 1106895,
+        "yes_rate": 6.36030412522979,
+        "no_rate": 19.260182763496086,
+        "winner_share": 13.794358360560283,
+        "other_share": 35.97867830415008,
+        "adjusted_pp": -12.524184989400347,
+        "vol_adjusted_pp": null,
+        "early_n": 1092783,
+        "early_diff": -11.80458014681473,
+        "late_n": 550470,
+        "late_diff": -15.54526037199342,
+        "nonoverlap_n": 267491,
+        "nonoverlap_diff": -12.786023248530622,
+        "mainboard_n": 954644,
+        "mainboard_diff": -11.93766661178439,
+        "nonst_n": 1577377,
+        "nonst_diff": -12.98260974382139
+      },
+      {
+        "feature": "当日放量≥前5日均量1.5倍",
+        "yes_n": 225865,
+        "no_n": 1669875,
+        "yes_rate": 19.73833927345981,
+        "no_rate": 14.621573471068194,
+        "winner_share": 15.439974510292856,
+        "other_share": 11.280861931205804,
+        "adjusted_pp": 4.783041399069751,
+        "vol_adjusted_pp": 4.86852563960247,
+        "early_n": 1291357,
+        "early_diff": 5.998346425926233,
+        "late_n": 604383,
+        "late_diff": 3.386755262776685,
+        "nonoverlap_n": 321686,
+        "nonoverlap_diff": 5.376041218532528,
+        "mainboard_n": 1114121,
+        "mainboard_diff": 5.413121808936733,
+        "nonst_n": 1819900,
+        "nonst_diff": 5.082451710340047
+      },
+      {
+        "feature": "温和缩量为前日70%至80%",
+        "yes_n": 259146,
+        "no_n": 1736423,
+        "yes_rate": 15.175229407361101,
+        "no_rate": 15.606681090955371,
+        "winner_share": 12.672561580799421,
+        "other_share": 13.043800753006241,
+        "adjusted_pp": -0.17965372193541757,
+        "vol_adjusted_pp": -0.6396937335786956,
+        "early_n": 1371144,
+        "early_diff": -0.5035820439181453,
+        "late_n": 624425,
+        "late_diff": -0.27972318902610027,
+        "nonoverlap_n": 321686,
+        "nonoverlap_diff": 0.08823644645617712,
+        "mainboard_n": 1178109,
+        "mainboard_diff": -0.45281168539738026,
+        "nonst_n": 1915553,
+        "nonst_diff": -0.3969620048572704
+      },
+      {
+        "feature": "当日收跌",
+        "yes_n": 979610,
+        "no_n": 1015959,
+        "yes_rate": 15.069568501750696,
+        "no_rate": 16.014524208161944,
+        "winner_share": 47.57060362717675,
+        "other_share": 49.36890481799382,
+        "adjusted_pp": -1.8012803939987576,
+        "vol_adjusted_pp": -2.4380363914331307,
+        "early_n": 1371144,
+        "early_diff": -1.0904180408643995,
+        "late_n": 624425,
+        "late_diff": -0.8071570056511064,
+        "nonoverlap_n": 321686,
+        "nonoverlap_diff": -2.0207969156579217,
+        "mainboard_n": 1178109,
+        "mainboard_diff": -1.0896546359900903,
+        "nonst_n": 1915553,
+        "nonst_diff": -0.8799702900312791
+      },
+      {
+        "feature": "此前20日涨幅>15%",
+        "yes_n": 200942,
+        "no_n": 1442311,
+        "yes_rate": 28.715251167003412,
+        "no_rate": 13.145777852349458,
+        "winner_share": 23.3320124219584,
+        "other_share": 10.26119149052007,
+        "adjusted_pp": 16.30666498580574,
+        "vol_adjusted_pp": 8.460084610743097,
+        "early_n": 1092783,
+        "early_diff": 16.723393698573684,
+        "late_n": 550470,
+        "late_diff": 13.287873353318009,
+        "nonoverlap_n": 267491,
+        "nonoverlap_diff": 15.359426817261841,
+        "mainboard_n": 954644,
+        "mainboard_diff": 16.13719410309713,
+        "nonst_n": 1577377,
+        "nonst_diff": 15.660869252323888
+      },
+      {
+        "feature": "收盘高于MA20",
+        "yes_n": 825387,
+        "no_n": 817866,
+        "yes_rate": 17.547768501321197,
+        "no_rate": 12.528580476508377,
+        "winner_share": 58.56637984019668,
+        "other_share": 48.75178104644224,
+        "adjusted_pp": 6.6181621769682835,
+        "vol_adjusted_pp": 5.149801026099466,
+        "early_n": 1092783,
+        "early_diff": 6.572440156435956,
+        "late_n": 550470,
+        "late_diff": 2.6129995406992776,
+        "nonoverlap_n": 267491,
+        "nonoverlap_diff": 5.2698543860022,
+        "mainboard_n": 954644,
+        "mainboard_diff": 4.747915292798725,
+        "nonst_n": 1577377,
+        "nonst_diff": 5.064268555417561
+      },
+      {
+        "feature": "收盘不高于MA60",
+        "yes_n": 598778,
+        "no_n": 541882,
+        "yes_rate": 11.720537494697535,
+        "no_rate": 19.477118634684302,
+        "winner_share": 39.93785674043808,
+        "other_share": 54.78057116682229,
+        "adjusted_pp": -10.258125506415501,
+        "vol_adjusted_pp": -4.907977580731342,
+        "early_n": 730916,
+        "early_diff": -8.934055367478097,
+        "late_n": 409744,
+        "late_diff": -8.353295114109166,
+        "nonoverlap_n": 193925,
+        "nonoverlap_diff": -7.776253324936665,
+        "mainboard_n": 650858,
+        "mainboard_diff": -7.309631580002254,
+        "nonst_n": 1093462,
+        "nonst_diff": -7.893598943036732
+      },
+      {
+        "feature": "MA5高于MA20",
+        "yes_n": 835099,
+        "no_n": 808154,
+        "yes_rate": 17.317348003051137,
+        "no_rate": 12.706365370956526,
+        "winner_share": 58.47742050270113,
+        "other_share": 49.46326835722509,
+        "adjusted_pp": 6.298518877258769,
+        "vol_adjusted_pp": 4.378427134086259,
+        "early_n": 1092783,
+        "early_diff": 6.263818697322808,
+        "late_n": 550470,
+        "late_diff": 2.041157973164079,
+        "nonoverlap_n": 267491,
+        "nonoverlap_diff": 4.7971949046322475,
+        "mainboard_n": 954644,
+        "mainboard_diff": 4.428519352855291,
+        "nonst_n": 1577377,
+        "nonst_diff": 4.6691827426893795
+      },
+      {
+        "feature": "收盘突破此前20日高点",
+        "yes_n": 86274,
+        "no_n": 1539274,
+        "yes_rate": 25.292672183971998,
+        "no_rate": 14.438819859232337,
+        "winner_share": 8.940321377942755,
+        "other_share": 4.665523925893647,
+        "adjusted_pp": 11.149454799196576,
+        "vol_adjusted_pp": 9.793915289895677,
+        "early_n": 1078849,
+        "early_diff": 12.17219494369568,
+        "late_n": 546699,
+        "late_diff": 8.261323327188542,
+        "nonoverlap_n": 267491,
+        "nonoverlap_diff": 11.62743767864676,
+        "mainboard_n": 943456,
+        "mainboard_diff": 11.799527675465596,
+        "nonst_n": 1560346,
+        "nonst_diff": 10.722396729355605
+      },
+      {
+        "feature": "当日主力净流入",
+        "yes_n": 138598,
+        "no_n": 202049,
+        "yes_rate": 17.996652188343266,
+        "no_rate": 16.2574425015714,
+        "winner_share": 43.16069976293886,
+        "other_share": 40.18122295443618,
+        "adjusted_pp": 1.8624755244987206,
+        "vol_adjusted_pp": 1.1832079720166282,
+        "early_n": 0,
+        "early_diff": null,
+        "late_n": 340647,
+        "late_diff": 1.739209686771865,
+        "nonoverlap_n": 56461,
+        "nonoverlap_diff": 1.7271989411995285,
+        "mainboard_n": 208019,
+        "mainboard_diff": 1.5362911679979003,
+        "nonst_n": 327468,
+        "nonst_diff": 1.775925320119292
+      },
+      {
+        "feature": "当日小单净流出",
+        "yes_n": 142176,
+        "no_n": 198471,
+        "yes_rate": 18.41098356966014,
+        "no_rate": 15.929279340558569,
+        "winner_share": 45.29424996971847,
+        "other_share": 41.010266708148315,
+        "adjusted_pp": 2.1184404005139377,
+        "vol_adjusted_pp": 1.366634658515081,
+        "early_n": 0,
+        "early_diff": null,
+        "late_n": 340647,
+        "late_diff": 2.4817042291015703,
+        "nonoverlap_n": 56461,
+        "nonoverlap_diff": 2.15475379088835,
+        "mainboard_n": 208019,
+        "mainboard_diff": 1.85125105148094,
+        "nonst_n": 327468,
+        "nonst_diff": 2.4917089037899345
+      },
+      {
+        "feature": "5日主力净流入占成交额≥5%",
+        "yes_n": 18981,
+        "no_n": 283050,
+        "yes_rate": 22.82809124914388,
+        "no_rate": 16.16640169581346,
+        "winner_share": 8.650083845723868,
+        "other_share": 5.814105795450486,
+        "adjusted_pp": 7.5469513105138235,
+        "vol_adjusted_pp": 5.11615629246109,
+        "early_n": 0,
+        "early_diff": null,
+        "late_n": 302031,
+        "late_diff": 6.661689553330422,
+        "nonoverlap_n": 50119,
+        "nonoverlap_diff": 6.5120708265200555,
+        "mainboard_n": 184361,
+        "mainboard_diff": 7.2140008762324435,
+        "nonst_n": 290500,
+        "nonst_diff": 7.10723066395818
+      },
+      {
+        "feature": "当日超大单净流入",
+        "yes_n": 117826,
+        "no_n": 222821,
+        "yes_rate": 18.415290343387706,
+        "no_rate": 16.198203939485055,
+        "winner_share": 37.54563859424478,
+        "other_share": 33.98478377690415,
+        "adjusted_pp": 2.593558121544078,
+        "vol_adjusted_pp": 1.1324677181580114,
+        "early_n": 0,
+        "early_diff": null,
+        "late_n": 340647,
+        "late_diff": 2.217086403902652,
+        "nonoverlap_n": 56461,
+        "nonoverlap_diff": 2.951424130782746,
+        "mainboard_n": 208019,
+        "mainboard_diff": 2.008245628242797,
+        "nonst_n": 327468,
+        "nonst_diff": 2.293007898657695
+      },
+      {
+        "feature": "当日大单净流入",
+        "yes_n": 145866,
+        "no_n": 194781,
+        "yes_rate": 17.678554289553425,
+        "no_rate": 16.430760700479,
+        "winner_share": 44.62113477877178,
+        "other_share": 42.45234324179087,
+        "adjusted_pp": 1.2006183170102234,
+        "vol_adjusted_pp": 0.6895846474100626,
+        "early_n": 0,
+        "early_diff": null,
+        "late_n": 340647,
+        "late_diff": 1.2477935890744263,
+        "nonoverlap_n": 56461,
+        "nonoverlap_diff": 1.3734189388726676,
+        "mainboard_n": 208019,
+        "mainboard_diff": 0.7218586669373295,
+        "nonst_n": 327468,
+        "nonst_diff": 1.2755872373253716
+      },
+      {
+        "feature": "当日中单净流出",
+        "yes_n": 173229,
+        "no_n": 167418,
+        "yes_rate": 17.00985400827806,
+        "no_rate": 16.918730363521245,
+        "winner_share": 50.987177934280425,
+        "other_share": 50.82550838589247,
+        "adjusted_pp": 0.6538946516498455,
+        "vol_adjusted_pp": 0.23447821846348257,
+        "early_n": 0,
+        "early_diff": null,
+        "late_n": 340647,
+        "late_diff": 0.09112364475681645,
+        "nonoverlap_n": 56461,
+        "nonoverlap_diff": 0.7665627224391329,
+        "mainboard_n": 208019,
+        "mainboard_diff": 0.8333419366402044,
+        "nonst_n": 327468,
+        "nonst_diff": 0.1218505044292435
+      },
+      {
+        "feature": "同花顺换手率≥5%",
+        "yes_n": 15867,
+        "no_n": 89735,
+        "yes_rate": 26.381798701707947,
+        "no_rate": 12.291747924444197,
+        "winner_share": 27.51051524710831,
+        "other_share": 12.923461598035093,
+        "adjusted_pp": 14.354178805021878,
+        "vol_adjusted_pp": 6.234036153827122,
+        "early_n": 0,
+        "early_diff": null,
+        "late_n": 105602,
+        "late_diff": 14.09005077726375,
+        "nonoverlap_n": 17386,
+        "nonoverlap_diff": 15.816596139086817,
+        "mainboard_n": 64582,
+        "mainboard_diff": 16.105992305820315,
+        "nonst_n": 101565,
+        "nonst_diff": 13.94704119443039
+      },
+      {
+        "feature": "同花顺资金净流入",
+        "yes_n": 44728,
+        "no_n": 60874,
+        "yes_rate": 14.091844035056342,
+        "no_rate": 14.641718960475735,
+        "winner_share": 41.42350157728706,
+        "other_share": 42.512114708030005,
+        "adjusted_pp": -0.9880934153352909,
+        "vol_adjusted_pp": -0.46065217322205965,
+        "early_n": 0,
+        "early_diff": null,
+        "late_n": 105602,
+        "late_diff": -0.5498749254193935,
+        "nonoverlap_n": 17386,
+        "nonoverlap_diff": -0.378410754767339,
+        "mainboard_n": 64582,
+        "mainboard_diff": -1.3130576425856386,
+        "nonst_n": 101565,
+        "nonst_diff": -0.6201629858426383
+      },
+      {
+        "feature": "市场上涨家数占比≥60%",
+        "yes_n": 671446,
+        "no_n": 1244482,
+        "yes_rate": 15.420003991385755,
+        "no_rate": 15.250039775585345,
+        "winner_share": 35.29818867384197,
+        "other_share": 34.999787379199034,
+        "adjusted_pp": null,
+        "vol_adjusted_pp": null,
+        "early_n": 1287426,
+        "early_diff": 0.5514736205217865,
+        "late_n": 628502,
+        "late_diff": -0.3982512019575388,
+        "nonoverlap_n": 325101,
+        "nonoverlap_diff": -0.4355966878162896,
+        "mainboard_n": 1114827,
+        "mainboard_diff": 0.21278787057908488,
+        "nonst_n": 1840371,
+        "nonst_diff": 0.13030965283163454
+      }
+    ],
+    "10": [
+      {
+        "feature": "近20日平均振幅≥5%",
+        "yes_n": 372032,
+        "no_n": 1186820,
+        "yes_rate": 42.0617043695166,
+        "no_rate": 21.96853777320908,
+        "winner_share": 37.50701085784138,
+        "other_share": 18.880612311039712,
+        "adjusted_pp": 19.15510280995345,
+        "vol_adjusted_pp": null,
+        "early_n": 1054172,
+        "early_diff": 18.134829892083655,
+        "late_n": 504680,
+        "late_diff": 22.256546997884286,
+        "nonoverlap_n": 145884,
+        "nonoverlap_diff": 20.567943924728027,
+        "mainboard_n": 901816,
+        "mainboard_diff": 20.374057234292238,
+        "nonst_n": 1496133,
+        "nonst_diff": 20.323668332645944
+      },
+      {
+        "feature": "近20日平均振幅<3%",
+        "yes_n": 508306,
+        "no_n": 1050546,
+        "yes_rate": 14.876668778255617,
+        "no_rate": 32.515568095066754,
+        "winner_share": 18.124925097672634,
+        "other_share": 37.900410111050576,
+        "adjusted_pp": -17.331564582484468,
+        "vol_adjusted_pp": null,
+        "early_n": 1054172,
+        "early_diff": -15.70568193623047,
+        "late_n": 504680,
+        "late_diff": -23.26366844648951,
+        "nonoverlap_n": 145884,
+        "nonoverlap_diff": -18.23490298390005,
+        "mainboard_n": 901816,
+        "mainboard_diff": -17.10083877033749,
+        "nonst_n": 1496133,
+        "nonst_diff": -17.773763448481372
+      },
+      {
+        "feature": "当日放量≥前5日均量1.5倍",
+        "yes_n": 215991,
+        "no_n": 1588463,
+        "yes_rate": 31.343435606113218,
+        "no_rate": 26.553026416101606,
+        "winner_share": 13.830687009177012,
+        "other_share": 11.277215449782124,
+        "adjusted_pp": 4.257475833893346,
+        "vol_adjusted_pp": 4.25753229648376,
+        "early_n": 1246831,
+        "early_diff": 5.941761739402924,
+        "late_n": 557623,
+        "late_diff": 2.3465335733980446,
+        "nonoverlap_n": 163715,
+        "nonoverlap_diff": 3.6096714132541905,
+        "mainboard_n": 1056473,
+        "mainboard_diff": 5.497993375498869,
+        "nonst_n": 1732338,
+        "nonst_diff": 4.733449141520687
+      },
+      {
+        "feature": "温和缩量为前日70%至80%",
+        "yes_n": 245945,
+        "no_n": 1649795,
+        "yes_rate": 27.125983451584705,
+        "no_rate": 27.283207913710488,
+        "winner_share": 12.908449941180114,
+        "other_share": 12.997966506830041,
+        "adjusted_pp": 0.10034274561494134,
+        "vol_adjusted_pp": -0.5240492263081981,
+        "early_n": 1318585,
+        "early_diff": -0.11117842196352257,
+        "late_n": 577155,
+        "late_diff": -0.2701660586233672,
+        "nonoverlap_n": 163715,
+        "nonoverlap_diff": 0.7022236050757975,
+        "mainboard_n": 1114121,
+        "mainboard_diff": -0.2418892810384179,
+        "nonst_n": 1819900,
+        "nonst_diff": -0.1114410554721843
+      },
+      {
+        "feature": "当日收跌",
+        "yes_n": 935436,
+        "no_n": 960304,
+        "yes_rate": 26.916753257304617,
+        "no_rate": 27.599905863143338,
+        "winner_share": 48.71776515386044,
+        "other_share": 49.578869656278734,
+        "adjusted_pp": -1.4713387201016257,
+        "vol_adjusted_pp": -2.197045014939987,
+        "early_n": 1318585,
+        "early_diff": -0.9945283597987569,
+        "late_n": 577155,
+        "late_diff": -0.1971147589562996,
+        "nonoverlap_n": 163715,
+        "nonoverlap_diff": -0.3768019358510024,
+        "mainboard_n": 1114121,
+        "mainboard_diff": -0.9996237120599396,
+        "nonst_n": 1819900,
+        "nonst_diff": -0.6373627062240104
+      },
+      {
+        "feature": "此前20日涨幅>15%",
+        "yes_n": 192225,
+        "no_n": 1366627,
+        "yes_rate": 41.62882039276889,
+        "no_rate": 24.67308197481829,
+        "winner_share": 19.180029241868603,
+        "other_share": 9.82829993991111,
+        "adjusted_pp": 18.265434974553745,
+        "vol_adjusted_pp": 8.693278220473935,
+        "early_n": 1054172,
+        "early_diff": 18.349561009994776,
+        "late_n": 504680,
+        "late_diff": 14.037224417514452,
+        "nonoverlap_n": 145884,
+        "nonoverlap_diff": 17.933547729468074,
+        "mainboard_n": 901816,
+        "mainboard_diff": 18.341807252506108,
+        "nonst_n": 1496133,
+        "nonst_diff": 17.10768756533944
+      },
+      {
+        "feature": "收盘高于MA20",
+        "yes_n": 792764,
+        "no_n": 766088,
+        "yes_rate": 29.475480723140805,
+        "no_rate": 23.957952611188272,
+        "winner_share": 56.008005560748785,
+        "other_share": 48.97270773149551,
+        "adjusted_pp": 7.469961511518075,
+        "vol_adjusted_pp": 5.81420212275292,
+        "early_n": 1054172,
+        "early_diff": 7.995257888530222,
+        "late_n": 504680,
+        "late_diff": 1.1120670257876846,
+        "nonoverlap_n": 145884,
+        "nonoverlap_diff": 4.965015072532747,
+        "mainboard_n": 901816,
+        "mainboard_diff": 5.673254716467838,
+        "nonst_n": 1496133,
+        "nonst_diff": 5.594682999125688
+      },
+      {
+        "feature": "收盘不高于MA60",
+        "yes_n": 572454,
+        "no_n": 520491,
+        "yes_rate": 22.886380390389448,
+        "no_rate": 31.617453519849526,
+        "winner_share": 44.32437918668381,
+        "other_share": 55.36234973945433,
+        "adjusted_pp": -12.625609696514012,
+        "vol_adjusted_pp": -6.09131052859437,
+        "early_n": 722566,
+        "early_diff": -10.623436351319512,
+        "late_n": 370379,
+        "late_diff": -8.449452362690089,
+        "nonoverlap_n": 98844,
+        "nonoverlap_diff": -8.573609961660022,
+        "mainboard_n": 622725,
+        "mainboard_diff": -8.813389852220421,
+        "nonst_n": 1047764,
+        "nonst_diff": -8.902661729832122
+      },
+      {
+        "feature": "MA5高于MA20",
+        "yes_n": 802143,
+        "no_n": 756709,
+        "yes_rate": 29.293405290577862,
+        "no_rate": 24.08257335382558,
+        "winner_share": 56.32055799237794,
+        "other_share": 49.680022283693134,
+        "adjusted_pp": 7.137933606289769,
+        "vol_adjusted_pp": 4.9608988448439355,
+        "early_n": 1054172,
+        "early_diff": 7.911279227604201,
+        "late_n": 504680,
+        "late_diff": 0.4322293500162324,
+        "nonoverlap_n": 145884,
+        "nonoverlap_diff": 4.630909131441182,
+        "mainboard_n": 901816,
+        "mainboard_diff": 5.491198810906425,
+        "nonst_n": 1496133,
+        "nonst_diff": 5.303161955539515
+      },
+      {
+        "feature": "收盘突破此前20日高点",
+        "yes_n": 83028,
+        "no_n": 1462046,
+        "yes_rate": 36.15165968107144,
+        "no_rate": 26.203074321874965,
+        "winner_share": 7.265738277533967,
+        "other_share": 4.683216765301156,
+        "adjusted_pp": 10.472093450517132,
+        "vol_adjusted_pp": 8.82335364985111,
+        "early_n": 1044118,
+        "early_diff": 11.640401988668138,
+        "late_n": 500956,
+        "late_diff": 6.422473627304086,
+        "nonoverlap_n": 145884,
+        "nonoverlap_diff": 9.903980935948582,
+        "mainboard_n": 893616,
+        "mainboard_diff": 11.295258696138195,
+        "nonst_n": 1482826,
+        "nonst_diff": 9.830749229363292
+      },
+      {
+        "feature": "当日主力净流入",
+        "yes_n": 125066,
+        "no_n": 183679,
+        "yes_rate": 30.347976268530214,
+        "no_rate": 28.806777040380226,
+        "winner_share": 41.76983943565871,
+        "other_share": 39.98154930741057,
+        "adjusted_pp": 1.874323085750218,
+        "vol_adjusted_pp": 0.9560756543527166,
+        "early_n": 0,
+        "early_diff": null,
+        "late_n": 308745,
+        "late_diff": 1.5411992281499884,
+        "nonoverlap_n": 29172,
+        "nonoverlap_diff": 1.6144181420939603,
+        "mainboard_n": 187787,
+        "mainboard_diff": 1.3625567044163063,
+        "nonst_n": 296699,
+        "nonst_diff": 1.6100138981519017
+      },
+      {
+        "feature": "当日小单净流出",
+        "yes_n": 128120,
+        "no_n": 180625,
+        "yes_rate": 30.953793318763662,
+        "no_rate": 28.351003460207615,
+        "winner_share": 43.64400717532217,
+        "other_share": 40.60162109070213,
+        "adjusted_pp": 2.355094349093315,
+        "vol_adjusted_pp": 1.1528252393931298,
+        "early_n": 0,
+        "early_diff": null,
+        "late_n": 308745,
+        "late_diff": 2.602789858556047,
+        "nonoverlap_n": 29172,
+        "nonoverlap_diff": 2.990452577509778,
+        "mainboard_n": 187787,
+        "mainboard_diff": 1.7353853557827925,
+        "nonst_n": 296699,
+        "nonst_diff": 2.6474373137273552
+      },
+      {
+        "feature": "5日主力净流入占成交额≥5%",
+        "yes_n": 17189,
+        "no_n": 254064,
+        "yes_rate": 35.05148641573099,
+        "no_rate": 28.743151331947857,
+        "winner_share": 7.621661965060531,
+        "other_share": 5.8084723363960835,
+        "adjusted_pp": 8.191566197181425,
+        "vol_adjusted_pp": 4.949129868720194,
+        "early_n": 0,
+        "early_diff": null,
+        "late_n": 271253,
+        "late_diff": 6.308335083783135,
+        "nonoverlap_n": 26462,
+        "nonoverlap_diff": 7.671703350025233,
+        "mainboard_n": 164948,
+        "mainboard_diff": 7.020908989457489,
+        "nonst_n": 260827,
+        "nonst_diff": 6.792235241862883
+      },
+      {
+        "feature": "当日超大单净流入",
+        "yes_n": 106711,
+        "no_n": 202034,
+        "yes_rate": 30.32958176757785,
+        "no_rate": 28.95651227021194,
+        "winner_share": 35.61799112989314,
+        "other_share": 34.12276595158759,
+        "adjusted_pp": 2.1609931888677183,
+        "vol_adjusted_pp": 0.39161024910634656,
+        "early_n": 0,
+        "early_diff": null,
+        "late_n": 308745,
+        "late_diff": 1.3730694973659077,
+        "nonoverlap_n": 29172,
+        "nonoverlap_diff": 1.450876192735059,
+        "mainboard_n": 187787,
+        "mainboard_diff": 1.3430694474643978,
+        "nonst_n": 296699,
+        "nonst_diff": 1.472026003079872
+      },
+      {
+        "feature": "当日大单净流入",
+        "yes_n": 131770,
+        "no_n": 176975,
+        "yes_rate": 30.08271989071868,
+        "no_rate": 28.945896313038567,
+        "winner_share": 43.6241980036757,
+        "other_share": 42.28513204637457,
+        "adjusted_pp": 1.2295675489828446,
+        "vol_adjusted_pp": 0.5196672552951561,
+        "early_n": 0,
+        "early_diff": null,
+        "late_n": 308745,
+        "late_diff": 1.1368235776801114,
+        "nonoverlap_n": 29172,
+        "nonoverlap_diff": 0.4859726368286843,
+        "mainboard_n": 187787,
+        "mainboard_diff": 0.4820863890051541,
+        "nonst_n": 296699,
+        "nonst_diff": 1.2058401575617275
+      },
+      {
+        "feature": "当日中单净流出",
+        "yes_n": 157337,
+        "no_n": 151408,
+        "yes_rate": 29.304613663664618,
+        "no_rate": 29.562506604670823,
+        "winner_share": 50.741193172438834,
+        "other_share": 51.05150588861657,
+        "adjusted_pp": 0.35480527208124024,
+        "vol_adjusted_pp": 0.00829096398502719,
+        "early_n": 0,
+        "early_diff": null,
+        "late_n": 308745,
+        "late_diff": -0.2578929410062045,
+        "nonoverlap_n": 29172,
+        "nonoverlap_diff": -0.5714743124307482,
+        "mainboard_n": 187787,
+        "mainboard_diff": 0.7041768035557681,
+        "nonst_n": 296699,
+        "nonst_diff": -0.18485251425406446
+      },
+      {
+        "feature": "同花顺换手率≥5%",
+        "yes_n": 12350,
+        "no_n": 68359,
+        "yes_rate": 36.59109311740891,
+        "no_rate": 20.850217235477405,
+        "winner_share": 24.073087577242703,
+        "other_share": 12.64349258117119,
+        "adjusted_pp": 16.09044961940326,
+        "vol_adjusted_pp": 5.0275722464611965,
+        "early_n": 0,
+        "early_diff": null,
+        "late_n": 80709,
+        "late_diff": 15.740875881931505,
+        "nonoverlap_n": 8112,
+        "nonoverlap_diff": 15.185830429732867,
+        "mainboard_n": 49315,
+        "mainboard_diff": 18.632466400536057,
+        "nonst_n": 77602,
+        "nonst_diff": 15.768825144195699
+      },
+      {
+        "feature": "同花顺资金净流入",
+        "yes_n": 32757,
+        "no_n": 47952,
+        "yes_rate": 21.809078975486155,
+        "no_rate": 24.24924924924925,
+        "winner_share": 38.05668016194332,
+        "other_share": 41.353310622083725,
+        "adjusted_pp": -1.7529861704635519,
+        "vol_adjusted_pp": -0.5052548227921558,
+        "early_n": 0,
+        "early_diff": null,
+        "late_n": 80709,
+        "late_diff": -2.440170273763094,
+        "nonoverlap_n": 8112,
+        "nonoverlap_diff": -0.15214199919925164,
+        "mainboard_n": 49315,
+        "mainboard_diff": -2.186759720063801,
+        "nonst_n": 77602,
+        "nonst_diff": -2.593595622002983
+      },
+      {
+        "feature": "市场上涨家数占比≥60%",
+        "yes_n": 645510,
+        "no_n": 1197148,
+        "yes_rate": 27.130795804867468,
+        "no_rate": 27.22353460056735,
+        "winner_share": 34.953835836802796,
+        "other_share": 35.060449307553554,
+        "adjusted_pp": null,
+        "vol_adjusted_pp": null,
+        "early_n": 1261553,
+        "early_diff": 0.26784793631101067,
+        "late_n": 581105,
+        "late_diff": -0.6237373693194215,
+        "nonoverlap_n": 174530,
+        "nonoverlap_diff": -2.4986883956136587,
+        "mainboard_n": 1071042,
+        "mainboard_diff": -0.014148786535344016,
+        "nonst_n": 1769871,
+        "nonst_diff": -0.10981139599332224
+      }
+    ],
+    "20": [
+      {
+        "feature": "近20日平均振幅≥5%",
+        "yes_n": 342986,
+        "no_n": 1081795,
+        "yes_rate": 55.712478060329,
+        "no_rate": 38.259374465587285,
+        "winner_share": 31.58582021706718,
+        "other_share": 18.52875127926451,
+        "adjusted_pp": 16.456450078037417,
+        "vol_adjusted_pp": null,
+        "early_n": 1010391,
+        "early_diff": 14.791145433445905,
+        "late_n": 414390,
+        "late_diff": 21.317211513576936,
+        "nonoverlap_n": 73628,
+        "nonoverlap_diff": 17.645943630419445,
+        "mainboard_n": 821639,
+        "mainboard_diff": 18.752423625233533,
+        "nonst_n": 1366705,
+        "nonst_diff": 17.649097740272502
+      },
+      {
+        "feature": "近20日平均振幅<3%",
+        "yes_n": 463572,
+        "no_n": 961209,
+        "yes_rate": 30.36637242974123,
+        "no_rate": 48.29376337508284,
+        "winner_share": 23.268768575178438,
+        "other_share": 39.375365177413705,
+        "adjusted_pp": -17.78791948352028,
+        "vol_adjusted_pp": null,
+        "early_n": 1010391,
+        "early_diff": -15.46807469231674,
+        "late_n": 414390,
+        "late_diff": -28.403953695883512,
+        "nonoverlap_n": 73628,
+        "nonoverlap_diff": -17.309149253761817,
+        "mainboard_n": 821639,
+        "mainboard_diff": -18.383849697231238,
+        "nonst_n": 1366705,
+        "nonst_diff": -18.098997924444532
+      },
+      {
+        "feature": "当日放量≥前5日均量1.5倍",
+        "yes_n": 192532,
+        "no_n": 1433016,
+        "yes_rate": 45.03614983483265,
+        "no_rate": 42.65332696913363,
+        "winner_share": 12.423596365293193,
+        "other_share": 11.408134884272485,
+        "adjusted_pp": 2.2851274817948344,
+        "vol_adjusted_pp": 2.4576479321441793,
+        "early_n": 1159659,
+        "early_diff": 3.0554829082478037,
+        "late_n": 465889,
+        "late_diff": 0.811926469799829,
+        "nonoverlap_n": 73628,
+        "nonoverlap_diff": 4.30663633223768,
+        "mainboard_n": 943456,
+        "mainboard_diff": 3.0462393216406696,
+        "nonst_n": 1560346,
+        "nonst_diff": 2.3548932557325344
+      },
+      {
+        "feature": "温和缩量为前日70%至80%",
+        "yes_n": 223262,
+        "no_n": 1491130,
+        "yes_rate": 43.10317026632387,
+        "no_rate": 42.95500727636088,
+        "winner_share": 13.061861043396114,
+        "other_share": 12.993380003355004,
+        "adjusted_pp": 0.3438686150651975,
+        "vol_adjusted_pp": -0.2921795271990511,
+        "early_n": 1229704,
+        "early_diff": 0.2150295106252642,
+        "late_n": 484688,
+        "late_diff": -0.018910244685258704,
+        "nonoverlap_n": 73628,
+        "nonoverlap_diff": -1.5327862322565764,
+        "mainboard_n": 999589,
+        "mainboard_diff": 0.22274391557145634,
+        "nonst_n": 1645807,
+        "nonst_diff": 0.19219288974145599
+      },
+      {
+        "feature": "当日收跌",
+        "yes_n": 836898,
+        "no_n": 877494,
+        "yes_rate": 42.721574194226775,
+        "no_rate": 43.21533822453487,
+        "winner_share": 48.52894069614034,
+        "other_share": 49.03236761029577,
+        "adjusted_pp": -1.0925676266645579,
+        "vol_adjusted_pp": -1.7707738762649299,
+        "early_n": 1229704,
+        "early_diff": -0.6244977735306989,
+        "late_n": 484688,
+        "late_diff": -0.27820742712518154,
+        "nonoverlap_n": 73628,
+        "nonoverlap_diff": -2.2390066508126907,
+        "mainboard_n": 999589,
+        "mainboard_diff": -0.6510276039089575,
+        "nonst_n": 1645807,
+        "nonst_diff": -0.46473833574728474
+      },
+      {
+        "feature": "此前20日涨幅>15%",
+        "yes_n": 175593,
+        "no_n": 1249188,
+        "yes_rate": 54.36777092480908,
+        "no_rate": 40.787135323105886,
+        "winner_share": 15.780182288825637,
+        "other_share": 9.773885804829675,
+        "adjusted_pp": 15.93198223340865,
+        "vol_adjusted_pp": 7.260670762746617,
+        "early_n": 1010391,
+        "early_diff": 15.077488544390171,
+        "late_n": 414390,
+        "late_diff": 9.93079573561203,
+        "nonoverlap_n": 73628,
+        "nonoverlap_diff": 14.179346228908337,
+        "mainboard_n": 821639,
+        "mainboard_diff": 15.679344960828622,
+        "nonst_n": 1366705,
+        "nonst_diff": 13.793898490992206
+      },
+      {
+        "feature": "收盘高于MA20",
+        "yes_n": 722394,
+        "no_n": 702387,
+        "yes_rate": 44.94126473918665,
+        "no_rate": 39.90976484473659,
+        "winner_share": 53.663959112292424,
+        "other_share": 48.51641910839991,
+        "adjusted_pp": 6.998418424998004,
+        "vol_adjusted_pp": 5.484739121218863,
+        "early_n": 1010391,
+        "early_diff": 7.3086252358539525,
+        "late_n": 414390,
+        "late_diff": 0.1858750888246803,
+        "nonoverlap_n": 73628,
+        "nonoverlap_diff": 6.248850841844494,
+        "mainboard_n": 821639,
+        "mainboard_diff": 5.535685883771613,
+        "nonst_n": 1366705,
+        "nonst_diff": 5.125647432143715
+      },
+      {
+        "feature": "收盘不高于MA60",
+        "yes_n": 528600,
+        "no_n": 479168,
+        "yes_rate": 38.95402951191828,
+        "no_rate": 45.3865867503673,
+        "winner_share": 48.63399852145427,
+        "other_share": 55.21913005087452,
+        "adjusted_pp": -11.55322524208209,
+        "vol_adjusted_pp": -5.463541797717103,
+        "early_n": 709259,
+        "early_diff": -7.567350815787933,
+        "late_n": 298509,
+        "late_diff": -7.582965083473553,
+        "nonoverlap_n": 50714,
+        "nonoverlap_diff": -8.44018303112091,
+        "mainboard_n": 573052,
+        "mainboard_diff": -7.53540466414448,
+        "nonst_n": 966461,
+        "nonst_diff": -6.6075576777186456
+      },
+      {
+        "feature": "MA5高于MA20",
+        "yes_n": 728887,
+        "no_n": 695894,
+        "yes_rate": 44.72723481143168,
+        "no_rate": 40.08699600801272,
+        "winner_share": 53.888431568959994,
+        "other_share": 49.142786045983996,
+        "adjusted_pp": 6.713393064516482,
+        "vol_adjusted_pp": 4.7604304351827365,
+        "early_n": 1010391,
+        "early_diff": 7.1969458555276375,
+        "late_n": 414390,
+        "late_diff": -0.7422513588004591,
+        "nonoverlap_n": 73628,
+        "nonoverlap_diff": 5.960538202433227,
+        "mainboard_n": 821639,
+        "mainboard_diff": 5.359683757090579,
+        "nonst_n": 1366705,
+        "nonst_diff": 4.739909960854476
+      },
+      {
+        "feature": "收盘突破此前20日高点",
+        "yes_n": 75834,
+        "no_n": 1336139,
+        "yes_rate": 49.061107155101936,
+        "no_rate": 42.051987106131925,
+        "winner_share": 6.210376612060533,
+        "other_share": 4.752028244730254,
+        "adjusted_pp": 8.050225766142585,
+        "vol_adjusted_pp": 6.5426537592762415,
+        "early_n": 1001202,
+        "early_diff": 8.306270295029961,
+        "late_n": 410771,
+        "late_diff": 3.8585326269521545,
+        "nonoverlap_n": 73628,
+        "nonoverlap_diff": 9.179377438539738,
+        "mainboard_n": 813913,
+        "mainboard_diff": 8.59389711539162,
+        "nonst_n": 1354352,
+        "nonst_diff": 6.944468256471346
+      },
+      {
+        "feature": "当日主力净流入",
+        "yes_n": 101666,
+        "no_n": 147902,
+        "yes_rate": 46.87899592784215,
+        "no_rate": 46.048058849778904,
+        "winner_share": 41.16925522174041,
+        "other_share": 40.36262537181806,
+        "adjusted_pp": 1.4520583081213008,
+        "vol_adjusted_pp": 0.4759380011300179,
+        "early_n": 0,
+        "early_diff": null,
+        "late_n": 249568,
+        "late_diff": 0.8309370780632435,
+        "nonoverlap_n": 13037,
+        "nonoverlap_diff": 1.6919702598862258,
+        "mainboard_n": 150526,
+        "mainboard_diff": 0.7737832367032738,
+        "nonst_n": 239687,
+        "nonst_diff": 0.9181648751152451
+      },
+      {
+        "feature": "当日小单净流出",
+        "yes_n": 103395,
+        "no_n": 146173,
+        "yes_rate": 47.07577735867305,
+        "no_rate": 45.89903744193524,
+        "winner_share": 42.04516006426757,
+        "other_share": 40.89699705535044,
+        "adjusted_pp": 1.2849161838375769,
+        "vol_adjusted_pp": 0.06418241427732575,
+        "early_n": 0,
+        "early_diff": null,
+        "late_n": 249568,
+        "late_diff": 1.1767399167378088,
+        "nonoverlap_n": 13037,
+        "nonoverlap_diff": 3.6179197030142944,
+        "mainboard_n": 150526,
+        "mainboard_diff": 0.4028529062511552,
+        "nonst_n": 239687,
+        "nonst_diff": 1.2743238954769112
+      },
+      {
+        "feature": "5日主力净流入占成交额≥5%",
+        "yes_n": 13155,
+        "no_n": 201028,
+        "yes_rate": 48.422652983656405,
+        "no_rate": 46.928288596613406,
+        "winner_share": 6.3251546535066385,
+        "other_share": 5.979343285686589,
+        "adjusted_pp": 4.312542174706076,
+        "vol_adjusted_pp": 1.4455586292220561,
+        "early_n": 0,
+        "early_diff": null,
+        "late_n": 214183,
+        "late_diff": 1.4943643870429995,
+        "nonoverlap_n": 10407,
+        "nonoverlap_diff": 1.6782483907838923,
+        "mainboard_n": 129215,
+        "mainboard_diff": 1.4509761898302003,
+        "nonst_n": 205856,
+        "nonst_diff": 1.8120428543014384
+      },
+      {
+        "feature": "当日超大单净流入",
+        "yes_n": 86271,
+        "no_n": 163297,
+        "yes_rate": 46.292496899305675,
+        "no_rate": 46.436248063344706,
+        "winner_share": 34.49803914793635,
+        "other_share": 34.628779838866386,
+        "adjusted_pp": 1.014844295727936,
+        "vol_adjusted_pp": -0.7202003616670765,
+        "early_n": 0,
+        "early_diff": null,
+        "late_n": 249568,
+        "late_diff": -0.1437511640390312,
+        "nonoverlap_n": 13037,
+        "nonoverlap_diff": 0.23194394968720644,
+        "mainboard_n": 150526,
+        "mainboard_diff": -0.17067037625599824,
+        "nonst_n": 239687,
+        "nonst_diff": 0.023415950669814833
+      },
+      {
+        "feature": "当日大单净流入",
+        "yes_n": 106996,
+        "no_n": 142572,
+        "yes_rate": 46.69987663090209,
+        "no_rate": 46.15141823078866,
+        "winner_share": 43.16206831021198,
+        "other_share": 42.621933902333296,
+        "adjusted_pp": 0.9002059793987871,
+        "vol_adjusted_pp": 0.14191788807060032,
+        "early_n": 0,
+        "early_diff": null,
+        "late_n": 249568,
+        "late_diff": 0.5484584001134323,
+        "nonoverlap_n": 13037,
+        "nonoverlap_diff": 0.8905494432003209,
+        "mainboard_n": 150526,
+        "mainboard_diff": 0.033556046720519817,
+        "nonst_n": 239687,
+        "nonst_diff": 0.6596942539726811
+      },
+      {
+        "feature": "当日中单净流出",
+        "yes_n": 128290,
+        "no_n": 121278,
+        "yes_rate": 46.70200327383272,
+        "no_rate": 46.05287026501097,
+        "winner_share": 51.75440111949968,
+        "other_share": 51.102375151343026,
+        "adjusted_pp": 1.1289288805088045,
+        "vol_adjusted_pp": 0.7212750682580361,
+        "early_n": 0,
+        "early_diff": null,
+        "late_n": 249568,
+        "late_diff": 0.6491330088217566,
+        "nonoverlap_n": 13037,
+        "nonoverlap_diff": -2.11727469355408,
+        "mainboard_n": 150526,
+        "mainboard_diff": 1.5944273337697439,
+        "nonst_n": 239687,
+        "nonst_diff": 0.7236484615093346
+      },
+      {
+        "feature": "同花顺换手率≥5%",
+        "yes_n": 4316,
+        "no_n": 24956,
+        "yes_rate": 51.320667284522706,
+        "no_rate": 37.854624138483736,
+        "winner_share": 18.99331161035843,
+        "other_share": 11.930721181147076,
+        "adjusted_pp": 13.054646436201967,
+        "vol_adjusted_pp": 0.18503814922550535,
+        "early_n": 0,
+        "early_diff": null,
+        "late_n": 29272,
+        "late_diff": 13.46604314603897,
+        "nonoverlap_n": 1152,
+        "nonoverlap_diff": 12.253193960511027,
+        "mainboard_n": 17831,
+        "mainboard_diff": 16.80640168095477,
+        "nonst_n": 28122,
+        "nonst_diff": 13.818122042117764
+      },
+      {
+        "feature": "同花顺资金净流入",
+        "yes_n": 13883,
+        "no_n": 15389,
+        "yes_rate": 37.607145429662175,
+        "no_rate": 41.854571447137566,
+        "winner_share": 44.76933630595095,
+        "other_share": 49.18796138557638,
+        "adjusted_pp": -3.029740196262603,
+        "vol_adjusted_pp": -0.5338678632652145,
+        "early_n": 0,
+        "early_diff": null,
+        "late_n": 29272,
+        "late_diff": -4.247426017475391,
+        "nonoverlap_n": 1152,
+        "nonoverlap_diff": -5.374841130636661,
+        "mainboard_n": 17831,
+        "mainboard_diff": -4.7270712746835315,
+        "nonst_n": 28122,
+        "nonst_diff": -4.360853181360724
+      },
+      {
+        "feature": "市场上涨家数占比≥60%",
+        "yes_n": 602375,
+        "no_n": 1096261,
+        "yes_rate": 43.4279311060386,
+        "no_rate": 42.91751690518955,
+        "winner_share": 35.73332131290407,
+        "other_share": 35.256981280824874,
+        "adjusted_pp": null,
+        "vol_adjusted_pp": null,
+        "early_n": 1210167,
+        "early_diff": 0.7863646894474741,
+        "late_n": 488469,
+        "late_diff": -0.13873938464927704,
+        "nonoverlap_n": 87745,
+        "nonoverlap_diff": -0.9636737695602449,
+        "mainboard_n": 985085,
+        "mainboard_diff": 0.5247176201849584,
+        "nonst_n": 1631166,
+        "nonst_diff": 0.49029192780227504
+      }
+    ]
+  },
+  "medians": {
+    "5": [
+      {
+        "feature": "day_return",
+        "winner_n": 310324,
+        "other_n": 1685245,
+        "winner": 0.1186,
+        "other": 0.0
+      },
+      {
+        "feature": "ret5",
+        "winner_n": 292505,
+        "other_n": 1621606,
+        "winner": 0.7155635062611854,
+        "other": -0.10548523206750371
+      },
+      {
+        "feature": "ret20",
+        "winner_n": 247304,
+        "other_n": 1395949,
+        "winner": 3.4366283617630944,
+        "other": 0.11709601873537423
+      },
+      {
+        "feature": "bias20",
+        "winner_n": 247304,
+        "other_n": 1395949,
+        "winner": 1.5960941581879884,
+        "other": -0.16582337684424298
+      },
+      {
+        "feature": "bias60",
+        "winner_n": 175723,
+        "other_n": 964937,
+        "winner": 3.437360496733066,
+        "other": -1.1331199723207175
+      },
+      {
+        "feature": "volume_ratio",
+        "winner_n": 310324,
+        "other_n": 1685245,
+        "winner": 0.9714015909479996,
+        "other": 0.9551235941620407
+      },
+      {
+        "feature": "volume_vs5",
+        "winner_n": 288744,
+        "other_n": 1606996,
+        "winner": 0.9494991098930036,
+        "other": 0.9098653493788604
+      },
+      {
+        "feature": "amplitude20",
+        "winner_n": 247304,
+        "other_n": 1395949,
+        "winner": 4.683343191609271,
+        "other": 3.4933008362295097
+      },
+      {
+        "feature": "amount_yi",
+        "winner_n": 313525,
+        "other_n": 1704357,
+        "winner": 1.99757773,
+        "other": 1.17804365
+      },
+      {
+        "feature": "trend",
+        "winner_n": 247304,
+        "other_n": 1395949,
+        "winner": 1.0,
+        "other": 0.0
+      },
+      {
+        "feature": "breakout",
+        "winner_n": 244074,
+        "other_n": 1381474,
+        "winner": 0.0,
+        "other": 0.0
+      },
+      {
+        "feature": "main1pct",
+        "winner_n": 57791,
+        "other_n": 282856,
+        "winner": -1.172349533321982,
+        "other": -1.6281346281101743
+      },
+      {
+        "feature": "main5pct",
+        "winner_n": 50092,
+        "other_n": 251939,
+        "winner": -0.8613046931541974,
+        "other": -1.2993541354636196
+      },
+      {
+        "feature": "super1pct",
+        "winner_n": 57791,
+        "other_n": 282856,
+        "winner": -6.669277045103093e-05,
+        "other": 0.0
+      },
+      {
+        "feature": "big1pct",
+        "winner_n": 57791,
+        "other_n": 282856,
+        "winner": -0.6455082140424219,
+        "other": -0.9403070877024996
+      },
+      {
+        "feature": "mid1pct",
+        "winner_n": 57791,
+        "other_n": 282856,
+        "winner": -0.10759519847170387,
+        "other": -0.09662180436294524
+      },
+      {
+        "feature": "small1pct",
+        "winner_n": 57791,
+        "other_n": 282856,
+        "winner": 0.9342598384639078,
+        "other": 1.724267290122987
+      },
+      {
+        "feature": "small5pct",
+        "winner_n": 50092,
+        "other_n": 251939,
+        "winner": 0.7321029644731363,
+        "other": 1.3645075658989008
+      },
+      {
+        "feature": "ths_turnover_pct",
+        "winner_n": 15216,
+        "other_n": 90386,
+        "winner": 2.87,
+        "other": 1.7
+      },
+      {
+        "feature": "ths_net",
+        "winner_n": 15216,
+        "other_n": 90386,
+        "winner": -2490900.0,
+        "other": -1741100.0000000002
+      }
+    ],
+    "10": [
+      {
+        "feature": "day_return",
+        "winner_n": 516832,
+        "other_n": 1378908,
+        "winner": 0.0,
+        "other": 0.0
+      },
+      {
+        "feature": "ret5",
+        "winner_n": 495422,
+        "other_n": 1327193,
+        "winner": 0.3557745203518814,
+        "other": -0.0807971990304357
+      },
+      {
+        "feature": "ret20",
+        "winner_n": 417210,
+        "other_n": 1141642,
+        "winner": 2.3136246786632286,
+        "other": 0.094102895080872
+      },
+      {
+        "feature": "bias20",
+        "winner_n": 417210,
+        "other_n": 1141642,
+        "winner": 0.9989903554887158,
+        "other": -0.13309132777234445
+      },
+      {
+        "feature": "bias60",
+        "winner_n": 295580,
+        "other_n": 797365,
+        "winner": 1.8130675817780495,
+        "other": -1.2357324780681078
+      },
+      {
+        "feature": "volume_ratio",
+        "winner_n": 516832,
+        "other_n": 1378908,
+        "winner": 0.9631489696475254,
+        "other": 0.9558245942812905
+      },
+      {
+        "feature": "volume_vs5",
+        "winner_n": 489484,
+        "other_n": 1314970,
+        "winner": 0.9323846247017551,
+        "other": 0.9100243306337188
+      },
+      {
+        "feature": "amplitude20",
+        "winner_n": 417210,
+        "other_n": 1141642,
+        "winner": 4.366888719551794,
+        "other": 3.4205513953928524
+      },
+      {
+        "feature": "amount_yi",
+        "winner_n": 521078,
+        "other_n": 1392950,
+        "winner": 1.68452779,
+        "other": 1.1675014799999999
+      },
+      {
+        "feature": "trend",
+        "winner_n": 417210,
+        "other_n": 1141642,
+        "winner": 1.0,
+        "other": 0.0
+      },
+      {
+        "feature": "breakout",
+        "winner_n": 413117,
+        "other_n": 1131957,
+        "winner": 0.0,
+        "other": 0.0
+      },
+      {
+        "feature": "main1pct",
+        "winner_n": 90867,
+        "other_n": 217878,
+        "winner": -1.3410918516293002,
+        "other": -1.685499410475471
+      },
+      {
+        "feature": "main5pct",
+        "winner_n": 79051,
+        "other_n": 192202,
+        "winner": -0.9421325973391861,
+        "other": -1.2846516757662503
+      },
+      {
+        "feature": "super1pct",
+        "winner_n": 90867,
+        "other_n": 217878,
+        "winner": 0.0,
+        "other": 0.0
+      },
+      {
+        "feature": "big1pct",
+        "winner_n": 90867,
+        "other_n": 217878,
+        "winner": -0.754262974939595,
+        "other": -0.9676481277953757
+      },
+      {
+        "feature": "mid1pct",
+        "winner_n": 90867,
+        "other_n": 217878,
+        "winner": -0.08391282197490035,
+        "other": -0.1208107088778502
+      },
+      {
+        "feature": "small1pct",
+        "winner_n": 90867,
+        "other_n": 217878,
+        "winner": 1.2460039202212088,
+        "other": 1.79749279842166
+      },
+      {
+        "feature": "small5pct",
+        "winner_n": 79051,
+        "other_n": 192202,
+        "winner": 0.9220508650095447,
+        "other": 1.3913985429885294
+      },
+      {
+        "feature": "ths_turnover_pct",
+        "winner_n": 18772,
+        "other_n": 61937,
+        "winner": 2.68,
+        "other": 1.71
+      },
+      {
+        "feature": "ths_net",
+        "winner_n": 18772,
+        "other_n": 61937,
+        "winner": -3408250.0,
+        "other": -2107400.0
+      }
+    ],
+    "20": [
+      {
+        "feature": "day_return",
+        "winner_n": 736748,
+        "other_n": 977644,
+        "winner": 0.0,
+        "other": 0.0
+      },
+      {
+        "feature": "ret5",
+        "winner_n": 706433,
+        "other_n": 936820,
+        "winner": 0.24855012427504874,
+        "other": 0.0
+      },
+      {
+        "feature": "ret20",
+        "winner_n": 604974,
+        "other_n": 819807,
+        "winner": 1.3358778625954137,
+        "other": 0.0
+      },
+      {
+        "feature": "bias20",
+        "winner_n": 604974,
+        "other_n": 819807,
+        "winner": 0.5719882882512017,
+        "other": -0.1909728178210779
+      },
+      {
+        "feature": "bias60",
+        "winner_n": 423389,
+        "other_n": 584379,
+        "winner": 0.42988186710897214,
+        "other": -1.1555321925073692
+      },
+      {
+        "feature": "volume_ratio",
+        "winner_n": 736748,
+        "other_n": 977644,
+        "winner": 0.9591436698465101,
+        "other": 0.9566832063223585
+      },
+      {
+        "feature": "volume_vs5",
+        "winner_n": 697938,
+        "other_n": 927610,
+        "winner": 0.9206987661552044,
+        "other": 0.9110037076944781
+      },
+      {
+        "feature": "amplitude20",
+        "winner_n": 604974,
+        "other_n": 819807,
+        "winner": 4.068978683494041,
+        "other": 3.374770778141503
+      },
+      {
+        "feature": "amount_yi",
+        "winner_n": 742979,
+        "other_n": 989205,
+        "winner": 1.45481747,
+        "other": 1.20783431
+      },
+      {
+        "feature": "trend",
+        "winner_n": 604974,
+        "other_n": 819807,
+        "winner": 1.0,
+        "other": 0.0
+      },
+      {
+        "feature": "breakout",
+        "winner_n": 599078,
+        "other_n": 812895,
+        "winner": 0.0,
+        "other": 0.0
+      },
+      {
+        "feature": "main1pct",
+        "winner_n": 115766,
+        "other_n": 133802,
+        "winner": -1.4107671271715962,
+        "other": -1.6349244438172765
+      },
+      {
+        "feature": "main5pct",
+        "winner_n": 100709,
+        "other_n": 113474,
+        "winner": -1.1623922186498592,
+        "other": -1.3005821600516827
+      },
+      {
+        "feature": "super1pct",
+        "winner_n": 115766,
+        "other_n": 133802,
+        "winner": 0.0,
+        "other": 0.0
+      },
+      {
+        "feature": "big1pct",
+        "winner_n": 115766,
+        "other_n": 133802,
+        "winner": -0.8029634284179603,
+        "other": -0.9240688121867897
+      },
+      {
+        "feature": "mid1pct",
+        "winner_n": 115766,
+        "other_n": 133802,
+        "winner": -0.195070616182819,
+        "other": -0.11939038451029754
+      },
+      {
+        "feature": "small1pct",
+        "winner_n": 115766,
+        "other_n": 133802,
+        "winner": 1.5145953384027147,
+        "other": 1.7445075213604997
+      },
+      {
+        "feature": "small5pct",
+        "winner_n": 100709,
+        "other_n": 113474,
+        "winner": 1.2785158092569169,
+        "other": 1.3483845764677351
+      },
+      {
+        "feature": "ths_turnover_pct",
+        "winner_n": 11662,
+        "other_n": 17610,
+        "winner": 2.31,
+        "other": 1.57
+      },
+      {
+        "feature": "ths_net",
+        "winner_n": 11662,
+        "other_n": 17610,
+        "winner": -1250950.0,
+        "other": -164550.0
+      }
+    ]
+  },
+  "boards": {
+    "5": [
+      {
+        "board": "主板",
+        "n": 1192715,
+        "rate": 0.13123839307797755
+      },
+      {
+        "board": "创业板",
+        "n": 508880,
+        "rate": 0.18017803804433266
+      },
+      {
+        "board": "北交所",
+        "n": 103496,
+        "rate": 0.18506995439437274
+      },
+      {
+        "board": "科创板",
+        "n": 212879,
+        "rate": 0.21688846715739926
+      }
+    ],
+    "10": [
+      {
+        "board": "主板",
+        "n": 1125724,
+        "rate": 0.2374534077624711
+      },
+      {
+        "board": "创业板",
+        "n": 484493,
+        "rate": 0.3102397764260784
+      },
+      {
+        "board": "北交所",
+        "n": 98935,
+        "rate": 0.30378531358973065
+      },
+      {
+        "board": "科创板",
+        "n": 204959,
+        "rate": 0.35833508165047645
+      }
+    ],
+    "20": [
+      {
+        "board": "主板",
+        "n": 1010875,
+        "rate": 0.3869518981080747
+      },
+      {
+        "board": "创业板",
+        "n": 441134,
+        "rate": 0.47753970448888544
+      },
+      {
+        "board": "北交所",
+        "n": 90349,
+        "rate": 0.4495124461809207
+      },
+      {
+        "board": "科创板",
+        "n": 189903,
+        "rate": 0.5296809423758445
+      }
+    ]
+  },
+  "monthly": {
+    "5": [
+      {
+        "month": "202001",
+        "n": 60312,
+        "rate": 0.11682583897068577
+      },
+      {
+        "month": "202002",
+        "n": 37924,
+        "rate": 0.31895369686741903
+      },
+      {
+        "month": "202003",
+        "n": 3806,
+        "rate": 0.2840252233315817
+      },
+      {
+        "month": "202504",
+        "n": 111685,
+        "rate": 0.20935667278506515
+      },
+      {
+        "month": "202505",
+        "n": 96473,
+        "rate": 0.12313289728732392
+      },
+      {
+        "month": "202506",
+        "n": 100534,
+        "rate": 0.12711122605287764
+      },
+      {
+        "month": "202507",
+        "n": 120771,
+        "rate": 0.1286070331453743
+      },
+      {
+        "month": "202508",
+        "n": 112734,
+        "rate": 0.16661344403640427
+      },
+      {
+        "month": "202509",
+        "n": 117150,
+        "rate": 0.14366197183098592
+      },
+      {
+        "month": "202510",
+        "n": 90885,
+        "rate": 0.12870110579303515
+      },
+      {
+        "month": "202511",
+        "n": 107784,
+        "rate": 0.11290172938469532
+      },
+      {
+        "month": "202512",
+        "n": 124298,
+        "rate": 0.13791050539831695
+      },
+      {
+        "month": "202601",
+        "n": 108595,
+        "rate": 0.17902297527510475
+      },
+      {
+        "month": "202602",
+        "n": 76228,
+        "rate": 0.1369181927900509
+      },
+      {
+        "month": "202603",
+        "n": 120289,
+        "rate": 0.11586263083074928
+      },
+      {
+        "month": "202604",
+        "n": 113325,
+        "rate": 0.18749613942201632
+      },
+      {
+        "month": "202605",
+        "n": 92060,
+        "rate": 0.15103193569411252
+      },
+      {
+        "month": "202606",
+        "n": 107768,
+        "rate": 0.20668473016108677
+      },
+      {
+        "month": "202607",
+        "n": 123692,
+        "rate": 0.17991462665330013
+      },
+      {
+        "month": "202608",
+        "n": 115443,
+        "rate": 0.16341397919319492
+      },
+      {
+        "month": "202609",
+        "n": 76214,
+        "rate": 0.14128637783084472
+      }
+    ],
+    "10": [
+      {
+        "month": "202001",
+        "n": 60116,
+        "rate": 0.2065340342005456
+      },
+      {
+        "month": "202002",
+        "n": 11337,
+        "rate": 0.6757519626003352
+      },
+      {
+        "month": "202504",
+        "n": 109776,
+        "rate": 0.3603975368022154
+      },
+      {
+        "month": "202505",
+        "n": 88842,
+        "rate": 0.22972242858107653
+      },
+      {
+        "month": "202506",
+        "n": 94010,
+        "rate": 0.24965429209658546
+      },
+      {
+        "month": "202507",
+        "n": 118292,
+        "rate": 0.26382172928008657
+      },
+      {
+        "month": "202508",
+        "n": 111795,
+        "rate": 0.30148933315443444
+      },
+      {
+        "month": "202509",
+        "n": 114784,
+        "rate": 0.24840570114301644
+      },
+      {
+        "month": "202510",
+        "n": 89773,
+        "rate": 0.25215822129147963
+      },
+      {
+        "month": "202511",
+        "n": 106847,
+        "rate": 0.19329508549608318
+      },
+      {
+        "month": "202512",
+        "n": 123324,
+        "rate": 0.28870292887029286
+      },
+      {
+        "month": "202601",
+        "n": 108034,
+        "rate": 0.28687265120239924
+      },
+      {
+        "month": "202602",
+        "n": 76060,
+        "rate": 0.24676571128056798
+      },
+      {
+        "month": "202603",
+        "n": 120016,
+        "rate": 0.19574056792427677
+      },
+      {
+        "month": "202604",
+        "n": 110748,
+        "rate": 0.3449543106873262
+      },
+      {
+        "month": "202605",
+        "n": 85300,
+        "rate": 0.22182883939038686
+      },
+      {
+        "month": "202606",
+        "n": 101212,
+        "rate": 0.3023356914199897
+      },
+      {
+        "month": "202607",
+        "n": 121401,
+        "rate": 0.34988179669030733
+      },
+      {
+        "month": "202608",
+        "n": 114367,
+        "rate": 0.27844570549196884
+      },
+      {
+        "month": "202609",
+        "n": 48077,
+        "rate": 0.20752126796597126
+      }
+    ],
+    "20": [
+      {
+        "month": "202001",
+        "n": 33625,
+        "rate": 0.3251449814126394
+      },
+      {
+        "month": "202504",
+        "n": 102097,
+        "rate": 0.5617794842159907
+      },
+      {
+        "month": "202505",
+        "n": 72028,
+        "rate": 0.3842949963902927
+      },
+      {
+        "month": "202506",
+        "n": 84311,
+        "rate": 0.4641031419387743
+      },
+      {
+        "month": "202507",
+        "n": 115488,
+        "rate": 0.5004848988639512
+      },
+      {
+        "month": "202508",
+        "n": 109310,
+        "rate": 0.4561522276095508
+      },
+      {
+        "month": "202509",
+        "n": 110110,
+        "rate": 0.37319044591771866
+      },
+      {
+        "month": "202510",
+        "n": 88158,
+        "rate": 0.41182876199550805
+      },
+      {
+        "month": "202511",
+        "n": 105034,
+        "rate": 0.2946855303996801
+      },
+      {
+        "month": "202512",
+        "n": 121696,
+        "rate": 0.5395904549040231
+      },
+      {
+        "month": "202601",
+        "n": 107088,
+        "rate": 0.41557410727625876
+      },
+      {
+        "month": "202602",
+        "n": 75842,
+        "rate": 0.3463779963608555
+      },
+      {
+        "month": "202603",
+        "n": 119005,
+        "rate": 0.3220452922146128
+      },
+      {
+        "month": "202604",
+        "n": 101897,
+        "rate": 0.5064525942863872
+      },
+      {
+        "month": "202605",
+        "n": 70258,
+        "rate": 0.2965783255999317
+      },
+      {
+        "month": "202606",
+        "n": 91562,
+        "rate": 0.39422467836001834
+      },
+      {
+        "month": "202607",
+        "n": 118834,
+        "rate": 0.5378006294494841
+      },
+      {
+        "month": "202608",
+        "n": 105918,
+        "rate": 0.4220057025245945
+      }
+    ]
+  },
+  "industry": {
+    "5": [
+      {
+        "industry": "电子",
+        "n": 171903,
+        "rate": 0.22761673734606144,
+        "stocks": 480
+      },
+      {
+        "industry": "通信",
+        "n": 45373,
+        "rate": 0.2109845062041302,
+        "stocks": 123
+      },
+      {
+        "industry": "有色金属",
+        "n": 51249,
+        "rate": 0.20101855645963823,
+        "stocks": 142
+      },
+      {
+        "industry": "电气设备",
+        "n": 133967,
+        "rate": 0.183612382153814,
+        "stocks": 370
+      },
+      {
+        "industry": "国防军工",
+        "n": 50535,
+        "rate": 0.18151775996833877,
+        "stocks": 139
+      },
+      {
+        "industry": "机械设备",
+        "n": 194330,
+        "rate": 0.17151237585550352,
+        "stocks": 534
+      },
+      {
+        "industry": "计算机",
+        "n": 123312,
+        "rate": 0.16885623459192942,
+        "stocks": 333
+      },
+      {
+        "industry": "未知",
+        "n": 205967,
+        "rate": 0.16023440648259188,
+        "stocks": 832
+      },
+      {
+        "industry": "化工",
+        "n": 149265,
+        "rate": 0.15306334371754932,
+        "stocks": 410
+      },
+      {
+        "industry": "传媒",
+        "n": 48754,
+        "rate": 0.1461623661648275,
+        "stocks": 130
+      },
+      {
+        "industry": "建筑装饰",
+        "n": 56747,
+        "rate": 0.1454878672000282,
+        "stocks": 154
+      },
+      {
+        "industry": "纺织服装",
+        "n": 38776,
+        "rate": 0.14382607798638333,
+        "stocks": 106
+      },
+      {
+        "industry": "建筑材料",
+        "n": 26821,
+        "rate": 0.142612132284404,
+        "stocks": 72
+      },
+      {
+        "industry": "汽车",
+        "n": 103132,
+        "rate": 0.13995656052437652,
+        "stocks": 286
+      },
+      {
+        "industry": "医药生物",
+        "n": 174853,
+        "rate": 0.1376070184669408,
+        "stocks": 478
+      },
+      {
+        "industry": "轻工制造",
+        "n": 57452,
+        "rate": 0.13646174197591032,
+        "stocks": 158
+      },
+      {
+        "industry": "综合",
+        "n": 5690,
+        "rate": 0.13251318101933215,
+        "stocks": 15
+      },
+      {
+        "industry": "商业贸易",
+        "n": 36804,
+        "rate": 0.12949679382675797,
+        "stocks": 98
+      },
+      {
+        "industry": "房地产",
+        "n": 37758,
+        "rate": 0.12908522697176758,
+        "stocks": 99
+      },
+      {
+        "industry": "家用电器",
+        "n": 34616,
+        "rate": 0.12560665588167322,
+        "stocks": 94
+      },
+      {
+        "industry": "农林牧渔",
+        "n": 38852,
+        "rate": 0.12331411510346958,
+        "stocks": 104
+      },
+      {
+        "industry": "公用事业",
+        "n": 48687,
+        "rate": 0.11547230266806334,
+        "stocks": 131
+      },
+      {
+        "industry": "休闲服务",
+        "n": 29192,
+        "rate": 0.11253083036448341,
+        "stocks": 80
+      },
+      {
+        "industry": "钢铁",
+        "n": 16508,
+        "rate": 0.09722558759389387,
+        "stocks": 44
+      },
+      {
+        "industry": "食品饮料",
+        "n": 45167,
+        "rate": 0.08831669138973144,
+        "stocks": 122
+      },
+      {
+        "industry": "交通运输",
+        "n": 46763,
+        "rate": 0.07413981138934628,
+        "stocks": 126
+      },
+      {
+        "industry": "非银金融",
+        "n": 30000,
+        "rate": 0.0678,
+        "stocks": 81
+      },
+      {
+        "industry": "银行",
+        "n": 15497,
+        "rate": 0.007356262502419823,
+        "stocks": 42
+      }
+    ],
+    "10": [
+      {
+        "industry": "电子",
+        "n": 164191,
+        "rate": 0.37400953767258865,
+        "stocks": 480
+      },
+      {
+        "industry": "有色金属",
+        "n": 48371,
+        "rate": 0.3558537140021914,
+        "stocks": 142
+      },
+      {
+        "industry": "通信",
+        "n": 43261,
+        "rate": 0.3449296132775479,
+        "stocks": 123
+      },
+      {
+        "industry": "电气设备",
+        "n": 127515,
+        "rate": 0.32216601968395875,
+        "stocks": 370
+      },
+      {
+        "industry": "国防军工",
+        "n": 48257,
+        "rate": 0.317632675052324,
+        "stocks": 139
+      },
+      {
+        "industry": "机械设备",
+        "n": 184542,
+        "rate": 0.3007608024189615,
+        "stocks": 534
+      },
+      {
+        "industry": "计算机",
+        "n": 117850,
+        "rate": 0.29186253712346205,
+        "stocks": 333
+      },
+      {
+        "industry": "化工",
+        "n": 141442,
+        "rate": 0.27571018509353656,
+        "stocks": 410
+      },
+      {
+        "industry": "未知",
+        "n": 194419,
+        "rate": 0.2713057880145459,
+        "stocks": 827
+      },
+      {
+        "industry": "传媒",
+        "n": 46235,
+        "rate": 0.2595003785011355,
+        "stocks": 130
+      },
+      {
+        "industry": "纺织服装",
+        "n": 36636,
+        "rate": 0.2569057757397096,
+        "stocks": 106
+      },
+      {
+        "industry": "建筑装饰",
+        "n": 53739,
+        "rate": 0.25435903161577256,
+        "stocks": 154
+      },
+      {
+        "industry": "汽车",
+        "n": 97614,
+        "rate": 0.25318089618292455,
+        "stocks": 286
+      },
+      {
+        "industry": "轻工制造",
+        "n": 54459,
+        "rate": 0.2500780403606383,
+        "stocks": 158
+      },
+      {
+        "industry": "建筑材料",
+        "n": 25445,
+        "rate": 0.2464924346629986,
+        "stocks": 72
+      },
+      {
+        "industry": "医药生物",
+        "n": 165895,
+        "rate": 0.24482956086681334,
+        "stocks": 478
+      },
+      {
+        "industry": "综合",
+        "n": 5390,
+        "rate": 0.23617810760667904,
+        "stocks": 15
+      },
+      {
+        "industry": "房地产",
+        "n": 36038,
+        "rate": 0.230673178311782,
+        "stocks": 99
+      },
+      {
+        "industry": "商业贸易",
+        "n": 34904,
+        "rate": 0.22779624111849645,
+        "stocks": 98
+      },
+      {
+        "industry": "家用电器",
+        "n": 32746,
+        "rate": 0.2274781652720943,
+        "stocks": 94
+      },
+      {
+        "industry": "农林牧渔",
+        "n": 36832,
+        "rate": 0.21790834057341443,
+        "stocks": 104
+      },
+      {
+        "industry": "公用事业",
+        "n": 45901,
+        "rate": 0.21731552689483888,
+        "stocks": 131
+      },
+      {
+        "industry": "休闲服务",
+        "n": 27672,
+        "rate": 0.21046545244290257,
+        "stocks": 80
+      },
+      {
+        "industry": "钢铁",
+        "n": 15627,
+        "rate": 0.1903116401100659,
+        "stocks": 44
+      },
+      {
+        "industry": "食品饮料",
+        "n": 42659,
+        "rate": 0.16120865468013784,
+        "stocks": 122
+      },
+      {
+        "industry": "交通运输",
+        "n": 43988,
+        "rate": 0.1450395562426116,
+        "stocks": 126
+      },
+      {
+        "industry": "非银金融",
+        "n": 28069,
+        "rate": 0.13331433253767502,
+        "stocks": 81
+      },
+      {
+        "industry": "银行",
+        "n": 14414,
+        "rate": 0.030178992646038575,
+        "stocks": 42
+      }
+    ],
+    "20": [
+      {
+        "industry": "有色金属",
+        "n": 43278,
+        "rate": 0.5520356763251537,
+        "stocks": 142
+      },
+      {
+        "industry": "电子",
+        "n": 150354,
+        "rate": 0.5464836319619032,
+        "stocks": 480
+      },
+      {
+        "industry": "通信",
+        "n": 39671,
+        "rate": 0.5120112928839706,
+        "stocks": 123
+      },
+      {
+        "industry": "电气设备",
+        "n": 116114,
+        "rate": 0.5008439981397592,
+        "stocks": 370
+      },
+      {
+        "industry": "国防军工",
+        "n": 44294,
+        "rate": 0.48491895064794327,
+        "stocks": 139
+      },
+      {
+        "industry": "机械设备",
+        "n": 167073,
+        "rate": 0.47124310929952773,
+        "stocks": 534
+      },
+      {
+        "industry": "计算机",
+        "n": 108399,
+        "rate": 0.4495428924621076,
+        "stocks": 333
+      },
+      {
+        "industry": "化工",
+        "n": 127617,
+        "rate": 0.44894488978741076,
+        "stocks": 410
+      },
+      {
+        "industry": "未知",
+        "n": 174543,
+        "rate": 0.42148353127882526,
+        "stocks": 813
+      },
+      {
+        "industry": "传媒",
+        "n": 41929,
+        "rate": 0.417920770826874,
+        "stocks": 130
+      },
+      {
+        "industry": "纺织服装",
+        "n": 32864,
+        "rate": 0.41391796494644595,
+        "stocks": 106
+      },
+      {
+        "industry": "建筑装饰",
+        "n": 48516,
+        "rate": 0.4030010718113612,
+        "stocks": 154
+      },
+      {
+        "industry": "轻工制造",
+        "n": 49200,
+        "rate": 0.4008739837398374,
+        "stocks": 158
+      },
+      {
+        "industry": "汽车",
+        "n": 87830,
+        "rate": 0.3993851759080041,
+        "stocks": 286
+      },
+      {
+        "industry": "建筑材料",
+        "n": 23083,
+        "rate": 0.3958757527184508,
+        "stocks": 72
+      },
+      {
+        "industry": "医药生物",
+        "n": 150070,
+        "rate": 0.3868261477976944,
+        "stocks": 478
+      },
+      {
+        "industry": "房地产",
+        "n": 33201,
+        "rate": 0.3757115749525617,
+        "stocks": 99
+      },
+      {
+        "industry": "综合",
+        "n": 4888,
+        "rate": 0.37459083469721766,
+        "stocks": 15
+      },
+      {
+        "industry": "家用电器",
+        "n": 29429,
+        "rate": 0.37340718339053314,
+        "stocks": 94
+      },
+      {
+        "industry": "公用事业",
+        "n": 41062,
+        "rate": 0.3726803370512883,
+        "stocks": 131
+      },
+      {
+        "industry": "商业贸易",
+        "n": 31692,
+        "rate": 0.36832639151836427,
+        "stocks": 98
+      },
+      {
+        "industry": "农林牧渔",
+        "n": 33370,
+        "rate": 0.3581360503446209,
+        "stocks": 104
+      },
+      {
+        "industry": "休闲服务",
+        "n": 25041,
+        "rate": 0.3563755441076634,
+        "stocks": 80
+      },
+      {
+        "industry": "钢铁",
+        "n": 14121,
+        "rate": 0.33064230578570925,
+        "stocks": 44
+      },
+      {
+        "industry": "食品饮料",
+        "n": 38290,
+        "rate": 0.2755027422303474,
+        "stocks": 122
+      },
+      {
+        "industry": "交通运输",
+        "n": 39136,
+        "rate": 0.25871320523303354,
+        "stocks": 126
+      },
+      {
+        "industry": "非银金融",
+        "n": 24703,
+        "rate": 0.24418086872039832,
+        "stocks": 81
+      },
+      {
+        "industry": "银行",
+        "n": 12493,
+        "rate": 0.12062755142880013,
+        "stocks": 42
+      }
+    ]
+  },
+  "verification": {
+    "raw_sql_samples": 90,
+    "query_only": 1,
+    "reference_tolerance_pp": 0.15,
+    "threshold": "strictly >10%",
+    "calendar_missing_windows": "excluded"
+  },
+  "supplement": {
+    "volatility_bins": [
+      {
+        "from": 0,
+        "to": 3,
+        "n": 508306,
+        "rate": 14.876668778255617
+      },
+      {
+        "from": 3,
+        "to": 5,
+        "n": 678514,
+        "rate": 27.281382550691657
+      },
+      {
+        "from": 5,
+        "to": 8,
+        "n": 314758,
+        "rate": 40.40342104092668
+      },
+      {
+        "from": 8,
+        "to": null,
+        "n": 57274,
+        "rate": 51.17505325278486
+      }
+    ],
+    "fund_splits": [
+      {
+        "feature": "5日主力强度≥5%",
+        "start": "20260616",
+        "end": "20260731",
+        "yes": {
+          "n": 7494,
+          "rate": 36.575927408593536
+        },
+        "no": {
+          "n": 129990,
+          "rate": 34.09185321947842
+        }
+      },
+      {
+        "feature": "5日主力强度≥5%",
+        "start": "20260801",
+        "end": "20260911",
+        "yes": {
+          "n": 9695,
+          "rate": 33.87313047962868
+        },
+        "no": {
+          "n": 124074,
+          "rate": 23.139416799651823
+        }
+      },
+      {
+        "feature": "当日主力净流入",
+        "start": "20260616",
+        "end": "20260731",
+        "yes": {
+          "n": 62464,
+          "rate": 33.91233350409836
+        },
+        "no": {
+          "n": 94244,
+          "rate": 33.032341581426934
+        }
+      },
+      {
+        "feature": "当日主力净流入",
+        "start": "20260801",
+        "end": "20260911",
+        "yes": {
+          "n": 62602,
+          "rate": 26.791476310661
+        },
+        "no": {
+          "n": 89435,
+          "rate": 24.354000111813047
+        }
+      },
+      {
+        "feature": "当日小单净流出",
+        "start": "20260616",
+        "end": "20260731",
+        "yes": {
+          "n": 64469,
+          "rate": 34.880330081124264
+        },
+        "no": {
+          "n": 92239,
+          "rate": 32.33664718828261
+        }
+      },
+      {
+        "feature": "当日小单净流出",
+        "start": "20260801",
+        "end": "20260911",
+        "yes": {
+          "n": 63651,
+          "rate": 26.976795337072474
+        },
+        "no": {
+          "n": 88386,
+          "rate": 24.191614056524788
+        }
+      }
+    ],
+    "vol_months": [
+      {
+        "month": "202504",
+        "yes": {
+          "n": 1619,
+          "rate": 54.045707226683135
+        },
+        "no": {
+          "n": 3315,
+          "rate": 29.502262443438916
+        }
+      },
+      {
+        "month": "202505",
+        "yes": {
+          "n": 14318,
+          "rate": 38.73446012012851
+        },
+        "no": {
+          "n": 64883,
+          "rate": 18.648952730299154
+        }
+      },
+      {
+        "month": "202506",
+        "yes": {
+          "n": 8149,
+          "rate": 38.54460670020862
+        },
+        "no": {
+          "n": 54427,
+          "rate": 22.972054311279326
+        }
+      },
+      {
+        "month": "202507",
+        "yes": {
+          "n": 10477,
+          "rate": 41.42407177627183
+        },
+        "no": {
+          "n": 81997,
+          "rate": 25.19726331451151
+        }
+      },
+      {
+        "month": "202508",
+        "yes": {
+          "n": 13874,
+          "rate": 44.161741386766614
+        },
+        "no": {
+          "n": 90957,
+          "rate": 28.527765867387888
+        }
+      },
+      {
+        "month": "202509",
+        "yes": {
+          "n": 25844,
+          "rate": 40.334313573750194
+        },
+        "no": {
+          "n": 83892,
+          "rate": 20.385734039002525
+        }
+      },
+      {
+        "month": "202510",
+        "yes": {
+          "n": 17484,
+          "rate": 38.73827499428049
+        },
+        "no": {
+          "n": 64803,
+          "rate": 21.8215206086138
+        }
+      },
+      {
+        "month": "202511",
+        "yes": {
+          "n": 16330,
+          "rate": 35.72565829761176
+        },
+        "no": {
+          "n": 85229,
+          "rate": 16.426333759635806
+        }
+      },
+      {
+        "month": "202512",
+        "yes": {
+          "n": 17431,
+          "rate": 46.98525615283116
+        },
+        "no": {
+          "n": 101587,
+          "rate": 25.94328014411293
+        }
+      },
+      {
+        "month": "202601",
+        "yes": {
+          "n": 20365,
+          "rate": 41.566412963417626
+        },
+        "no": {
+          "n": 84397,
+          "rate": 25.627688187968765
+        }
+      },
+      {
+        "month": "202602",
+        "yes": {
+          "n": 17316,
+          "rate": 42.78124278124278
+        },
+        "no": {
+          "n": 57030,
+          "rate": 19.226722777485534
+        }
+      },
+      {
+        "month": "202603",
+        "yes": {
+          "n": 24852,
+          "rate": 34.10590696925801
+        },
+        "no": {
+          "n": 93596,
+          "rate": 15.731441514594641
+        }
+      },
+      {
+        "month": "202604",
+        "yes": {
+          "n": 21950,
+          "rate": 57.78587699316628
+        },
+        "no": {
+          "n": 86938,
+          "rate": 28.325933423819272
+        }
+      },
+      {
+        "month": "202605",
+        "yes": {
+          "n": 18389,
+          "rate": 38.985262928924904
+        },
+        "no": {
+          "n": 57589,
+          "rate": 16.369445553838407
+        }
+      },
+      {
+        "month": "202606",
+        "yes": {
+          "n": 32462,
+          "rate": 43.94984905427885
+        },
+        "no": {
+          "n": 36579,
+          "rate": 17.46630580387654
+        }
+      },
+      {
+        "month": "202607",
+        "yes": {
+          "n": 58056,
+          "rate": 43.70607689127739
+        },
+        "no": {
+          "n": 38719,
+          "rate": 27.01257780417883
+        }
+      },
+      {
+        "month": "202608",
+        "yes": {
+          "n": 41379,
+          "rate": 40.3562193383117
+        },
+        "no": {
+          "n": 66298,
+          "rate": 20.637123291803675
+        }
+      },
+      {
+        "month": "202609",
+        "yes": {
+          "n": 11737,
+          "rate": 39.96762375394053
+        },
+        "no": {
+          "n": 34584,
+          "rate": 14.567430025445294
+        }
+      }
+    ],
+    "feature_validation_samples": 15,
+    "all_stocks": 5797,
+    "stock_rows": 17391,
+    "codes_without_names": 208
+  }
+}

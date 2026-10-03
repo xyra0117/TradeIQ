@@ -1,0 +1,88 @@
+{
+  "raw_sql_selection_checks": 244,
+  "shared_interface_outcome_checks": 244,
+  "rounded_interface_threshold_checks": 201,
+  "query_only": 1,
+  "duplicate_stock_date_events": 0,
+  "complete_events": 201,
+  "source_coverage": {
+    "stock_daily": {
+      "rows": 2266331,
+      "first": "20200102",
+      "last": "20260930",
+      "dates": 433
+    },
+    "fund_flow": {
+      "rows": 392325,
+      "first": "20260420",
+      "last": "20260930",
+      "dates": 113
+    },
+    "fund_flow_ths": {
+      "rows": 143757,
+      "first": "20260821",
+      "last": "20260930",
+      "dates": 28
+    },
+    "index_daily": {
+      "rows": 1992,
+      "first": "20240910",
+      "last": "20260930",
+      "dates": 498
+    },
+    "overview": {
+      "rows": 498,
+      "first": "20240910",
+      "last": "20260930",
+      "dates": 498
+    },
+    "limitup": {
+      "rows": 9919,
+      "first": "20250506",
+      "last": "20260930",
+      "dates": 138
+    },
+    "market_fflow": {
+      "rows": 134,
+      "first": "20260319",
+      "last": "20260930",
+      "dates": 134
+    },
+    "sector_fund_flow": {
+      "rows": 10000,
+      "first": "20260915",
+      "last": "20260930",
+      "dates": 10
+    },
+    "stock_minline_bars": {
+      "rows": 14138163,
+      "first": "20260915",
+      "last": "20261001",
+      "dates": 12
+    },
+    "index_minline_bars": {
+      "rows": 10555,
+      "first": "20260915",
+      "last": "20260930",
+      "dates": 11
+    },
+    "market_notes": {
+      "rows": 58,
+      "first": "20260101",
+      "last": "20260918",
+      "dates": 58
+    },
+    "theme_heat_daily": {
+      "rows": 62,
+      "first": "20260814",
+      "last": "20260814",
+      "dates": 1
+    },
+    "eastmoney_only": {
+      "rows": 392133,
+      "first": "20260616",
+      "last": "20260930",
+      "dates": 75
+    }
+  }
+}

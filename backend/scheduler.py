@@ -151,6 +151,31 @@ def register_stock_daily_backfill():
                       name=f'盘后同步 stock_daily ({hh:02d}:{mm:02d})')
 
 
+def register_barometer_after_close():
+    """盘后从本地数据汇总盘面晴雨表 → market_barometer 表.
+    跑在 market_fflow (15:35) 之后, 用 15:37 即可; 16:30 兜底 (跟其它盘后任务同步).
+    非交易日 → sync_market_barometer 内部检测不到任何数据 → 不会写入, 无脏数据."""
+    from datetime import datetime
+    from app import sync_market_barometer
+
+    def _job(tag):
+        today = datetime.now().strftime('%Y%m%d')
+        try:
+            result = sync_market_barometer(today)
+            print(f'[barometer] {today} [{tag}] {result}', flush=True)
+        except Exception as e:
+            print(f'[barometer] {today} [{tag}] 异常: {e}', flush=True)
+            traceback.print_exc()
+
+    for hh, mm, jid, tag in [
+        (15, 37, 'barometer_after_close',     '15:37'),
+        (16, 30, 'barometer_after_close_late', '16:30'),
+    ]:
+        trigger = CronTrigger(hour=hh, minute=mm)
+        safe_register(lambda t=tag: _job(t), trigger, id=jid,
+                      name=f'盘后汇总盘面晴雨表 ({tag}, 供手机端晴雨 tab)')
+
+
 def register_market_fflow_after_close():
     """盘后拉两市 push2 分钟资金流 → 落 market_fflow 表.
     不做盘中实时: 主力净流入 tab 是历史回看, 实时数对决策无意义, 还省一波反爬请求.

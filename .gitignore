@@ -21,6 +21,9 @@ backend/uploads/
 # 韭研公社凭据 (cookie / 账号密码, 严禁入库)
 backend/.jiuye_*
 
+# 自定义选股条件 (多台设备同步到后端的那份, 属于用户数据, 不入库)
+backend/custom_picks_config.json
+
 # 测试/临时文件
 backend/Untitled
 backend/test_img.jpg
@@ -43,7 +46,11 @@ __pycache__/
 # 虚拟环境
 venv/
 .venv/
+.venv-scrapling/
 env/
+
+# 运行日志
+*.log
 
 # 环境变量 (含 token, 严禁入库)
 .env
@@ -51,6 +58,7 @@ env/
 # SQLite 数据库 (本地开发数据, 不入库)
 backend/market_data.db
 market_data.db
+backend/visitors.db
 backend/index_daily_backup_*.json
 
 # 工具/本地杂项
@@ -77,9 +85,15 @@ backend/previews/
 backend/previews_page/
 docs/previews/
 
+# 回测缓存 (可由 _build_cache.py 从本地库重建, 30MB 不入库)
+backend/strategy/_cache.npz
+
 # dashboard 临时备份
 dashboard/*.bak.*
 dashboard/**/*.bak.*
 
 # 自定义预览文档
 docs/figma-agent-prompt.md
+
+# 误生成的空文件 (stray)
+backend/dccizpjr

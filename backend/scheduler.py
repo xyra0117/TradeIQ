@@ -151,6 +151,37 @@ def register_stock_daily_backfill():
                       name=f'盘后同步 stock_daily ({hh:02d}:{mm:02d})')
 
 
+def register_adj_factor_after_close(token=None):
+    """盘后自动拉复权因子 (TuShare pro.adj_factor → adj_factor 表).
+
+    17:05 主跑 + 18:30 兜底: TuShare 当天因子通常 17:00 后才陆续入库, 晚了就补.
+    顺带补最近 6 个交易日里缺的日子 (机器关机/断网漏掉的, 下次自动补上, 不重复拉).
+
+    注意: 这里直接调模块函数, 不用 current_app.test_client() —— 调度线程没有
+    Flask app context, 那样写会报 "Working outside of application context".
+    token 由 app.py 传进来 (调度线程里拿不到 app 的模块变量)."""
+    from datetime import datetime
+    from adj_factor_sync import sync_recent
+
+    def _job(tag):
+        today = datetime.now().strftime('%Y%m%d')
+        try:
+            result = sync_recent(days=6, token=token)
+            print(f'[adj_factor] {today} [{tag}] 补 {len(result["targets"])} 天, '
+                  f'写入 {result["rows"]} 行 {result["targets"]}', flush=True)
+        except Exception as e:
+            print(f'[adj_factor] {today} [{tag}] 异常: {e}', flush=True)
+            traceback.print_exc()
+
+    for hh, mm, jid, tag in [
+        (17, 5,  'adj_factor_after_close',     '17:05'),
+        (18, 30, 'adj_factor_after_close_late', '18:30'),
+    ]:
+        trigger = CronTrigger(hour=hh, minute=mm)
+        safe_register(lambda t=tag: _job(t), trigger, id=jid,
+                      name=f'盘后拉复权因子 ({tag}, TuShare 17:00 后才入库当天)')
+
+
 def register_barometer_after_close():
     """盘后从本地数据汇总盘面晴雨表 → market_barometer 表.
     跑在 market_fflow (15:35) 之后, 用 15:37 即可; 16:30 兜底 (跟其它盘后任务同步).

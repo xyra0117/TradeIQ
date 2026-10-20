@@ -23,6 +23,7 @@ class DipTests(unittest.TestCase):
             CREATE TABLE fund_flow (ts_code TEXT,trade_date TEXT,source TEXT,main_net_inflow REAL);
             CREATE TABLE overview (date TEXT,downCount INTEGER);
             CREATE TABLE index_daily (date TEXT,name TEXT,change REAL);
+            CREATE TABLE stock_sector_summary (ts_code TEXT,sectors_json TEXT);
         ''')
         start = datetime(2026, 1, 5)
         self.days = [(start + timedelta(days=i)).strftime('%Y%m%d') for i in range(200)
@@ -30,7 +31,7 @@ class DipTests(unittest.TestCase):
         self.date = self.days[120]
         self.now = datetime(2026, 10, 2, 16)
         self.db.executemany('INSERT INTO trading_dates_cache VALUES (?)', [(d,) for d in self.days])
-        self.db.execute('INSERT INTO overview VALUES (?,?)', (self.date, 2801))
+        self.db.execute('INSERT INTO overview VALUES (?,?)', (self.date, 2601))
         self.db.executemany('INSERT INTO index_daily VALUES (?,?,?)',
                             [(d, '上证指数', v) for d, v in zip(self.days[117:121], [-.1, .5, .5, -1])])
         self.add_stock('000001.SZ')
@@ -39,7 +40,7 @@ class DipTests(unittest.TestCase):
         sqlite3.Connection.close(self.db)
 
     def add_stock(self, code, amplitude=6, ret120=100, volume_ratio=1):
-        growth = ((1 + ret120 / 100) / .99) ** (1 / 119)
+        growth = ((1 + ret120 / 100) / .999) ** (1 / 119)
         previous = 100
         for i, day in enumerate(self.days[:121]):
             close = 100 * growth ** i if i < 120 else 100 * (1 + ret120 / 100)
@@ -59,7 +60,7 @@ class DipTests(unittest.TestCase):
         self.assertTrue(result['market_passed'])
         self.assertEqual(result['count'], 1)
         row = result['results'][0]
-        self.assertAlmostEqual(row['change_pct'], -1)
+        self.assertAlmostEqual(row['change_pct'], -.1)
         self.assertAlmostEqual(row['ret120'], 100)
         self.assertAlmostEqual(row['amplitude20'], 6)
         self.assertEqual(row['volume_ratio5'], 1)
@@ -69,19 +70,29 @@ class DipTests(unittest.TestCase):
             self.assertEqual(row[key], n * 3_000_000)
 
     def test_decline_count_strict_boundary_for_both_index_branches(self):
-        self.db.execute('UPDATE overview SET downCount=2800')
-        for change in [-1, -3]:
+        self.db.execute('UPDATE overview SET downCount=2600')
+        for change in [-1, -1.601]:
             self.db.execute('UPDATE index_daily SET change=? WHERE date=?', (change, self.date))
             result = self.screen()
             self.assertFalse(result['market_passed'])
             self.assertEqual(result['results'], [])
-            self.assertIn('2800', result['note'])
+            self.assertIn('2600', result['note'])
+            self.db.execute('UPDATE overview SET downCount=2601')
+            self.assertTrue(self.screen()['market_passed'])
+            self.db.execute('UPDATE overview SET downCount=2600')
 
-    def test_index_strict_negative_and_minus_two_boundaries(self):
-        for change, passed in [(1, False), (0, False), (-1.999, True), (-2, False), (-2.001, True)]:
+    def test_index_strict_negative_and_minus_one_point_six_boundaries(self):
+        for change, passed in [(1, False), (0, False), (-1.599, True), (-1.6, False),
+                               (-1.601, True), (-2, True)]:
             with self.subTest(change=change):
                 self.db.execute('UPDATE index_daily SET change=? WHERE date=?', (change, self.date))
                 self.assertEqual(self.screen()['market_passed'], passed)
+
+    def test_one_point_six_deep_branch_ignores_three_consecutive_up_days(self):
+        self.db.execute('UPDATE index_daily SET change=.5 WHERE date<?', (self.date,))
+        for change, passed in [(-1.599, False), (-1.6, False), (-1.601, True)]:
+            self.db.execute('UPDATE index_daily SET change=? WHERE date=?', (change, self.date))
+            self.assertEqual(self.screen()['market_passed'], passed)
 
     def test_previous_three_excludes_today_and_flat_is_not_up(self):
         self.db.execute('UPDATE index_daily SET change=.5 WHERE date<?', (self.date,))
@@ -93,7 +104,7 @@ class DipTests(unittest.TestCase):
     def test_deep_index_decline_ignores_previous_three(self):
         self.db.execute('DELETE FROM index_daily WHERE date<?', (self.date,))
         self.assertEqual(self.screen()['market']['status'], 'missing')
-        self.db.execute('UPDATE index_daily SET change=-3 WHERE date=?', (self.date,))
+        self.db.execute('UPDATE index_daily SET change=-1.601 WHERE date=?', (self.date,))
         self.assertTrue(self.screen()['market_passed'])
         self.assertEqual(self.screen()['count'], 1)
 
@@ -274,6 +285,22 @@ class DipTests(unittest.TestCase):
             self.assertEqual(response.status_code, 503)
             self.assertNotIn('private path', response.text)
 
+    def test_empty_market_lists_still_offer_calendar_dates_for_temperature(self):
+        self.db.execute('UPDATE overview SET downCount=2600')
+        self.db.commit()
+        app = Flask(__name__)
+        loaded = []
+        dip.register_dip_picks(app, lambda: '/tmp/not-used.db', outcome_loader=lambda *a, **k: loaded.append(a))
+        with patch.object(dip.sqlite3, 'connect', return_value=self.db):
+            for path in ('/api/picks/dip', '/api/picks/dip-v2'):
+                response = app.test_client().get(path + '?date=' + self.date)
+                self.assertEqual(response.status_code, 200)
+                self.assertFalse(response.json['market_passed'])
+                self.assertEqual(response.json['results'], [])
+                self.assertEqual(response.json['next_dates'], self.days[121:126])
+                self.db.rollback()
+        self.assertEqual(loaded, [])
+
     def add_outcome_bars(self):
         previous = 200
         for day, close, high in zip(self.days[121:126], [220, 198, 190, 200, 210], [240, 220, 200, 210, 220]):
@@ -362,10 +389,270 @@ class DipTests(unittest.TestCase):
         self.assertFalse(data['intraday_used'])
         actual = data['results'][0].copy()
         outcomes = actual.pop('dip_outcomes')
+        self.assertEqual(actual.pop('sector_history'), [])
         self.assertEqual(actual, before[0])
         self.assertEqual(outcomes[1]['close_sum_pct'], -1)
         self.assertEqual(outcomes[1]['high_sum_pct'], 10)
         self.assertFalse(any(sql.split()[0].upper() in ('INSERT', 'UPDATE', 'DELETE', 'CREATE', 'ALTER') for sql in statements))
+
+
+    def configured(self, disabled=()):
+        return dip.screen_dip(self.db, self.date, self.now, disabled=disabled)
+
+    def counts(self):
+        return dip.dip_condition_counts(self.db, self.date, self.now)
+
+    def test_optional_dip_market_conditions_keep_index_branch_intact(self):
+        self.db.execute('DELETE FROM overview')
+        self.assertEqual(self.configured()['market']['status'], 'missing')
+        self.assertEqual(self.configured('market_down')['count'], 1)
+        self.db.execute('UPDATE index_daily SET change=.5 WHERE date<?', (self.date,))
+        self.assertFalse(self.configured('market_down')['market_passed'])
+        self.db.execute('UPDATE index_daily SET change=-1.6 WHERE date=?', (self.date,))
+        self.assertFalse(self.configured('market_down')['market_passed'])
+        self.db.execute('UPDATE index_daily SET change=-1.601 WHERE date=?', (self.date,))
+        self.assertEqual(self.configured('market_down')['count'], 1)
+        self.db.execute('INSERT INTO overview VALUES (?,2601)', (self.date,))
+        self.db.execute('DELETE FROM index_daily')
+        self.assertEqual(self.configured('market_index')['count'], 1)
+        self.db.execute('DELETE FROM overview')
+        self.assertEqual(self.configured('market_down,market_index')['count'], 1)
+
+    def test_optional_direction_removes_only_decline_predicate(self):
+        previous = self.db.execute('SELECT close FROM stock_daily WHERE trade_date=?', (self.days[119],)).fetchone()[0]
+        close = previous * 1.01
+        self.db.execute('UPDATE stock_daily SET open=?,high=?,low=?,close=?,change=1 WHERE trade_date=?',
+                        (close, close + 8, close - 8, close, self.date))
+        self.assertEqual(self.configured()['count'], 0)
+        result = self.configured('decline')
+        self.assertEqual(result['count'], 1)
+        self.assertEqual(result['stats']['candidate_count'], 1)
+        self.assertEqual(result['stats']['declining'], 0)
+        self.assertFalse(result['conditions']['decline'])
+
+    def test_optional_stock_rules_and_shorter_windows(self):
+        self.add_stock('000002.SZ', ret120=301, volume_ratio=1.2, amplitude=4)
+        self.assertEqual(self.configured()['count'], 1)
+        result = self.configured('return120,volume,amplitude')
+        self.assertEqual(result['count'], 2)
+        self.assertEqual(result['required_history_days'], 60)
+        self.db.execute('DELETE FROM stock_daily WHERE trade_date<?', (self.days[101],))
+        self.assertEqual(self.configured()['count'], 0)
+        self.assertEqual(self.configured('return120,volume,amplitude,bullish')['count'], 2)
+        self.db.execute('DELETE FROM stock_daily WHERE trade_date<?', (self.days[120],))
+        self.db.execute('DELETE FROM fund_flow')
+        disabled = ','.join(dip.DIP_CONDITIONS)
+        result = self.configured(disabled)
+        self.assertEqual(result['count'], 2)
+        self.assertEqual(result['required_history_days'], 1)
+        self.assertIsNone(result['results'][0]['ma20'])
+        self.assertIsNone(result['results'][0]['ret120'])
+        self.assertIsNone(result['results'][0]['main_net_20d'])
+        self.db.execute('UPDATE stock_daily SET high=0')
+        self.assertEqual(self.configured(disabled)['count'], 0)
+
+    def test_optional_fund_rules_are_independent_and_missing_is_not_zero(self):
+        self.db.execute('UPDATE fund_flow SET main_net_inflow=1000000')
+        self.assertEqual(self.configured()['count'], 0)
+        self.assertEqual(self.configured('funds_threshold')['count'], 1)
+        self.db.execute('UPDATE fund_flow SET main_net_inflow=-10000000 WHERE trade_date>=?', (self.days[118],))
+        self.db.execute('UPDATE fund_flow SET main_net_inflow=10000000 WHERE trade_date<?', (self.days[118],))
+        self.assertEqual(self.configured()['count'], 0)
+        self.assertEqual(self.configured('funds_red')['count'], 1)
+        self.db.execute('DELETE FROM fund_flow')
+        for disabled in ('funds_red', 'funds_threshold'):
+            self.assertEqual(self.configured(disabled)['count'], 0)
+        result = self.configured('funds_red,funds_threshold')
+        self.assertEqual(result['count'], 1)
+        self.assertEqual(result['stats']['funds_display_missing'], 1)
+        self.assertIsNone(result['results'][0]['main_net_20d'])
+
+    def test_dip_counts_independent_and_market_zero_vs_missing(self):
+        self.assertEqual(set(self.counts()['counts']), set(dip.DIP_CONDITIONS))
+        self.assertTrue(all(c['matched'] == 1 for c in self.counts()['counts'].values()))
+        self.db.execute('UPDATE overview SET downCount=2600')
+        counts = self.counts()['counts']
+        self.assertEqual(counts['market_down']['matched'], 0)
+        self.assertEqual(counts['market_index']['matched'], 1)
+        self.assertEqual(counts['decline']['matched'], 1)
+        self.assertEqual(self.configured()['count'], 0)
+        self.db.execute('DELETE FROM index_daily WHERE date<?', (self.date,))
+        counts = self.counts()['counts']
+        self.assertEqual(counts['market_index']['evaluated'], 0)
+        self.db.execute('UPDATE index_daily SET change=-1.601')
+        self.assertEqual(self.counts()['counts']['market_index']['matched'], 1)
+        self.db.execute('UPDATE index_daily SET change=-1.6')
+        c = self.counts()['counts']['market_index']
+        self.assertEqual((c['matched'], c['evaluated']), (0, 1))
+
+    def test_dip_counts_each_window_and_future_isolation(self):
+        self.db.execute('DELETE FROM fund_flow WHERE trade_date=?', (self.days[110],))
+        self.db.execute('DELETE FROM stock_daily WHERE trade_date=?', (self.days[50],))
+        c = self.counts()['counts']
+        self.assertEqual(c['return120']['evaluated'], 0)
+        self.assertEqual(c['funds_red']['evaluated'], 0)
+        self.assertEqual(c['funds_threshold']['evaluated'], 0)
+        self.assertEqual(c['decline']['matched'], 1)
+        self.assertEqual(c['volume']['matched'], 1)
+        self.assertEqual(c['amplitude']['matched'], 1)
+        self.db.execute('INSERT INTO stock_daily SELECT ts_code,name,?,open,high,low,close,change,volume,amount FROM stock_daily WHERE trade_date=?',
+                        (self.days[121], self.date))
+        self.assertEqual(self.counts()['counts'], c)
+
+    def test_optional_dip_rejects_chase_keys_and_counts_route_is_readonly(self):
+        for key in ('gain', 'market_up', 'unknown'):
+            with self.assertRaises(ValueError):
+                self.configured(key)
+        self.db.commit()
+        app = Flask(__name__)
+        loaded = []
+        dip.register_dip_picks(app, lambda: '/tmp/not-used.db', lambda *a, **k: (loaded.append(a) or ([], 0)))
+        with patch.object(dip.sqlite3, 'connect', return_value=self.db):
+            response = app.test_client().get('/api/picks/dip/condition-counts?date=' + self.date + '&disabled=market_index')
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json['counts']['market_index']['matched'], 1)
+            self.assertEqual(response.headers['Cache-Control'], 'no-store')
+            self.assertEqual(loaded, [])
+            self.assertNotIn('next_dates', response.json)
+            self.db.rollback()
+            response = app.test_client().get('/api/picks/dip?date=' + self.date + '&disabled=volume')
+            self.assertEqual(response.status_code, 200)
+            self.assertFalse(response.json['conditions']['volume'])
+            self.db.rollback()
+            self.assertEqual(app.test_client().get('/api/picks/dip?disabled=gain').status_code, 400)
+            self.db.rollback()
+            self.assertEqual(app.test_client().get('/api/picks/dip/condition-counts?date=bad').status_code, 400)
+        self.assertEqual(self.db.execute('PRAGMA query_only').fetchone()[0], 1)
+
+
+    def test_new_bullish_default_strict_order_and_independent_switch(self):
+        result = self.screen()
+        self.assertTrue(result['conditions']['bullish'])
+        row = result['results'][0]
+        self.assertGreater(row['close'], row['ma5'])
+        self.assertGreater(row['ma5'], row['ma10'])
+        self.assertGreater(row['ma10'], row['ma20'])
+        self.assertGreater(row['ma20'], row['ma60'])
+        disabled = set(dip.DIP_CONDITIONS) - {'bullish'}
+        self.db.execute('UPDATE stock_daily SET open=100,close=100,high=103,low=97,change=0')
+        self.assertEqual(dip.screen_dip(self.db, self.date, self.now, disabled=disabled)['count'], 0)
+        self.assertEqual(self.counts()['counts']['bullish']['matched'], 0)
+        self.assertEqual(self.configured(dip.DIP_CONDITIONS)['count'], 1)
+        self.db.execute('DELETE FROM stock_daily WHERE trade_date<?', (self.days[62],))
+        self.assertEqual(dip.screen_dip(self.db, self.date, self.now, disabled=disabled)['stats']['missing_history'], 1)
+        self.assertEqual(self.counts()['counts']['bullish']['evaluated'], 0)
+
+    def test_custom_return_period_and_four_comparison_boundaries(self):
+        disabled = set(dip.DIP_CONDITIONS) - {'return120'}
+        baseline = dip.screen_dip(self.db, self.date, self.now, disabled=disabled, return_days=20)
+        value = baseline['results'][0]['ret_custom']
+        close_before = self.db.execute('SELECT close FROM stock_daily WHERE trade_date=?', (self.days[100],)).fetchone()[0]
+        self.assertAlmostEqual(value, (200 / close_before - 1) * 100)
+        self.assertEqual(baseline['required_history_days'], 21)
+        for op, count in [('lt', 0), ('le', 1), ('gt', 0), ('ge', 1)]:
+            options = dict(return_days=20, return_op=op, return_threshold=value)
+            result = dip.screen_dip(self.db, self.date, self.now, disabled=disabled, **options)
+            self.assertEqual(result['count'], count)
+            counts = dip.dip_condition_counts(self.db, self.date, self.now, **options)
+            self.assertEqual(counts['counts']['return120']['matched'], count)
+            self.assertEqual(dip.dip_diagnostics(self.db, self.date, self.now, disabled=disabled, **options)['current_count'], count)
+        self.db.execute('DELETE FROM stock_daily WHERE trade_date=?', (self.days[30],))
+        self.assertEqual(dip.screen_dip(self.db, self.date, self.now, disabled=disabled, return_days=20)['count'], 1)
+        self.assertEqual(dip.dip_condition_counts(self.db, self.date, self.now, return_days=20)['counts']['return120']['evaluated'], 1)
+        self.assertEqual(self.counts()['counts']['return120']['evaluated'], 0)
+
+    def test_custom_daily_comparisons_counts_and_missing_dependency(self):
+        disabled = set(dip.DIP_CONDITIONS) - {'decline'}
+        change = self.db.execute('SELECT change FROM stock_daily WHERE trade_date=?', (self.date,)).fetchone()[0]
+        for op, count in [('lt', 0), ('le', 1), ('gt', 0), ('ge', 1)]:
+            options = dict(change_op=op, change_threshold=change)
+            self.assertEqual(dip.screen_dip(self.db, self.date, self.now, disabled=disabled, **options)['count'], count)
+            self.assertEqual(dip.dip_condition_counts(self.db, self.date, self.now, **options)['counts']['decline']['matched'], count)
+            self.assertEqual(dip.dip_diagnostics(self.db, self.date, self.now, disabled=disabled, **options)['current_count'], count)
+        self.assertEqual(dip.screen_dip(self.db, self.date, self.now, disabled=disabled, change_op='gt', change_threshold=-2)['count'], 1)
+        self.db.execute('DELETE FROM stock_daily WHERE trade_date=?', (self.days[119],))
+        self.assertEqual(dip.screen_dip(self.db, self.date, self.now, disabled=disabled, change_threshold=5)['count'], 0)
+        self.assertEqual(dip.dip_condition_counts(self.db, self.date, self.now, change_threshold=5)['counts']['decline']['evaluated'], 0)
+        self.assertEqual(self.configured(dip.DIP_CONDITIONS)['count'], 1)
+
+    def test_parameter_validation_including_nonfinite_and_period_cap(self):
+        for options in [dict(return_days=0), dict(return_days=251), dict(return_days=2.5),
+                        dict(return_days='bad'), dict(return_threshold=float('nan')),
+                        dict(change_threshold=float('inf')), dict(change_op='sql'), dict(return_op='eq')]:
+            for screen in (dip.screen_dip, dip.dip_condition_counts, dip.dip_diagnostics):
+                with self.assertRaises(ValueError):
+                    screen(self.db, self.date, self.now, **options)
+        result = dip.screen_dip(self.db, self.date, self.now, return_days=250)
+        self.assertEqual(result['required_history_days'], 251)
+        self.assertEqual(result['count'], 0)
+        self.assertEqual(result['parameters']['return_days'], 250)
+
+    def test_parameter_diagnostics_removals_and_future_isolation(self):
+        options = dict(return_days=10, return_op='le', return_threshold=10,
+                       change_op='ge', change_threshold=-2)
+        disabled = {'market_down', 'market_index', 'funds_red', 'funds_threshold'}
+        original = dip.screen_dip(self.db, self.date, self.now, disabled=disabled, **options)
+        diagnosis = dip.dip_diagnostics(self.db, self.date, self.now, disabled=disabled, **options)
+        for item in diagnosis['singles'] + diagnosis['pairs']:
+            actual = dip.screen_dip(self.db, self.date, self.now, disabled=disabled | set(item['remove']), **options)
+            self.assertEqual(item['count'], actual['count'])
+        before_counts = dip.dip_condition_counts(self.db, self.date, self.now, **options)['counts']
+        self.db.execute('INSERT INTO stock_daily SELECT ts_code,name,?,open,high,low,close,change,volume,amount FROM stock_daily WHERE trade_date=?', (self.days[121], self.date))
+        self.assertEqual(dip.screen_dip(self.db, self.date, self.now, disabled=disabled, **options)['results'], original['results'])
+        self.assertEqual(dip.dip_condition_counts(self.db, self.date, self.now, **options)['counts'], before_counts)
+
+    def test_parameter_routes_share_validated_settings_and_readonly(self):
+        self.db.commit()
+        app = Flask(__name__)
+        dip.register_dip_picks(app, lambda: '/tmp/not-used.db')
+        with patch.object(dip.sqlite3, 'connect', return_value=self.db):
+            for suffix in ('', '/condition-counts', '/diagnostics'):
+                response = app.test_client().get('/api/picks/dip' + suffix + '?date=' + self.date + '&return_days=20&return_op=le&return_threshold=50&change_op=ge&change_threshold=-2')
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.json['parameters'], dict(dip.DIP_PARAMETER_DEFAULTS, return_days=20, return_op='le', return_threshold=50, change_op='ge', change_threshold=-2))
+                self.db.rollback()
+                self.assertEqual(app.test_client().get('/api/picks/dip' + suffix + '?return_days=251').status_code, 400)
+                self.db.rollback()
+        self.assertEqual(self.db.execute('PRAGMA query_only').fetchone()[0], 1)
+
+
+    def test_daily_range_excludes_both_boundaries_and_matches_all_surfaces(self):
+        disabled = set(dip.DIP_CONDITIONS) - {'decline'}
+        value = self.db.execute('SELECT change FROM stock_daily WHERE trade_date=?', (self.date,)).fetchone()[0]
+        for lower, upper, expected in [(value, 1, 0), (-2, value, 0), (-2, 0, 1), (0, 2, 0)]:
+            options = dict(change_mode='range', change_lower=lower, change_upper=upper)
+            self.assertEqual(dip.screen_dip(self.db, self.date, self.now, disabled=disabled, **options)['count'], expected)
+            self.assertEqual(dip.dip_condition_counts(self.db, self.date, self.now, **options)['counts']['decline']['matched'], expected)
+            self.assertEqual(dip.dip_diagnostics(self.db, self.date, self.now, disabled=disabled, **options)['current_count'], expected)
+        self.db.execute('DELETE FROM stock_daily WHERE trade_date=?', (self.days[119],))
+        options = dict(change_mode='range', change_lower=-2, change_upper=0)
+        self.assertEqual(dip.dip_condition_counts(self.db, self.date, self.now, **options)['counts']['decline']['evaluated'], 0)
+        self.assertEqual(dip.screen_dip(self.db, self.date, self.now, disabled=disabled, **options)['count'], 0)
+        self.assertEqual(dip.screen_dip(self.db, self.date, self.now, disabled=dip.DIP_CONDITIONS, **options)['count'], 1)
+
+    def test_daily_range_api_validation_and_single_mode_compatibility(self):
+        for options in [dict(change_mode='range', change_lower=0, change_upper=0),
+                        dict(change_mode='range', change_lower=2, change_upper=-2),
+                        dict(change_mode='range', change_upper=float('inf')), dict(change_mode='invalid')]:
+            for function in (dip.screen_dip, dip.dip_condition_counts, dip.dip_diagnostics):
+                with self.assertRaises(ValueError):
+                    function(self.db, self.date, self.now, **options)
+        self.assertEqual(self.screen()['parameters']['change_mode'], 'single')
+        self.assertEqual(self.screen()['count'], 1)
+        self.db.commit()
+        app = Flask(__name__)
+        dip.register_dip_picks(app, lambda: '/tmp/not-used.db')
+        with patch.object(dip.sqlite3, 'connect', return_value=self.db):
+            for suffix in ('', '/condition-counts', '/diagnostics'):
+                response = app.test_client().get('/api/picks/dip' + suffix + '?date=' + self.date + '&change_mode=range&change_lower=-2&change_upper=0')
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.json['parameters']['change_mode'], 'range')
+                self.assertEqual(response.json['parameters']['change_lower'], -2)
+                self.db.rollback()
+                response = app.test_client().get('/api/picks/dip' + suffix + '?change_mode=range&change_lower=2&change_upper=0')
+                self.assertEqual(response.status_code, 400)
+                self.assertIn('下限', response.json['message'])
+                self.db.rollback()
 
 
 if __name__ == '__main__':

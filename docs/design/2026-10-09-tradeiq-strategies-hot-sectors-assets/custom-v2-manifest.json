@@ -1,0 +1,88 @@
+{
+  "resourceVersion": "20261009.6",
+  "designVersion": "1.8",
+  "images": [
+    {
+      "file": "custom-v2-1440-dark.jpg",
+      "sha256": "6c398b7bedd363565853d94a2405cd3b7761e6cd6110c4763178187845b2ffe5",
+      "width": 1440,
+      "height": 1080
+    },
+    {
+      "file": "custom-v2-1440-light.jpg",
+      "sha256": "da51b6373609fb620abb504828f423d8754e85c4fb1cbea911a6aad9108b6d6e",
+      "width": 1440,
+      "height": 1080
+    },
+    {
+      "file": "custom-v2-1920-dark.jpg",
+      "sha256": "fc62d89e9d07099d33ecf50f6c40c71f600468a4d0ea5f06d5cc2d58b2432f6c",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "custom-v2-1920-light.jpg",
+      "sha256": "a58f4f11ab5a29d03a523a661b139bd12481cf961a107b7451fd7c18fbca5b75",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "custom-v2-2560-dark.jpg",
+      "sha256": "d30ec8ea13745cc423026e23b735abf60309f09a43b7a6b06ec68684eeb69288",
+      "width": 2560,
+      "height": 1080
+    },
+    {
+      "file": "custom-v2-2560-light.jpg",
+      "sha256": "c942c4738906ad05a55e282854617b60ed3dd53857db3b673c2a5f961ba1146f",
+      "width": 2560,
+      "height": 1080
+    },
+    {
+      "file": "custom-v2-chinese-light.jpg",
+      "sha256": "552fdf3e045a61a155dfec24bee84d3594903c372fe92d8d6c5106b3458b63c8",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "custom-v2-collapsed-light.jpg",
+      "sha256": "8c0a2797cfae8c656fc6a3e903f8fa2a55997ad4f15aecf63f743899fffb51af",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "custom-v2-editor-light.jpg",
+      "sha256": "767ee021b3dc424edf39500d6d138cdc99cfe8740f72e1153a4fc2d40373e9b7",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "custom-v2-formula-light.jpg",
+      "sha256": "e98b696e9ec1b34cb9c972efabc48f4b0a6e261fccabdf8071930e76f19c52c6",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "custom-v2-multiple-dark.jpg",
+      "sha256": "087984f59c449333d63c610d8e063b7f31415ac99b68b1b597eb277623760367",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "file": "custom-v2-templates-light.jpg",
+      "sha256": "807a150a1a0543e0c44fdc051d3330be167104529fad7ccde6dd627c006b0ece",
+      "width": 1920,
+      "height": 1080
+    }
+  ],
+  "sources": {
+    "dashboard/redesign/pages.js": "cff0831150c826191605ab19ead77952a5bd44feca410951b018fcc6987e9e0d",
+    "dashboard/redesign/pages.css": "b06990fe44b820169c36eb3ae3944a6ec7269bbe5e1f5ec7205f777b7892522a",
+    "dashboard/redesign/components.js": "0e358d08df895a3d8ca2d8320f70b0a33b0017a804b76232314f9384a7326f63",
+    "dashboard/redesign/index.html": "a9040c68044262b03982161708c680c5be65481fd88988c99a530bbe3457ccfa",
+    "dashboard/redesign/components.html": "a40e9a20feeded5b39e3d5ae908f97a34b23dc914004a986bf052c5b2d829355",
+    "docs/design/2026-10-04-tradeiq-design-system.md": "fd8fb0f3decec6e00822e706a6074a60ad6fb4293f35c2e425d8c6d802b8eb5f",
+    "docs/design/2026-10-09-tradeiq-strategies-hot-sectors.md": "720efac9225c6a5156c078750c0975f74deb98140872d713075c93518ff53dda"
+  },
+  "verificationSha256": "d1efe061f4f4c7027988d843234420aa511ea3f28063307a1fd8be9ef8d2ddf9"
+}

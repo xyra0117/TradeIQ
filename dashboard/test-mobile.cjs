@@ -16,6 +16,19 @@ const rows=[{name:'测试A',ts_code:'000001.SZ',score:null},{name:'测试B',scor
 assert.deepEqual(m.filterRows(rows,'测试','desc','score').map(r=>r.name),['测试B','测试A']);
 assert.equal(rows[0].name,'测试A');
 assert.equal(m.filterRows(rows,'000001','default','score').length,1);
+const heatItem={sector:'PCB',recent5_count:24,appearance5:3,heat:{key:'cooling',label:'已经降温',reason:'今日0只',rank:1,in_board:true},timeline:[{date:'20260929',count:8},{date:'20260930',count:0}]};
+const newItem={...heatItem,sector:'电池',heat:{key:'new',label:'新近活跃',rank:2,in_board:true}};
+const heatData={items:[heatItem,newItem],summary:{recent5_complete:true,heat_groups:{active:['<script>'],new:['电池'],cooling:['PCB']}}};
+assert(m.hotOverview(heatData.summary).includes('&lt;script&gt;'));
+assert(m.hotHeatBoard(heatData,'all').includes('hot-cell-0'));
+assert(m.hotHeatBoard(heatData,'cooling').includes('PCB'));
+assert(!m.hotHeatBoard(heatData,'cooling').includes('电池'));
+assert(m.hotHeatBoard(heatData,'active').includes('电池'));
+assert(!m.hotHeatBoard(heatData,'active').includes('PCB'));
+assert(m.hotHeatBoard(heatData,'all','电池').includes('#2'));
+assert(m.hotHeatBoard(heatData,'cooling','电池').includes('没有匹配'));
+assert(m.hotHeatBoard({items:[{...heatItem,timeline:[{date:'20260930',count:null}]}],summary:{recent5_complete:false}}).includes('缺数据'));
+assert(m.hotOverview({recent5_complete:false}).includes('数据不足，暂不判断'));
 const handlers={};let responded=0,cacheWrites=0;
 vm.runInNewContext(fs.readFileSync(__dirname+'/mobile/sw.js','utf8'),{
  self:{location:{origin:'https://desk.test'},addEventListener:(name,fn)=>handlers[name]=fn},

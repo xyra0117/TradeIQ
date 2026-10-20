@@ -1,0 +1,393 @@
+{
+  "input": "/tmp/tradeiq-t5-20261008-features.pkl",
+  "output": "/tmp/tradeiq-t5-20261008-enhanced-features.pkl",
+  "original_sha256": "1ef828ed7258f8ff73e3eee4d9fba172a178bfdc812867ba570c2ef63c696185",
+  "query_only": 1,
+  "holds_original_features": true,
+  "outcomes_accessed": false,
+  "coverage_report_cutoff": "20260630",
+  "market_fflow": {
+    "excluded": {
+      "invalid_amount": 3
+    },
+    "source_note": "Historical close snapshots are daily-only; amount may be inferred from rounded provider main-net percentages.",
+    "date_note": "Only exact stored trading dates present in the cache are used; no forward/backward date substitution."
+  },
+  "four_indices": {
+    "names": [
+      "上证指数",
+      "深证成指",
+      "创业板指",
+      "科创50"
+    ],
+    "duplicate_rows_excluded": 0,
+    "return_reference_tolerance_pp": 0.15,
+    "rule": "All four same-date records and complete historical windows are required."
+  },
+  "industry": {
+    "method": "Point-in-time L1 membership; daily equal-weight peer returns excluding the candidate; compounded over complete 5/20-session windows.",
+    "inclusion": "in_date <= day < out_date; empty out_date means active. At least 10 valid members and >=80% coverage of all dated members, including members absent from cached stocks.",
+    "official_daily_table": "Empty, so these are reconstructed peer benchmarks rather than official SW index returns.",
+    "excluded_intervals": {
+      "invalid_interval": 15
+    },
+    "ambiguous_membership_observations_preholdout": 0,
+    "groups": [
+      {
+        "group": "801020.SI",
+        "usable_days_preholdout": 0,
+        "mean_members_preholdout": 0.0
+      },
+      {
+        "group": "801030.SI",
+        "usable_days_preholdout": 301,
+        "mean_members_preholdout": 399.9933774834437
+      },
+      {
+        "group": "801040.SI",
+        "usable_days_preholdout": 301,
+        "mean_members_preholdout": 43.629139072847686
+      },
+      {
+        "group": "801050.SI",
+        "usable_days_preholdout": 301,
+        "mean_members_preholdout": 136.1523178807947
+      },
+      {
+        "group": "801710.SI",
+        "usable_days_preholdout": 301,
+        "mean_members_preholdout": 70.60596026490066
+      },
+      {
+        "group": "801720.SI",
+        "usable_days_preholdout": 301,
+        "mean_members_preholdout": 154.0794701986755
+      },
+      {
+        "group": "801730.SI",
+        "usable_days_preholdout": 301,
+        "mean_members_preholdout": 358.2748344370861
+      },
+      {
+        "group": "801890.SI",
+        "usable_days_preholdout": 301,
+        "mean_members_preholdout": 524.7086092715232
+      },
+      {
+        "group": "801740.SI",
+        "usable_days_preholdout": 301,
+        "mean_members_preholdout": 136.88079470198676
+      },
+      {
+        "group": "801880.SI",
+        "usable_days_preholdout": 301,
+        "mean_members_preholdout": 275.67218543046357
+      },
+      {
+        "group": "801110.SI",
+        "usable_days_preholdout": 301,
+        "mean_members_preholdout": 93.28807947019868
+      },
+      {
+        "group": "801130.SI",
+        "usable_days_preholdout": 301,
+        "mean_members_preholdout": 103.54304635761589
+      },
+      {
+        "group": "801140.SI",
+        "usable_days_preholdout": 301,
+        "mean_members_preholdout": 155.02649006622516
+      },
+      {
+        "group": "801200.SI",
+        "usable_days_preholdout": 301,
+        "mean_members_preholdout": 96.87417218543047
+      },
+      {
+        "group": "801010.SI",
+        "usable_days_preholdout": 301,
+        "mean_members_preholdout": 102.91059602649007
+      },
+      {
+        "group": "801120.SI",
+        "usable_days_preholdout": 301,
+        "mean_members_preholdout": 121.99668874172185
+      },
+      {
+        "group": "801210.SI",
+        "usable_days_preholdout": 301,
+        "mean_members_preholdout": 77.98344370860927
+      },
+      {
+        "group": "801150.SI",
+        "usable_days_preholdout": 301,
+        "mean_members_preholdout": 471.3841059602649
+      },
+      {
+        "group": "801160.SI",
+        "usable_days_preholdout": 301,
+        "mean_members_preholdout": 129.5662251655629
+      },
+      {
+        "group": "801170.SI",
+        "usable_days_preholdout": 301,
+        "mean_members_preholdout": 124.29139072847683
+      },
+      {
+        "group": "801180.SI",
+        "usable_days_preholdout": 301,
+        "mean_members_preholdout": 99.60264900662251
+      },
+      {
+        "group": "801080.SI",
+        "usable_days_preholdout": 301,
+        "mean_members_preholdout": 464.2682119205298
+      },
+      {
+        "group": "801750.SI",
+        "usable_days_preholdout": 301,
+        "mean_members_preholdout": 330.8675496688742
+      },
+      {
+        "group": "801760.SI",
+        "usable_days_preholdout": 301,
+        "mean_members_preholdout": 127.99337748344371
+      },
+      {
+        "group": "801770.SI",
+        "usable_days_preholdout": 301,
+        "mean_members_preholdout": 122.66225165562913
+      },
+      {
+        "group": "801780.SI",
+        "usable_days_preholdout": 301,
+        "mean_members_preholdout": 41.54304635761589
+      },
+      {
+        "group": "801790.SI",
+        "usable_days_preholdout": 301,
+        "mean_members_preholdout": 80.89403973509934
+      },
+      {
+        "group": "801230.SI",
+        "usable_days_preholdout": 301,
+        "mean_members_preholdout": 15.841059602649006
+      }
+    ]
+  },
+  "dated_sector_link": {
+    "link": "Only exact trimmed theme names observed for the stock on/before the signal and no more than 20 sessions old; requires a unique same-date sector entity. No current constituents or fuzzy aliases.",
+    "source": "Existing sector_fund_flow with compatible Eastmoney source tags.",
+    "flow5_definition": "Mean of five consecutive daily main_net_pct observations, not cumulative main-money share.",
+    "duplicate_rows_excluded": 0,
+    "ambiguous_name_links_preholdout": 0,
+    "matched_theme_counts_preholdout": {
+      "国产芯片": 1530,
+      "电力": 1863,
+      "商业航天": 1392,
+      "机器人": 4248,
+      "锂电池": 283,
+      "PCB": 1980,
+      "铝": 84,
+      "消费电子": 198,
+      "AI应用": 1184,
+      "半导体": 2330,
+      "有机硅": 76,
+      "玻璃基板": 485,
+      "固态电池": 63,
+      "稀土": 128,
+      "钨": 87,
+      "体育产业": 84,
+      "汽车零部件": 126,
+      "绿色电力": 105,
+      "可控核聚变": 161,
+      "黄金": 114,
+      "减肥药": 42,
+      "稀土永磁": 42,
+      "数据中心": 210,
+      "存储芯片": 202,
+      "人工智能": 273,
+      "军工": 101,
+      "光刻机": 84,
+      "被动元件": 1044,
+      "煤炭": 456,
+      "小金属": 260,
+      "房地产": 102,
+      "无人驾驶": 567,
+      "AIPC": 293,
+      "低空经济": 149,
+      "航运": 77,
+      "有色金属": 87,
+      "磷化工": 49,
+      "培育钻石": 56,
+      "数字货币": 2
+    }
+  },
+  "aliases": {
+    "industry_rs20": "rs_industry20",
+    "sector_main_pct5": "sector_main5_mean",
+    "market_main5_pct": "fflow_main5",
+    "index_up_count": "index_up4"
+  },
+  "new_features": {
+    "industry_ret5": {
+      "finite_observations": 1461304,
+      "finite_days": 297,
+      "first": "20250409",
+      "last": "20260630"
+    },
+    "industry_ret20": {
+      "finite_observations": 1387949,
+      "finite_days": 282,
+      "first": "20250430",
+      "last": "20260630"
+    },
+    "industry_breadth": {
+      "finite_observations": 1480846,
+      "finite_days": 301,
+      "first": "20250402",
+      "last": "20260630"
+    },
+    "rs_industry20": {
+      "finite_observations": 1251776,
+      "finite_days": 282,
+      "first": "20250430",
+      "last": "20260630"
+    },
+    "industry_other_count": {
+      "finite_observations": 1480846,
+      "finite_days": 301,
+      "first": "20250402",
+      "last": "20260630"
+    },
+    "sector_main1_max": {
+      "finite_observations": 19817,
+      "finite_days": 55,
+      "first": "20260409",
+      "last": "20260630"
+    },
+    "sector_main1_mean": {
+      "finite_observations": 19817,
+      "finite_days": 55,
+      "first": "20260409",
+      "last": "20260630"
+    },
+    "sector_main5_max": {
+      "finite_observations": 19129,
+      "finite_days": 51,
+      "first": "20260415",
+      "last": "20260630"
+    },
+    "sector_main5_mean": {
+      "finite_observations": 19129,
+      "finite_days": 51,
+      "first": "20260415",
+      "last": "20260630"
+    },
+    "sector_ret5_max": {
+      "finite_observations": 18945,
+      "finite_days": 50,
+      "first": "20260416",
+      "last": "20260630"
+    },
+    "sector_match_count": {
+      "finite_observations": 19817,
+      "finite_days": 55,
+      "first": "20260409",
+      "last": "20260630"
+    },
+    "sector_positive_fraction": {
+      "finite_observations": 19817,
+      "finite_days": 55,
+      "first": "20260409",
+      "last": "20260630"
+    },
+    "industry_rs20": {
+      "finite_observations": 1251776,
+      "finite_days": 282,
+      "first": "20250430",
+      "last": "20260630"
+    },
+    "sector_main_pct5": {
+      "finite_observations": 19129,
+      "finite_days": 51,
+      "first": "20260415",
+      "last": "20260630"
+    }
+  },
+  "new_market_features": {
+    "fflow_main1": {
+      "finite_observations": 69,
+      "finite_days": 69,
+      "first": "20260319",
+      "last": "20260630"
+    },
+    "fflow_main5": {
+      "finite_observations": 65,
+      "finite_days": 65,
+      "first": "20260325",
+      "last": "20260630"
+    },
+    "fflow_super1": {
+      "finite_observations": 69,
+      "finite_days": 69,
+      "first": "20260319",
+      "last": "20260630"
+    },
+    "fflow_super5": {
+      "finite_observations": 65,
+      "finite_days": 65,
+      "first": "20260325",
+      "last": "20260630"
+    },
+    "fflow_small1": {
+      "finite_observations": 69,
+      "finite_days": 69,
+      "first": "20260319",
+      "last": "20260630"
+    },
+    "fflow_small5": {
+      "finite_observations": 65,
+      "finite_days": 65,
+      "first": "20260325",
+      "last": "20260630"
+    },
+    "index_up4": {
+      "finite_observations": 301,
+      "finite_days": 301,
+      "first": "20250402",
+      "last": "20260630"
+    },
+    "index_trend20_up4": {
+      "finite_observations": 282,
+      "finite_days": 282,
+      "first": "20250430",
+      "last": "20260630"
+    },
+    "growth_relative5": {
+      "finite_observations": 297,
+      "finite_days": 297,
+      "first": "20250409",
+      "last": "20260630"
+    },
+    "index_mean5": {
+      "finite_observations": 297,
+      "finite_days": 297,
+      "first": "20250409",
+      "last": "20260630"
+    },
+    "market_main5_pct": {
+      "finite_observations": 65,
+      "finite_days": 65,
+      "first": "20260325",
+      "last": "20260630"
+    },
+    "index_up_count": {
+      "finite_observations": 301,
+      "finite_days": 301,
+      "first": "20250402",
+      "last": "20260630"
+    }
+  },
+  "original_cache_unchanged": true
+}

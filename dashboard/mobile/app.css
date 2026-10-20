@@ -70,3 +70,28 @@ tr.sim-hit td:first-child{box-shadow:inset 3px 0 var(--blue)}
 #ov-hist-wrap th,#ov-hist-wrap td{padding:10px 10px;border-right:1px solid rgba(110,140,180,.07);border-bottom:1px solid rgba(110,140,180,.07)}
 #ov-hist-wrap thead tr.ov-head th{padding:8px 10px}
 #ov-hist-wrap thead tr.ov-head th.concept-sub{text-align:center}
+
+/* 热门板块 */
+.mobile-hot-card{border:1px solid var(--border);border-radius:12px;background:var(--card);padding:14px;margin-bottom:12px}.mobile-hot-card>.sector-card{border:0;margin:0;padding:0 0 12px;background:transparent}.mobile-hot-leader{display:flex;gap:10px;border-top:1px solid var(--border);padding:12px 0;align-items:flex-start}.mobile-hot-leader>div{flex:1;min-width:0}.mobile-hot-leader small{color:var(--muted);font-size:10px;margin-left:6px}.mobile-hot-leader details{font-size:11px;color:var(--muted);line-height:1.8;margin-top:5px}.mobile-hot-leader details p{margin:6px 0 0}.mobile-hot-leader .pill{margin-top:4px;white-space:nowrap}.mobile-hot-tracker{border-top:1px solid var(--border);font-size:11px;color:var(--muted);padding-top:12px;line-height:1.9}.mobile-hot-tracker .stock-link{display:block;margin:5px 0}.mobile-hot-rules{font-size:12px;color:var(--muted);margin:10px 0 16px;line-height:1.8}.mobile-hot-rules p{margin:6px 0}
+.mobile-hot-leader .stock-link .code,.mobile-hot-tracker .stock-link .code{display:block;margin-top:4px}
+.mobile-hot-overview{display:grid;gap:9px;margin:14px 0 22px}.mobile-hot-overview-box{padding:15px;border:1px solid var(--border);border-radius:10px;background:var(--card)}.mobile-hot-overview-box small{display:block;color:var(--muted);font-size:11px;margin-bottom:9px}.mobile-hot-overview-box small:before{content:'';display:inline-block;width:5px;height:5px;margin-right:6px;border-radius:50%;background:var(--up)}.mobile-hot-overview-box.new small:before{background:var(--blue)}.mobile-hot-overview-box.cooling small:before{background:var(--down)}.mobile-hot-overview-box strong{font-size:16px;line-height:1.8;font-weight:550}.mobile-hot-heat-wrap{overflow:auto;width:100%;border:1px solid var(--border);border-radius:10px;background:var(--card);overscroll-behavior:contain}.mobile-hot-heat-table{min-width:1020px}.mobile-hot-heat-table th,.mobile-hot-heat-table td{text-align:center;padding:9px 6px;border-bottom:1px solid var(--border)}.mobile-hot-heat-table td:first-child{width:110px;min-width:110px;max-width:110px;padding-left:10px}.mobile-hot-heat-table .stock-link{font-size:12px;color:var(--blue);width:100px;white-space:normal}.mobile-hot-heat-table .stock-link small{display:block;color:var(--muted);font-size:10px;margin-top:4px}.mobile-hot-heat-table td:nth-child(2) strong{font-size:17px;margin-right:3px}.mobile-hot-cell{display:flex;align-items:center;justify-content:center;min-width:38px;height:30px;border-radius:4px}.mobile-hot-cell-0{background:#1c2330;color:#8490a3}.mobile-hot-cell-1{background:#492c36;color:#e9bec5}.mobile-hot-cell-2{background:#843744;color:#ffe0e4}.mobile-hot-cell-3{background:#b44050;color:#fff}.mobile-hot-cell-4{background:#e65666;color:#fff}.mobile-hot-cell-missing{border:1px dashed var(--border);color:var(--muted);font-size:10px}.mobile-hot-stage{display:inline-block;font-size:10px;padding:4px 7px;border-radius:4px;border:1px solid #744450;color:#ffafb7;background:#36222b;white-space:nowrap;font-weight:400}.mobile-hot-stage-cooling{color:#8ce0be;background:#17352e;border-color:#346050}.mobile-hot-stage-new,.mobile-hot-stage-sudden{color:#a8caff;background:#1f3049;border-color:#405b7d}.mobile-hot-stage-missing,.mobile-hot-stage-ordinary,.mobile-hot-stage-quiet{color:var(--muted);background:var(--card);border-color:var(--border)}@media(min-width:700px){.mobile-hot-overview{grid-template-columns:2fr 1fr 1.15fr}}
+
+/* 在线设备 (含远程设备, 走 Tailscale 进来的 100.x 同样计入) */
+.topbar-tools{display:flex;align-items:center;gap:8px}
+.online-pill{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 11px;border-radius:10px;font-size:11px;color:#8fd2ff;background:#13233a;border-color:#2c4b6e;white-space:nowrap}
+.online-pill:before{content:'';width:5px;height:5px;border-radius:50%;background:#40d5a0;box-shadow:0 0 6px rgba(64,213,160,.6)}
+.online-pill.off{color:var(--muted);background:var(--card);border-color:var(--border)}
+.online-pill.off:before{background:var(--muted);box-shadow:none}
+.online-body{padding:18px 16px calc(30px + env(safe-area-inset-bottom))}
+.online-sum{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:16px}
+.online-sum>div{padding:12px 8px;border:1px solid var(--border);border-radius:10px;background:var(--card);text-align:center}
+.online-sum strong{display:block;font-size:22px;color:var(--ink);margin-bottom:3px}
+.online-sum small{font-size:10px;color:var(--muted)}
+.online-list{list-style:none;display:flex;flex-direction:column;gap:7px}
+.online-row{display:flex;align-items:center;gap:8px;padding:11px 12px;border:1px solid var(--border);border-radius:10px;background:var(--card);font-size:13px}
+.online-row.off{opacity:.42}
+.online-name{color:var(--ink);font-weight:550}
+.online-tag{font-size:9px;padding:2px 6px;border-radius:5px;border:1px solid var(--border);color:var(--muted);white-space:nowrap;flex-shrink:0}
+.online-tag.remote{color:#8fd2ff;border-color:#2c5a7e;background:#132c42}
+.online-meta{margin-left:auto;text-align:right;font-size:10px;color:var(--muted);line-height:1.6}
+.online-note{margin-top:14px;font-size:10px;color:var(--muted);line-height:1.7}

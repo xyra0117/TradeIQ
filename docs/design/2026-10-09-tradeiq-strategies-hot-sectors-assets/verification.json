@@ -1,0 +1,893 @@
+{
+  "createdAt": "2026-10-09T13:48:59.637386+00:00",
+  "resourceVersion": "20261009.4",
+  "scope": "fictional visual and interaction prototype only; no business API connection",
+  "preview": "http://127.0.0.1:5555/dashboard/redesign/index.html",
+  "auxiliaryStaticPreview": "http://127.0.0.1:5567/index.html",
+  "layoutCount": 24,
+  "layouts": [
+    {
+      "page": "dip",
+      "width": 1440,
+      "theme": "light",
+      "actualHeight": 1200,
+      "actualWidth": 1440,
+      "bodyFont": "13px",
+      "conditionCount": 10,
+      "oldEntry": false,
+      "overflow": false,
+      "overlaps": [],
+      "pageWidth": 1440,
+      "sidebarWidth": 208,
+      "tableWidths": [
+        {
+          "client": 1160,
+          "scroll": 2240
+        }
+      ]
+    },
+    {
+      "page": "dip",
+      "width": 1440,
+      "theme": "dark",
+      "actualHeight": 1200,
+      "actualWidth": 1440,
+      "bodyFont": "13px",
+      "conditionCount": 10,
+      "oldEntry": false,
+      "overflow": false,
+      "overlaps": [],
+      "pageWidth": 1440,
+      "sidebarWidth": 208,
+      "tableWidths": [
+        {
+          "client": 1160,
+          "scroll": 2240
+        }
+      ]
+    },
+    {
+      "page": "chase",
+      "width": 1440,
+      "theme": "light",
+      "actualHeight": 1200,
+      "actualWidth": 1440,
+      "bodyFont": "13px",
+      "conditionCount": 11,
+      "oldEntry": false,
+      "overflow": false,
+      "overlaps": [],
+      "pageWidth": 1440,
+      "sidebarWidth": 208,
+      "tableWidths": [
+        {
+          "client": 1160,
+          "scroll": 2240
+        }
+      ]
+    },
+    {
+      "page": "chase",
+      "width": 1440,
+      "theme": "dark",
+      "actualHeight": 1200,
+      "actualWidth": 1440,
+      "bodyFont": "13px",
+      "conditionCount": 11,
+      "oldEntry": false,
+      "overflow": false,
+      "overlaps": [],
+      "pageWidth": 1440,
+      "sidebarWidth": 208,
+      "tableWidths": [
+        {
+          "client": 1160,
+          "scroll": 2240
+        }
+      ]
+    },
+    {
+      "page": "custom",
+      "width": 1440,
+      "theme": "light",
+      "actualHeight": 1200,
+      "actualWidth": 1440,
+      "bodyFont": "13px",
+      "conditionCount": 0,
+      "oldEntry": false,
+      "overflow": false,
+      "overlaps": [],
+      "pageWidth": 1440,
+      "sidebarWidth": 208,
+      "tableWidths": [
+        {
+          "client": 1171,
+          "scroll": 1320
+        }
+      ]
+    },
+    {
+      "page": "custom",
+      "width": 1440,
+      "theme": "dark",
+      "actualHeight": 1200,
+      "actualWidth": 1440,
+      "bodyFont": "13px",
+      "conditionCount": 0,
+      "oldEntry": false,
+      "overflow": false,
+      "overlaps": [],
+      "pageWidth": 1440,
+      "sidebarWidth": 208,
+      "tableWidths": [
+        {
+          "client": 1171,
+          "scroll": 1320
+        }
+      ]
+    },
+    {
+      "page": "hot-sectors",
+      "width": 1440,
+      "theme": "light",
+      "actualHeight": 1200,
+      "actualWidth": 1440,
+      "bodyFont": null,
+      "conditionCount": 0,
+      "oldEntry": false,
+      "overflow": false,
+      "overlaps": [],
+      "pageWidth": 1440,
+      "sidebarWidth": 208,
+      "tableWidths": [
+        {
+          "client": 1135,
+          "scroll": 1135
+        }
+      ]
+    },
+    {
+      "page": "hot-sectors",
+      "width": 1440,
+      "theme": "dark",
+      "actualHeight": 1200,
+      "actualWidth": 1440,
+      "bodyFont": null,
+      "conditionCount": 0,
+      "oldEntry": false,
+      "overflow": false,
+      "overlaps": [],
+      "pageWidth": 1440,
+      "sidebarWidth": 208,
+      "tableWidths": [
+        {
+          "client": 1135,
+          "scroll": 1135
+        }
+      ]
+    },
+    {
+      "page": "dip",
+      "width": 1920,
+      "theme": "light",
+      "actualHeight": 1200,
+      "actualWidth": 1920,
+      "bodyFont": "13px",
+      "conditionCount": 10,
+      "oldEntry": false,
+      "overflow": false,
+      "overlaps": [],
+      "pageWidth": 1920,
+      "sidebarWidth": 208,
+      "tableWidths": [
+        {
+          "client": 1640,
+          "scroll": 2240
+        }
+      ]
+    },
+    {
+      "page": "dip",
+      "width": 1920,
+      "theme": "dark",
+      "actualHeight": 1200,
+      "actualWidth": 1920,
+      "bodyFont": "13px",
+      "conditionCount": 10,
+      "oldEntry": false,
+      "overflow": false,
+      "overlaps": [],
+      "pageWidth": 1920,
+      "sidebarWidth": 208,
+      "tableWidths": [
+        {
+          "client": 1640,
+          "scroll": 2240
+        }
+      ]
+    },
+    {
+      "page": "chase",
+      "width": 1920,
+      "theme": "light",
+      "actualHeight": 1200,
+      "actualWidth": 1920,
+      "bodyFont": "13px",
+      "conditionCount": 11,
+      "oldEntry": false,
+      "overflow": false,
+      "overlaps": [],
+      "pageWidth": 1920,
+      "sidebarWidth": 208,
+      "tableWidths": [
+        {
+          "client": 1640,
+          "scroll": 2240
+        }
+      ]
+    },
+    {
+      "page": "chase",
+      "width": 1920,
+      "theme": "dark",
+      "actualHeight": 1200,
+      "actualWidth": 1920,
+      "bodyFont": "13px",
+      "conditionCount": 11,
+      "oldEntry": false,
+      "overflow": false,
+      "overlaps": [],
+      "pageWidth": 1920,
+      "sidebarWidth": 208,
+      "tableWidths": [
+        {
+          "client": 1640,
+          "scroll": 2240
+        }
+      ]
+    },
+    {
+      "page": "custom",
+      "width": 1920,
+      "theme": "light",
+      "actualHeight": 1200,
+      "actualWidth": 1920,
+      "bodyFont": "13px",
+      "conditionCount": 0,
+      "oldEntry": false,
+      "overflow": false,
+      "overlaps": [],
+      "pageWidth": 1920,
+      "sidebarWidth": 208,
+      "tableWidths": [
+        {
+          "client": 1651,
+          "scroll": 1651
+        }
+      ]
+    },
+    {
+      "page": "custom",
+      "width": 1920,
+      "theme": "dark",
+      "actualHeight": 1200,
+      "actualWidth": 1920,
+      "bodyFont": "13px",
+      "conditionCount": 0,
+      "oldEntry": false,
+      "overflow": false,
+      "overlaps": [],
+      "pageWidth": 1920,
+      "sidebarWidth": 208,
+      "tableWidths": [
+        {
+          "client": 1651,
+          "scroll": 1651
+        }
+      ]
+    },
+    {
+      "page": "hot-sectors",
+      "width": 1920,
+      "theme": "light",
+      "actualHeight": 1200,
+      "actualWidth": 1920,
+      "bodyFont": null,
+      "conditionCount": 0,
+      "oldEntry": false,
+      "overflow": false,
+      "overlaps": [],
+      "pageWidth": 1920,
+      "sidebarWidth": 208,
+      "tableWidths": [
+        {
+          "client": 1615,
+          "scroll": 1615
+        }
+      ]
+    },
+    {
+      "page": "hot-sectors",
+      "width": 1920,
+      "theme": "dark",
+      "actualHeight": 1200,
+      "actualWidth": 1920,
+      "bodyFont": null,
+      "conditionCount": 0,
+      "oldEntry": false,
+      "overflow": false,
+      "overlaps": [],
+      "pageWidth": 1920,
+      "sidebarWidth": 208,
+      "tableWidths": [
+        {
+          "client": 1615,
+          "scroll": 1615
+        }
+      ]
+    },
+    {
+      "page": "dip",
+      "width": 2560,
+      "theme": "light",
+      "actualHeight": 1200,
+      "actualWidth": 2560,
+      "bodyFont": "13px",
+      "conditionCount": 10,
+      "oldEntry": false,
+      "overflow": false,
+      "overlaps": [],
+      "pageWidth": 2560,
+      "sidebarWidth": 208,
+      "tableWidths": [
+        {
+          "client": 2280,
+          "scroll": 2280
+        }
+      ]
+    },
+    {
+      "page": "dip",
+      "width": 2560,
+      "theme": "dark",
+      "actualHeight": 1200,
+      "actualWidth": 2560,
+      "bodyFont": "13px",
+      "conditionCount": 10,
+      "oldEntry": false,
+      "overflow": false,
+      "overlaps": [],
+      "pageWidth": 2560,
+      "sidebarWidth": 208,
+      "tableWidths": [
+        {
+          "client": 2280,
+          "scroll": 2280
+        }
+      ]
+    },
+    {
+      "page": "chase",
+      "width": 2560,
+      "theme": "light",
+      "actualHeight": 1200,
+      "actualWidth": 2560,
+      "bodyFont": "13px",
+      "conditionCount": 11,
+      "oldEntry": false,
+      "overflow": false,
+      "overlaps": [],
+      "pageWidth": 2560,
+      "sidebarWidth": 208,
+      "tableWidths": [
+        {
+          "client": 2280,
+          "scroll": 2280
+        }
+      ]
+    },
+    {
+      "page": "chase",
+      "width": 2560,
+      "theme": "dark",
+      "actualHeight": 1200,
+      "actualWidth": 2560,
+      "bodyFont": "13px",
+      "conditionCount": 11,
+      "oldEntry": false,
+      "overflow": false,
+      "overlaps": [],
+      "pageWidth": 2560,
+      "sidebarWidth": 208,
+      "tableWidths": [
+        {
+          "client": 2280,
+          "scroll": 2280
+        }
+      ]
+    },
+    {
+      "page": "custom",
+      "width": 2560,
+      "theme": "light",
+      "actualHeight": 1200,
+      "actualWidth": 2560,
+      "bodyFont": "13px",
+      "conditionCount": 0,
+      "oldEntry": false,
+      "overflow": false,
+      "overlaps": [],
+      "pageWidth": 2560,
+      "sidebarWidth": 208,
+      "tableWidths": [
+        {
+          "client": 2291,
+          "scroll": 2291
+        }
+      ]
+    },
+    {
+      "page": "custom",
+      "width": 2560,
+      "theme": "dark",
+      "actualHeight": 1200,
+      "actualWidth": 2560,
+      "bodyFont": "13px",
+      "conditionCount": 0,
+      "oldEntry": false,
+      "overflow": false,
+      "overlaps": [],
+      "pageWidth": 2560,
+      "sidebarWidth": 208,
+      "tableWidths": [
+        {
+          "client": 2291,
+          "scroll": 2291
+        }
+      ]
+    },
+    {
+      "page": "hot-sectors",
+      "width": 2560,
+      "theme": "light",
+      "actualHeight": 1200,
+      "actualWidth": 2560,
+      "bodyFont": null,
+      "conditionCount": 0,
+      "oldEntry": false,
+      "overflow": false,
+      "overlaps": [],
+      "pageWidth": 2560,
+      "sidebarWidth": 208,
+      "tableWidths": [
+        {
+          "client": 2255,
+          "scroll": 2255
+        }
+      ]
+    },
+    {
+      "page": "hot-sectors",
+      "width": 2560,
+      "theme": "dark",
+      "actualHeight": 1200,
+      "actualWidth": 2560,
+      "bodyFont": null,
+      "conditionCount": 0,
+      "oldEntry": false,
+      "overflow": false,
+      "overlaps": [],
+      "pageWidth": 2560,
+      "sidebarWidth": 208,
+      "tableWidths": [
+        {
+          "client": 2255,
+          "scroll": 2255
+        }
+      ]
+    }
+  ],
+  "states": [
+    {
+      "page": "dip",
+      "state": "loading",
+      "text": "低吸选股 · 条件设置\n已开启 10 / 10 项 · 各项独立核验\n恢复全部开启\n收起条件\n下跌家数 >2600\n\n同日大盘条件 · 不与个股数量混算\n\n待统计\n开启\n上证下跌及前三日走势\n\n超过1",
+      "overflow": false
+    },
+    {
+      "page": "dip",
+      "state": "empty",
+      "text": "低吸选股 · 条件设置\n已开启 10 / 10 项 · 各项独立核验\n恢复全部开启\n收起条件\n下跌家数 >2600\n\n同日大盘条件 · 不与个股数量混算\n\n5,354个符合\n开启\n上证下跌及前三日走势",
+      "overflow": false
+    },
+    {
+      "page": "dip",
+      "state": "missing",
+      "text": "低吸选股 · 条件设置\n已开启 10 / 10 项 · 各项独立核验\n恢复全部开启\n收起条件\n下跌家数 >2600\n\n同日大盘条件 · 不与个股数量混算\n\n5,354个符合\n开启\n上证下跌及前三日走势",
+      "overflow": false
+    },
+    {
+      "page": "dip",
+      "state": "error",
+      "text": "低吸选股 · 条件设置\n已开启 10 / 10 项 · 各项独立核验\n恢复全部开启\n收起条件\n下跌家数 >2600\n\n同日大盘条件 · 不与个股数量混算\n\n读取失败\n开启\n上证下跌及前三日走势\n\n超过",
+      "overflow": false
+    },
+    {
+      "page": "chase",
+      "state": "loading",
+      "text": "追高选股 · 条件设置 试验策略\n已开启 11 / 11 项 · 各项独立核验\n恢复全部开启\n收起条件\n下跌家数 <2600\n\n同日大盘条件 · 不与个股数量混算\n\n待统计\n开启\n上证指数上涨\n\n上证",
+      "overflow": false
+    },
+    {
+      "page": "chase",
+      "state": "empty",
+      "text": "追高选股 · 条件设置 试验策略\n已开启 11 / 11 项 · 各项独立核验\n恢复全部开启\n收起条件\n下跌家数 <2600\n\n同日大盘条件 · 不与个股数量混算\n\n5,354个符合\n开启\n上证指数上",
+      "overflow": false
+    },
+    {
+      "page": "chase",
+      "state": "missing",
+      "text": "追高选股 · 条件设置 试验策略\n已开启 11 / 11 项 · 各项独立核验\n恢复全部开启\n收起条件\n下跌家数 <2600\n\n同日大盘条件 · 不与个股数量混算\n\n5,354个符合\n开启\n上证指数上",
+      "overflow": false
+    },
+    {
+      "page": "chase",
+      "state": "error",
+      "text": "追高选股 · 条件设置 试验策略\n已开启 11 / 11 项 · 各项独立核验\n恢复全部开启\n收起条件\n下跌家数 <2600\n\n同日大盘条件 · 不与个股数量混算\n\n读取失败\n开启\n上证指数上涨\n\n上",
+      "overflow": false
+    },
+    {
+      "page": "custom",
+      "state": "loading",
+      "text": "把选股思路组合成条件\n\n已开启 3 项 · 条件与开关自动保存于此设计稿\n\n组间关系\n全部满足 · 且\n任一满足 · 或\n添加条件组\n全部满足 · 且\n任一满足 · 或\n条件\n近10日主力流入至少7天",
+      "overflow": false
+    },
+    {
+      "page": "custom",
+      "state": "empty",
+      "text": "把选股思路组合成条件\n\n已开启 3 项 · 条件与开关自动保存于此设计稿\n\n组间关系\n全部满足 · 且\n任一满足 · 或\n添加条件组\n全部满足 · 且\n任一满足 · 或\n条件\n近10日主力流入至少7天",
+      "overflow": false
+    },
+    {
+      "page": "custom",
+      "state": "missing",
+      "text": "把选股思路组合成条件\n\n已开启 3 项 · 条件与开关自动保存于此设计稿\n\n组间关系\n全部满足 · 且\n任一满足 · 或\n添加条件组\n全部满足 · 且\n任一满足 · 或\n条件\n近10日主力流入至少7天",
+      "overflow": false
+    },
+    {
+      "page": "custom",
+      "state": "error",
+      "text": "把选股思路组合成条件\n\n已开启 3 项 · 条件与开关自动保存于此设计稿\n\n组间关系\n全部满足 · 且\n任一满足 · 或\n添加条件组\n全部满足 · 且\n任一满足 · 或\n条件\n近10日主力流入至少7天",
+      "overflow": false
+    },
+    {
+      "page": "hot",
+      "state": "loading",
+      "text": "热门板块 · 示例状态\n—\n虚构示例\n列设置\n正在加载示例数据\n\n可从右上角切换其他预览状态。\n\n尚未加载 · 09.22\n点击表头排序 · 示例记录",
+      "overflow": false
+    },
+    {
+      "page": "hot",
+      "state": "empty",
+      "text": "热门板块 · 示例状态\n0\n虚构示例\n列设置\n没有符合条件的示例记录\n\n保留当前页面和筛选，恢复示例后可继续评审。\n\n恢复示例\n0 条示例记录 · 09.22\n点击表头排序 · 示例记录",
+      "overflow": false
+    },
+    {
+      "page": "hot",
+      "state": "missing",
+      "text": "部分数据缺失 · 示例状态。\n恢复示例\n近期哪些板块反复走热？\n\n先比较近5日的持续性，再看今天的变化。全部为虚构示例。\n\n持续活跃\n—\n数据不足\n\n近5日反复出现，今天仍有涨停群体\n\n新近热点\n—\n",
+      "overflow": false
+    },
+    {
+      "page": "hot",
+      "state": "error",
+      "text": "热门板块 · 示例状态\n—\n虚构示例\n列设置\n暂时无法读取结果\n\n保留当前页面和筛选，恢复示例后可继续评审。\n\n恢复示例\n尚未加载 · 09.22\n点击表头排序 · 示例记录",
+      "overflow": false
+    }
+  ],
+  "interactionChecks": [
+    "condition switches/reset/isolation",
+    "dip strict range validation",
+    "same-day comparison",
+    "market T+date view independent of screening date",
+    "single/pair diagnostic preview paging and explicit apply",
+    "custom point/formula/Chinese UI modes",
+    "Chinese supported draft and unsupported full-text blocking",
+    "group add/edit/template/remove/undo/persistence",
+    "custom paging/inspection; shared result search/sort checked on chase",
+    "sector search/filter/sort/detail/back",
+    "leader basis and yesterday tracking",
+    "table columns/fixed name/internal scrolling",
+    "stock next/expand/close and filter/scroll preservation",
+    "sidebar collapse/expand",
+    "component switch and light-dark preview",
+    "existing static redesign route"
+  ],
+  "stockOverlay": {
+    "actualWidth": 1440,
+    "position": "absolute",
+    "width": 560,
+    "pageOverflow": false
+  },
+  "stockParallel": {
+    "actualWidth": 1920,
+    "position": "static",
+    "width": 560,
+    "pageOverflow": false
+  },
+  "scrollPreservation": {
+    "before": 1058,
+    "after": 1058,
+    "header": "sticky",
+    "nameColumn": "sticky"
+  },
+  "javascriptSyntax": [
+    "workspace.js",
+    "pages.js",
+    "components.js",
+    "preview-charts.js"
+  ],
+  "consoleErrors": [],
+  "protectedFiles": {
+    "dashboard/index.html": {
+      "baseline": "364dfc2d033f3d94d3cd3b8d842440b72fa85bf37aeb6a1df961b68e86ed2167",
+      "current": "364dfc2d033f3d94d3cd3b8d842440b72fa85bf37aeb6a1df961b68e86ed2167",
+      "unchanged": true
+    },
+    "backend/app.py": {
+      "baseline": "b2b46044cd4c919e9a7898bed71a630a099253ae15fc3c4ae4c5f7170a0e7c9b",
+      "current": "b2b46044cd4c919e9a7898bed71a630a099253ae15fc3c4ae4c5f7170a0e7c9b",
+      "unchanged": true
+    },
+    "backend/dip_picks.py": {
+      "baseline": "9c6648f1f99b0a91852ca45051d1ba481d8f23756f51f8d1213534b3979d4bbb",
+      "current": "9c6648f1f99b0a91852ca45051d1ba481d8f23756f51f8d1213534b3979d4bbb",
+      "unchanged": true
+    },
+    "backend/custom_picks.py": {
+      "baseline": "6aeee0301ce3a2dc25f0d3a8a6721370a0c9bd9beee4eea05ebbcabf91144752",
+      "current": "6aeee0301ce3a2dc25f0d3a8a6721370a0c9bd9beee4eea05ebbcabf91144752",
+      "unchanged": true
+    },
+    "backend/hot_sectors.py": {
+      "baseline": "9f0c53e4cf619bf722a067b6fa2a47bc4626ba28c7e772383be09997d84f36d4",
+      "current": "9f0c53e4cf619bf722a067b6fa2a47bc4626ba28c7e772383be09997d84f36d4",
+      "unchanged": true
+    },
+    "dashboard/custom-picks.js": {
+      "baseline": "a53857a05ae6b41720ee0276d5263f56da319c4608e476f7e0ad56fcb8579c46",
+      "current": "a53857a05ae6b41720ee0276d5263f56da319c4608e476f7e0ad56fcb8579c46",
+      "unchanged": true
+    }
+  },
+  "imageCount": 28,
+  "images": {
+    "chase-dark.jpg": {
+      "sha256": "1752e5ced9cbea9f83af23fa2c2eceee5c5e78a829cb3b88b6ead3583f6d4ddf",
+      "bytes": 91435,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "chase-light.jpg": {
+      "sha256": "cb052106075174bdf4f5b21092f5a2e07d23621bab57b786bbe1bcf0d4cc5ecd",
+      "bytes": 101513,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "chase-results-dark.jpg": {
+      "sha256": "4d31e5b755cdecf0658c50415082336b53887c53a7422d203812af11eee393ad",
+      "bytes": 89543,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "chase-results-light.jpg": {
+      "sha256": "5f7912d9735cd023b6b359b7a1b54c5c55126b4199f0e3ca14812dd1460dfb94",
+      "bytes": 93080,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "components-comparison.jpg": {
+      "sha256": "239841104cf57993e5abab804135d6519c3f9c557aace5068cea65f77b3813fd",
+      "bytes": 464660,
+      "dimensions": [
+        1905,
+        3797
+      ]
+    },
+    "custom-dark.jpg": {
+      "sha256": "c82d42486344601796f2c7884e8c37e772f65b09d7e82d0cefece0c5be9dedae",
+      "bytes": 79648,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "custom-editor-blocked-light.jpg": {
+      "sha256": "6e7e0f4417152d6054dba11ae1201a89f0c5e5faedf78bcce50427c17bb12109",
+      "bytes": 139379,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "custom-editor-chinese-dark.jpg": {
+      "sha256": "b4de1c4222ba018aa68b3511c546aa34d1202c81f7d9f24f575f9c5039db927d",
+      "bytes": 132773,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "custom-editor-chinese-light.jpg": {
+      "sha256": "da07a8e4c440c7ad84257ceef5f0464772c7a439571b77dfcd0dc50c51a6423e",
+      "bytes": 143543,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "custom-editor-formula-light.jpg": {
+      "sha256": "21cd8639588c7cb5cd0749dc56c373fc42985f9c33ffaf47e8f5d35356a53a03",
+      "bytes": 143430,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "custom-editor-visual-light.jpg": {
+      "sha256": "634e4624a81336f74c9d32358274c8b1c33b0d223c92d674b71325792cf0da91",
+      "bytes": 147164,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "custom-inspection-dark.jpg": {
+      "sha256": "60e93ec99241a5cb9b779b46710e7712586ffa58e1b10932b6da67aa99892562",
+      "bytes": 124231,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "custom-light.jpg": {
+      "sha256": "77f4e636814be870693d321f0f17ed70a0bd735c30edc6f4c483509d67143415",
+      "bytes": 88223,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "diagnostic-preview-light.jpg": {
+      "sha256": "56ec736b78224519d184b320e947ed9436bb23733918cfdbe1dcd56e69fd4479",
+      "bytes": 118126,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "dip-dark.jpg": {
+      "sha256": "936d0fcbbb0087b8133870c8a28bee58f9ede4470beba25eb47f81df366c935e",
+      "bytes": 98472,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "dip-light.jpg": {
+      "sha256": "695dca6d62f91907091c615f3909bb5db0c20504b61b766d80e758f114d4d77f",
+      "bytes": 107498,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "dip-results-dark.jpg": {
+      "sha256": "b9d6ecb721a84de979a90913fddbf4f4cdc7cee9a33cca35f8a051ce64c25e38",
+      "bytes": 89276,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "dip-results-light.jpg": {
+      "sha256": "07ea76f74ac278d384fa865e67e05f8ac296b70b5f267b1da82d3a3e5347210e",
+      "bytes": 92737,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "hot-detail-dark.jpg": {
+      "sha256": "6d12ee8d6b209eb7dfc7f6c77f79972f4ac9cad0730d3be0e31b1708422a4bc2",
+      "bytes": 102009,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "hot-detail-light.jpg": {
+      "sha256": "269afa864fc83dc21f4d7b79c8d2b5b99f4cfffc21b29a58b28853d9fe1ad2af",
+      "bytes": 110198,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "hot-leader-basis-light.jpg": {
+      "sha256": "38aa373d1eac0796b2885b08c0261568a718a643633640e30dc64e7a137aadf8",
+      "bytes": 135063,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "hot-leaders-dark.jpg": {
+      "sha256": "f12d22b6d0b646208e49cdc851078dab468821191c4c680a7bbed546dff99e20",
+      "bytes": 141336,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "hot-leaders-light.jpg": {
+      "sha256": "1ac0e82107caa5abd5400d21dde8a664575007c5168c6b1f25cde4de2000d5a9",
+      "bytes": 154379,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "hot-sectors-dark.jpg": {
+      "sha256": "c3a392d7a3a313fd5e3a5f9f626a0aec74fa282ebf3da5fcd9cd9eaf9bddada9",
+      "bytes": 84677,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "hot-sectors-light.jpg": {
+      "sha256": "ea0124b7f54cc1424fa25b685a19debb1caab860d3d4c0dd174ac9d5bc227825",
+      "bytes": 92219,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "stock-detail-expanded-light.jpg": {
+      "sha256": "e84174928bfc513e60d50901abe75b522deb7d245897757df1300899bb5b9ec8",
+      "bytes": 106701,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "stock-detail-overlay-light.jpg": {
+      "sha256": "2349e5be30de35d6c5f2435940090eef1ead5573b9debd11a64d2e84cf844c3c",
+      "bytes": 120677,
+      "dimensions": [
+        1440,
+        1100
+      ]
+    },
+    "strategy-coverage-light.jpg": {
+      "sha256": "fe01c8144fde635ebacc75ca9b008045f0c76a131ef297deb365621b5dc525ee",
+      "bytes": 165243,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    }
+  },
+  "businessDataAcceptance": "not performed; remains UI-only",
+  "imageDimensionsValidated": true,
+  "componentImage": "Full-page comparison export; excludes browser scrollbar."
+}

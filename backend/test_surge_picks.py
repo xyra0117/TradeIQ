@@ -21,6 +21,7 @@ class SurgeTests(unittest.TestCase):
           CREATE TABLE stock_daily (ts_code TEXT,name TEXT,trade_date TEXT,open REAL,high REAL,
             low REAL,close REAL,change REAL,volume REAL,amount REAL);
           CREATE TABLE fund_flow (ts_code TEXT,trade_date TEXT,source TEXT,main_net_inflow REAL);
+          CREATE TABLE stock_sector_summary (ts_code TEXT,sectors_json TEXT);
         ''')
         start = datetime(2026, 1, 5)
         self.days = [(start + timedelta(days=i)).strftime('%Y%m%d') for i in range(70)

@@ -1,0 +1,1825 @@
+{
+  "date": "2026-10-03",
+  "scope": "Desktop design UI, fictional demo data only",
+  "viewCount": 33,
+  "screenshotCount": 84,
+  "checks": [
+    "33 views at 1440/1920/2560 × light/dark: 198 layouts, no page horizontal overflow or heading overlap.",
+    "Index daily/minute modal, historical index filter, similar-market modal.",
+    "Ranking period, search, stock drawer, preserved page search.",
+    "Limit-up filters and three-step OCR demonstration.",
+    "Sealed/broken lists use distinct sample sets.",
+    "Fund source/period/market and industry/concept switching preserve separate fields.",
+    "Position import mapping/preview, manual sample addition, quantity validation, calculator, stored sample exit plan, trade history.",
+    "All stock-strategy categories, distinct THS columns, watch-pool label, sample pick add/remove.",
+    "Approved preferred table/filter/market/rules preserved; historical distribution modal.",
+    "Sector favorite, custom sector, member selection and adding a member, detail return.",
+    "Stock drawer charts/fund tiers/range, fullscreen and layered Escape, preserved filters.",
+    "Generic table column visibility and numeric sort.",
+    "Generic table pinned header/name, drawer overlay at 1440, sidebar 208/64.",
+    "Generic loading/empty/missing/error states and stale refresh cancellation on rapid date switch.",
+    "Global stock search opens stock outside current list; data center coverage modal.",
+    "Explicit theme URL takes precedence over saved preview preference.",
+    "No script errors, API calls, write requests or external resource requests; legacy HTML/backend hashes unchanged.",
+    "Focused final checks: independent index/delivery K charts, current-view CSV download, preview image UI, per-view scroll restore, gallery search/theme/filter and 84 regenerated images.",
+    "Focused final checks: independent index/delivery K charts, current-view CSV download, preview image UI, per-view scroll restore, regenerated 66 page and 18 modal images."
+  ],
+  "layouts": [
+    {
+      "view": "index-overview",
+      "theme": "light",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "index-overview",
+      "theme": "light",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "index-overview",
+      "theme": "light",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "index-history",
+      "theme": "light",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "index-history",
+      "theme": "light",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "index-history",
+      "theme": "light",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "index-barometer",
+      "theme": "light",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "index-barometer",
+      "theme": "light",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "index-barometer",
+      "theme": "light",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "leaderboard-ranking",
+      "theme": "light",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "leaderboard-ranking",
+      "theme": "light",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "leaderboard-ranking",
+      "theme": "light",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "leaderboard-frequency",
+      "theme": "light",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "leaderboard-frequency",
+      "theme": "light",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "leaderboard-frequency",
+      "theme": "light",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "leaderboard-top1",
+      "theme": "light",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "leaderboard-top1",
+      "theme": "light",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "leaderboard-top1",
+      "theme": "light",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "limitup",
+      "theme": "light",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "limitup",
+      "theme": "light",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "limitup",
+      "theme": "light",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "collection-sealed",
+      "theme": "light",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "collection-sealed",
+      "theme": "light",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "collection-sealed",
+      "theme": "light",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "collection-broken",
+      "theme": "light",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "collection-broken",
+      "theme": "light",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "collection-broken",
+      "theme": "light",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "flow-em",
+      "theme": "light",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "flow-em",
+      "theme": "light",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "flow-em",
+      "theme": "light",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "flow-ths",
+      "theme": "light",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "flow-ths",
+      "theme": "light",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "flow-ths",
+      "theme": "light",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "flow-sector-industry",
+      "theme": "light",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "flow-sector-industry",
+      "theme": "light",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "flow-sector-industry",
+      "theme": "light",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "flow-sector-concept",
+      "theme": "light",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "flow-sector-concept",
+      "theme": "light",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "flow-sector-concept",
+      "theme": "light",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "positions-open",
+      "theme": "light",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "positions-open",
+      "theme": "light",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "positions-open",
+      "theme": "light",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "positions-buy",
+      "theme": "light",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "positions-buy",
+      "theme": "light",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "positions-buy",
+      "theme": "light",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "positions-sell",
+      "theme": "light",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "positions-sell",
+      "theme": "light",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "positions-sell",
+      "theme": "light",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "positions-reconcile",
+      "theme": "light",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "positions-reconcile",
+      "theme": "light",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "positions-reconcile",
+      "theme": "light",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "positions-delivery",
+      "theme": "light",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "positions-delivery",
+      "theme": "light",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "positions-delivery",
+      "theme": "light",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-system",
+      "theme": "light",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-system",
+      "theme": "light",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-system",
+      "theme": "light",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-conditional",
+      "theme": "light",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-conditional",
+      "theme": "light",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-conditional",
+      "theme": "light",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-new",
+      "theme": "light",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-new",
+      "theme": "light",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-new",
+      "theme": "light",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-preferred",
+      "theme": "light",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-preferred",
+      "theme": "light",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-preferred",
+      "theme": "light",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-dip",
+      "theme": "light",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-dip",
+      "theme": "light",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-dip",
+      "theme": "light",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-dip2",
+      "theme": "light",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-dip2",
+      "theme": "light",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-dip2",
+      "theme": "light",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-surge",
+      "theme": "light",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-surge",
+      "theme": "light",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-surge",
+      "theme": "light",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-combined",
+      "theme": "light",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-combined",
+      "theme": "light",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-combined",
+      "theme": "light",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-ths-system",
+      "theme": "light",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-ths-system",
+      "theme": "light",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-ths-system",
+      "theme": "light",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-ths-conditional",
+      "theme": "light",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-ths-conditional",
+      "theme": "light",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-ths-conditional",
+      "theme": "light",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-ths-combined",
+      "theme": "light",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-ths-combined",
+      "theme": "light",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-ths-combined",
+      "theme": "light",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-user-user",
+      "theme": "light",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-user-user",
+      "theme": "light",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-user-user",
+      "theme": "light",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "sectors-all",
+      "theme": "light",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "sectors-all",
+      "theme": "light",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "sectors-all",
+      "theme": "light",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "sectors-user",
+      "theme": "light",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "sectors-user",
+      "theme": "light",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "sectors-user",
+      "theme": "light",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "sectors-all-detail",
+      "theme": "light",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "sectors-all-detail",
+      "theme": "light",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "sectors-all-detail",
+      "theme": "light",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "index-overview",
+      "theme": "dark",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "index-overview",
+      "theme": "dark",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "index-overview",
+      "theme": "dark",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "index-history",
+      "theme": "dark",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "index-history",
+      "theme": "dark",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "index-history",
+      "theme": "dark",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "index-barometer",
+      "theme": "dark",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "index-barometer",
+      "theme": "dark",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "index-barometer",
+      "theme": "dark",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "leaderboard-ranking",
+      "theme": "dark",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "leaderboard-ranking",
+      "theme": "dark",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "leaderboard-ranking",
+      "theme": "dark",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "leaderboard-frequency",
+      "theme": "dark",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "leaderboard-frequency",
+      "theme": "dark",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "leaderboard-frequency",
+      "theme": "dark",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "leaderboard-top1",
+      "theme": "dark",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "leaderboard-top1",
+      "theme": "dark",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "leaderboard-top1",
+      "theme": "dark",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "limitup",
+      "theme": "dark",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "limitup",
+      "theme": "dark",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "limitup",
+      "theme": "dark",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "collection-sealed",
+      "theme": "dark",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "collection-sealed",
+      "theme": "dark",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "collection-sealed",
+      "theme": "dark",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "collection-broken",
+      "theme": "dark",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "collection-broken",
+      "theme": "dark",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "collection-broken",
+      "theme": "dark",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "flow-em",
+      "theme": "dark",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "flow-em",
+      "theme": "dark",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "flow-em",
+      "theme": "dark",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "flow-ths",
+      "theme": "dark",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "flow-ths",
+      "theme": "dark",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "flow-ths",
+      "theme": "dark",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "flow-sector-industry",
+      "theme": "dark",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "flow-sector-industry",
+      "theme": "dark",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "flow-sector-industry",
+      "theme": "dark",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "flow-sector-concept",
+      "theme": "dark",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "flow-sector-concept",
+      "theme": "dark",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "flow-sector-concept",
+      "theme": "dark",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "positions-open",
+      "theme": "dark",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "positions-open",
+      "theme": "dark",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "positions-open",
+      "theme": "dark",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "positions-buy",
+      "theme": "dark",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "positions-buy",
+      "theme": "dark",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "positions-buy",
+      "theme": "dark",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "positions-sell",
+      "theme": "dark",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "positions-sell",
+      "theme": "dark",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "positions-sell",
+      "theme": "dark",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "positions-reconcile",
+      "theme": "dark",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "positions-reconcile",
+      "theme": "dark",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "positions-reconcile",
+      "theme": "dark",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "positions-delivery",
+      "theme": "dark",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "positions-delivery",
+      "theme": "dark",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "positions-delivery",
+      "theme": "dark",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-system",
+      "theme": "dark",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-system",
+      "theme": "dark",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-system",
+      "theme": "dark",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-conditional",
+      "theme": "dark",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-conditional",
+      "theme": "dark",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-conditional",
+      "theme": "dark",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-new",
+      "theme": "dark",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-new",
+      "theme": "dark",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-new",
+      "theme": "dark",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-preferred",
+      "theme": "dark",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-preferred",
+      "theme": "dark",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-preferred",
+      "theme": "dark",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-dip",
+      "theme": "dark",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-dip",
+      "theme": "dark",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-dip",
+      "theme": "dark",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-dip2",
+      "theme": "dark",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-dip2",
+      "theme": "dark",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-dip2",
+      "theme": "dark",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-surge",
+      "theme": "dark",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-surge",
+      "theme": "dark",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-surge",
+      "theme": "dark",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-combined",
+      "theme": "dark",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-combined",
+      "theme": "dark",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-em-combined",
+      "theme": "dark",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-ths-system",
+      "theme": "dark",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-ths-system",
+      "theme": "dark",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-ths-system",
+      "theme": "dark",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-ths-conditional",
+      "theme": "dark",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-ths-conditional",
+      "theme": "dark",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-ths-conditional",
+      "theme": "dark",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-ths-combined",
+      "theme": "dark",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-ths-combined",
+      "theme": "dark",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-ths-combined",
+      "theme": "dark",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-user-user",
+      "theme": "dark",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-user-user",
+      "theme": "dark",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "picks-user-user",
+      "theme": "dark",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "sectors-all",
+      "theme": "dark",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "sectors-all",
+      "theme": "dark",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "sectors-all",
+      "theme": "dark",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "sectors-user",
+      "theme": "dark",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "sectors-user",
+      "theme": "dark",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "sectors-user",
+      "theme": "dark",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "sectors-all-detail",
+      "theme": "dark",
+      "width": 1440,
+      "pageWidth": 1440,
+      "headingOverlap": false,
+      "contentRight": 1440,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "sectors-all-detail",
+      "theme": "dark",
+      "width": 1920,
+      "pageWidth": 1920,
+      "headingOverlap": false,
+      "contentRight": 1920,
+      "blankPlaceholder": false
+    },
+    {
+      "view": "sectors-all-detail",
+      "theme": "dark",
+      "width": 2560,
+      "pageWidth": 2560,
+      "headingOverlap": false,
+      "contentRight": 2560,
+      "blankPlaceholder": false
+    }
+  ],
+  "errors": [],
+  "apiRequests": 0,
+  "writeRequests": 0,
+  "oldHashes": {
+    "dashboard/index.html": "01afcff8d28c14ce35aca5c51294cd35a95b09bf8ccba485dac8bb9eaed3df64",
+    "backend/app.py": "5e6b9503cdb5b90ac88132c5451aec5aee26efe3689f87ed4c312fa2a703460c"
+  },
+  "modalScreenshotCount": 18,
+  "sourceChecks": {
+    "javascriptSyntax": "passed",
+    "gitDiffCheck": "passed",
+    "remixIconSymbols": 40,
+    "missingIconReferences": 0
+  }
+}

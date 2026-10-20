@@ -1,0 +1,477 @@
+{
+  "_temporary_notice": "Temporary read-only data quality audit; retain until cleanup authorized.",
+  "daily_coverage": [
+    {
+      "month": "202001",
+      "rows": 60860,
+      "codes": 3873,
+      "days": 16
+    },
+    {
+      "month": "202002",
+      "rows": 61163,
+      "codes": 3887,
+      "days": 16
+    },
+    {
+      "month": "202003",
+      "rows": 42342,
+      "codes": 3926,
+      "days": 11
+    },
+    {
+      "month": "202004",
+      "rows": 11623,
+      "codes": 3955,
+      "days": 3
+    },
+    {
+      "month": "202005",
+      "rows": 7764,
+      "codes": 3916,
+      "days": 2
+    },
+    {
+      "month": "202006",
+      "rows": 7773,
+      "codes": 3923,
+      "days": 2
+    },
+    {
+      "month": "202007",
+      "rows": 7875,
+      "codes": 3969,
+      "days": 2
+    },
+    {
+      "month": "202008",
+      "rows": 8064,
+      "codes": 4060,
+      "days": 2
+    },
+    {
+      "month": "202009",
+      "rows": 4081,
+      "codes": 4081,
+      "days": 1
+    },
+    {
+      "month": "202012",
+      "rows": 4180,
+      "codes": 4180,
+      "days": 1
+    },
+    {
+      "month": "202101",
+      "rows": 4226,
+      "codes": 4226,
+      "days": 1
+    },
+    {
+      "month": "202103",
+      "rows": 8549,
+      "codes": 4289,
+      "days": 2
+    },
+    {
+      "month": "202104",
+      "rows": 4349,
+      "codes": 4349,
+      "days": 1
+    },
+    {
+      "month": "202111",
+      "rows": 4691,
+      "codes": 4691,
+      "days": 1
+    },
+    {
+      "month": "202202",
+      "rows": 4777,
+      "codes": 4777,
+      "days": 1
+    },
+    {
+      "month": "202208",
+      "rows": 4888,
+      "codes": 4888,
+      "days": 1
+    },
+    {
+      "month": "202304",
+      "rows": 5129,
+      "codes": 5129,
+      "days": 1
+    },
+    {
+      "month": "202404",
+      "rows": 5358,
+      "codes": 5358,
+      "days": 1
+    },
+    {
+      "month": "202406",
+      "rows": 5338,
+      "codes": 5338,
+      "days": 1
+    },
+    {
+      "month": "202504",
+      "rows": 113189,
+      "codes": 5411,
+      "days": 21
+    },
+    {
+      "month": "202505",
+      "rows": 102373,
+      "codes": 5401,
+      "days": 19
+    },
+    {
+      "month": "202506",
+      "rows": 107980,
+      "codes": 5417,
+      "days": 20
+    },
+    {
+      "month": "202507",
+      "rows": 124343,
+      "codes": 5425,
+      "days": 23
+    },
+    {
+      "month": "202508",
+      "rows": 113663,
+      "codes": 5426,
+      "days": 21
+    },
+    {
+      "month": "202509",
+      "rows": 119251,
+      "codes": 5436,
+      "days": 22
+    },
+    {
+      "month": "202510",
+      "rows": 92281,
+      "codes": 5443,
+      "days": 17
+    },
+    {
+      "month": "202511",
+      "rows": 108752,
+      "codes": 5453,
+      "days": 20
+    },
+    {
+      "month": "202512",
+      "rows": 125245,
+      "codes": 5471,
+      "days": 23
+    },
+    {
+      "month": "202601",
+      "rows": 109219,
+      "codes": 5478,
+      "days": 20
+    },
+    {
+      "month": "202602",
+      "rows": 76572,
+      "codes": 5482,
+      "days": 14
+    },
+    {
+      "month": "202603",
+      "rows": 120534,
+      "codes": 5495,
+      "days": 22
+    },
+    {
+      "month": "202604",
+      "rows": 115278,
+      "codes": 5515,
+      "days": 21
+    },
+    {
+      "month": "202605",
+      "rows": 98958,
+      "codes": 5510,
+      "days": 18
+    },
+    {
+      "month": "202606",
+      "rows": 115730,
+      "codes": 5530,
+      "days": 21
+    },
+    {
+      "month": "202607",
+      "rows": 127010,
+      "codes": 5539,
+      "days": 23
+    },
+    {
+      "month": "202608",
+      "rows": 116335,
+      "codes": 5551,
+      "days": 21
+    },
+    {
+      "month": "202609",
+      "rows": 116588,
+      "codes": 5571,
+      "days": 21
+    },
+    {
+      "month": "202610",
+      "rows": 5557,
+      "codes": 5557,
+      "days": 1
+    }
+  ],
+  "fund_by_source": [
+    {
+      "source": "eastmoney-daykline",
+      "rows": 272419,
+      "codes": 5567,
+      "min(trade_date)": "20260409",
+      "max(trade_date)": "20260930",
+      "dates": 120
+    },
+    {
+      "source": "eastmoney-push2",
+      "rows": 397440,
+      "codes": 5318,
+      "min(trade_date)": "20260616",
+      "max(trade_date)": "20261008",
+      "dates": 76
+    }
+  ],
+  "daily_invalid": [
+    {
+      "rows": 2271888,
+      "invalid_prices": 0,
+      "bad_volume": 0,
+      "bad_amount": 2090,
+      "inconsistent_ohlc": 0,
+      "missing_name": 328774
+    }
+  ],
+  "basic_empty_fields": [
+    {
+      "rows": 5671,
+      "industry_empty": 5671,
+      "industry_name_empty": 5671,
+      "total_mv_empty": 5671,
+      "circ_mv_empty": 5671,
+      "total_share_empty": 109,
+      "float_share_empty": 109,
+      "min(last_share_sync)": "2026-07-09",
+      "max(last_share_sync)": "2026-10-08"
+    }
+  ],
+  "industry_history": [
+    {
+      "rows": 7483,
+      "missing_in_date": 0,
+      "with_out_date": 2532,
+      "min(in_date)": "19901210",
+      "max(in_date)": "20260623",
+      "min(out_date)": "",
+      "max(out_date)": "20260625"
+    }
+  ],
+  "index_coverage": [
+    {
+      "name": "上证指数",
+      "rows": 499,
+      "min(replace(date,'-',''))": "20240910",
+      "max(replace(date,'-',''))": "20261008",
+      "bad_ohlc": 0
+    },
+    {
+      "name": "创业板指",
+      "rows": 499,
+      "min(replace(date,'-',''))": "20240910",
+      "max(replace(date,'-',''))": "20261008",
+      "bad_ohlc": 0
+    },
+    {
+      "name": "深证成指",
+      "rows": 499,
+      "min(replace(date,'-',''))": "20240910",
+      "max(replace(date,'-',''))": "20261008",
+      "bad_ohlc": 0
+    },
+    {
+      "name": "科创50",
+      "rows": 499,
+      "min(replace(date,'-',''))": "20240910",
+      "max(replace(date,'-',''))": "20261008",
+      "bad_ohlc": 0
+    }
+  ],
+  "coverage_and_reference": {
+    "stock_daily": {
+      "noncalendar_dates": [],
+      "post_20250401_dates": 368,
+      "missing_post_20250401": 0
+    },
+    "fund_flow": {
+      "noncalendar_dates": [],
+      "post_20250401_dates": 121,
+      "missing_post_20250401": 247
+    },
+    "fund_flow_ths": {
+      "noncalendar_dates": [],
+      "post_20250401_dates": 29,
+      "missing_post_20250401": 339
+    },
+    "stock_minline_bars": {
+      "noncalendar_dates": [
+        "20261001"
+      ],
+      "post_20250401_dates": 13,
+      "missing_post_20250401": 356
+    },
+    "index_minline_bars": {
+      "noncalendar_dates": [],
+      "post_20250401_dates": 12,
+      "missing_post_20250401": 356
+    },
+    "limitup": {
+      "noncalendar_dates": [
+        "20260509",
+        "20260530"
+      ],
+      "post_20250401_dates": 139,
+      "missing_post_20250401": 231
+    },
+    "market_fflow": {
+      "noncalendar_dates": [],
+      "post_20250401_dates": 135,
+      "missing_post_20250401": 233
+    },
+    "fund_duplicates": {
+      "same_code_date_multi_sources": 0,
+      "same_code_date_multi_rows": 0
+    },
+    "market_flow_complete": [
+      {
+        "complete": 1,
+        "rows": 135,
+        "date_min": "20260319",
+        "date_max": "20261008"
+      }
+    ],
+    "daily_price_reference": [
+      {
+        "rows_with_prev": 2003244,
+        "return_diff_gt_0_15_pp": 8429,
+        "return_diff_gt_1_pp": 4378
+      }
+    ]
+  },
+  "reference_consecutive": [
+    {
+      "rows_with_consecutive_prev": 2002332,
+      "return_diff_gt_0_15_pp": 8403,
+      "return_diff_gt_1_pp": 4359
+    }
+  ],
+  "daily_missing_static_basic": [
+    {
+      "codes_without_current_basic": 208
+    }
+  ],
+  "basic_date_range": [
+    {
+      "min(listing_date)": "19901201",
+      "max(listing_date)": "20260930",
+      "min(last_sync_date)": null,
+      "max(last_sync_date)": null
+    }
+  ],
+  "sector_constituent_date": [
+    {
+      "min(in_date)": "2026-10-07",
+      "max(in_date)": "2026-10-07",
+      "count(DISTINCT in_date)": 1
+    }
+  ],
+  "amount_unit_diagnostics": {
+    "BJ_20250401_20260615": {
+      "rows": 82704,
+      "ratio_amount_to_volume_close_quantiles": [
+        0.0372719190147223,
+        0.09876612407702283,
+        0.10019811629495379,
+        0.1017967867561586,
+        0.1260823540941523
+      ],
+      "ratio_gt_10_count": 0,
+      "ratio_lt_0_01_count": 0
+    },
+    "BJ_20260616_20260930": {
+      "rows": 24981,
+      "ratio_amount_to_volume_close_quantiles": [
+        0.03510768093644634,
+        0.09861777751053784,
+        0.10017255405268463,
+        0.10197115438199487,
+        0.12152782149978253
+      ],
+      "ratio_gt_10_count": 0,
+      "ratio_lt_0_01_count": 0
+    },
+    "SH_20250401_20260615": {
+      "rows": 667176,
+      "ratio_amount_to_volume_close_quantiles": [
+        0.06923666686937224,
+        0.09891462417006297,
+        0.1000132353223973,
+        0.10116573900038948,
+        0.11971365230898634
+      ],
+      "ratio_gt_10_count": 0,
+      "ratio_lt_0_01_count": 0
+    },
+    "SH_20260616_20260930": {
+      "rows": 173190,
+      "ratio_amount_to_volume_close_quantiles": [
+        0.04432495930822985,
+        0.0985836308849791,
+        0.10000681716589636,
+        0.10161745394426364,
+        0.1219821847400137
+      ],
+      "ratio_gt_10_count": 0,
+      "ratio_lt_0_01_count": 0
+    },
+    "SZ_20250401_20260615": {
+      "rows": 836292,
+      "ratio_amount_to_volume_close_quantiles": [
+        0.06522907219641788,
+        0.09889429626191702,
+        0.10001950349433113,
+        0.10123723548972739,
+        0.12144748718055462
+      ],
+      "ratio_gt_10_count": 0,
+      "ratio_lt_0_01_count": 0
+    },
+    "SZ_20260616_20260930": {
+      "rows": 216868,
+      "ratio_amount_to_volume_close_quantiles": [
+        0.0687118691160098,
+        0.09854129971599575,
+        0.10000751499294395,
+        0.10164484164587506,
+        0.1196069665537053
+      ],
+      "ratio_gt_10_count": 0,
+      "ratio_lt_0_01_count": 0
+    }
+  }
+}

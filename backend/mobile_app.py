@@ -122,23 +122,15 @@ def create_app(db_path=None, hostname=None):
             result = SavedData(conn).chart(request.args.get('ts_code', ''), request.args.get('kind', 'stock'), day, start)
         return jsonify(result)
 
-    @app.get('/api/mobile/sectors/detail')
-    def sector_detail():
-        name = request.args.get('name', '').strip()
+    @app.get('/api/mobile/hot-sectors/detail')
+    def hot_sector_detail():
+        from hot_sectors import hot_sectors
+        name = request.args.get('sector', '').strip()
         if not name or len(name) > 200:
             raise ValueError('板块名称无效')
         with connect_readonly(app.config['DB_PATH']) as conn:
-            data = SavedData(conn)
-            dates = data.dates('sectors')
-            day = date_arg(request.args.get('date')) or (dates[0] if dates else None)
-            items = data.sector_detail(name, day) if day else []
-        return jsonify(name=name, date=day, items=items)
-
-    @app.get('/api/mobile/user-sectors')
-    def user_sectors():
-        with connect_readonly(app.config['DB_PATH']) as conn:
-            items = SavedData(conn).user_sectors()
-        return jsonify(items=items, readonly=True)
+            result = hot_sectors(conn, date_arg(request.args.get('date')) or '', name)
+        return jsonify(result)
 
     @app.get('/api/mobile/preferred-history')
     def preferred_history():
@@ -149,6 +141,11 @@ def create_app(db_path=None, hostname=None):
         with connect_readonly(app.config['DB_PATH']) as conn:
             result = SavedData(conn).preferred_history(days)
         return jsonify(status='ok', readonly=True, **result)
+
+    # 在线设备统计: 与桌面端 5555 共用同一个 visitors.db, 所以手机上看到的
+    # "几台设备在浏览" 和电脑上是一致的。这里写的是独立访客表, 行情库仍严格只读。
+    from visitor_stats import register_visitor_stats
+    register_visitor_stats(app)
 
     return app
 

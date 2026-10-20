@@ -1,0 +1,249 @@
+{
+  "library": "Remix Icon",
+  "version": "4.9.1",
+  "homepage": "https://remixicon.com/",
+  "source": "https://registry.npmjs.org/remixicon/-/remixicon-4.9.1.tgz",
+  "license": "Remix Icon License v1.0",
+  "icons": [
+    {
+      "id": "i-grid",
+      "name": "layout-grid-line",
+      "package_path": "package/icons/Design/layout-grid-line.svg",
+      "sha256": "246bd15d3c8246db8463f1854515fd0a3ba1b84a0cab2cd22ccf43d724ffd1b1"
+    },
+    {
+      "id": "i-chart",
+      "name": "line-chart-line",
+      "package_path": "package/icons/Business/line-chart-line.svg",
+      "sha256": "782f15e0dfc68833673de9f3ed0fcba7a8e9676492600739226985465d35d2d3"
+    },
+    {
+      "id": "i-layers",
+      "name": "stack-line",
+      "package_path": "package/icons/Business/stack-line.svg",
+      "sha256": "c3d706391b37a7ce18d0b17e04cd524c37bfb58c806493e191e7dc3c95cda393"
+    },
+    {
+      "id": "i-bolt",
+      "name": "flashlight-line",
+      "package_path": "package/icons/Weather/flashlight-line.svg",
+      "sha256": "45db92a096021ecb3c55acc9c33f42704d8c42de4f0d2f189ab16855887166b8"
+    },
+    {
+      "id": "i-flow",
+      "name": "exchange-funds-line",
+      "package_path": "package/icons/Finance/exchange-funds-line.svg",
+      "sha256": "17d741f78f6d0265bd4fd8d15b6314e25985ae970582b5a13bbb00f0911780b8"
+    },
+    {
+      "id": "i-picks",
+      "name": "focus-3-line",
+      "package_path": "package/icons/Design/focus-3-line.svg",
+      "sha256": "f28664fdc22722960be7ca17ce8376c98e61498d04b7ecfa062fd63e4578a1a9"
+    },
+    {
+      "id": "i-sector",
+      "name": "apps-2-line",
+      "package_path": "package/icons/System/apps-2-line.svg",
+      "sha256": "d6bd780c59c7d0fe8c235a803fef476f019d1a4ed25928cef0077d2895fd4250"
+    },
+    {
+      "id": "i-wallet",
+      "name": "wallet-3-line",
+      "package_path": "package/icons/Finance/wallet-3-line.svg",
+      "sha256": "f026aa9536dbabb277c28025d30759527fa20585e56a632317bb3c81a06b7424"
+    },
+    {
+      "id": "i-panel",
+      "name": "side-bar-line",
+      "package_path": "package/icons/System/side-bar-line.svg",
+      "sha256": "ae6159841ea31099c9ad12114e8c79f806000639b8a2fb83a6f692371c2f3e08"
+    },
+    {
+      "id": "i-search",
+      "name": "search-line",
+      "package_path": "package/icons/System/search-line.svg",
+      "sha256": "e36fd9d602a25425c6c2288005ef5a413eec710f9718bd01dbfd81cb4d6b5c19"
+    },
+    {
+      "id": "i-date",
+      "name": "calendar-line",
+      "package_path": "package/icons/Business/calendar-line.svg",
+      "sha256": "97a1307f5f723435587f185da18a0046c29907843bad0e66e42a75a45b53e8dc"
+    },
+    {
+      "id": "i-left",
+      "name": "arrow-left-s-line",
+      "package_path": "package/icons/Arrows/arrow-left-s-line.svg",
+      "sha256": "7d0407d47b59e7d69446ef81b79e95c5d5a4085e7fa7ba30770556b67197407e"
+    },
+    {
+      "id": "i-right",
+      "name": "arrow-right-s-line",
+      "package_path": "package/icons/Arrows/arrow-right-s-line.svg",
+      "sha256": "2c579a4dbaf25e19a128d71e04f4cf43b19ad2487a0076ff7e7e5a94c9b3e013"
+    },
+    {
+      "id": "i-down",
+      "name": "arrow-down-s-line",
+      "package_path": "package/icons/Arrows/arrow-down-s-line.svg",
+      "sha256": "4b0bf8a45d554ba97d8115ef2713010f196ad49d57eeecb8a42d4839a5ba8f9e"
+    },
+    {
+      "id": "i-refresh",
+      "name": "refresh-line",
+      "package_path": "package/icons/System/refresh-line.svg",
+      "sha256": "6768ce94b9e55f865945bf27ae1a238303f0d1d5d0f6e2bedfd4d4123a578d23"
+    },
+    {
+      "id": "i-sun",
+      "name": "sun-line",
+      "package_path": "package/icons/Weather/sun-line.svg",
+      "sha256": "353abcffef6cfeb1a3b4200182564fdce45c906de26f339b154da5bf4af1b796"
+    },
+    {
+      "id": "i-moon",
+      "name": "moon-line",
+      "package_path": "package/icons/Weather/moon-line.svg",
+      "sha256": "d87e53116c432cdc6b36972282cd76222f61c50897ae122a2c0a23a93b68670a"
+    },
+    {
+      "id": "i-filter",
+      "name": "equalizer-line",
+      "package_path": "package/icons/Media/equalizer-line.svg",
+      "sha256": "1d8463bb40ae9c2cc6ae10c96983a0a73fbad9833b5d70c32dc07a407755f548"
+    },
+    {
+      "id": "i-columns",
+      "name": "layout-column-line",
+      "package_path": "package/icons/Design/layout-column-line.svg",
+      "sha256": "1369511e82ea7ccaae5c16e9bf63473934a988036b94c92b75924482ee578b7a"
+    },
+    {
+      "id": "i-info",
+      "name": "information-line",
+      "package_path": "package/icons/System/information-line.svg",
+      "sha256": "97582ae28bf5017a1f6a5901dc87e6ff36a72acf58854c04fcbd1c6730f30616"
+    },
+    {
+      "id": "i-close",
+      "name": "close-line",
+      "package_path": "package/icons/System/close-line.svg",
+      "sha256": "db3b4dcebb2d962a0231a191538bf6939620798b18f0ba52d4b91c5a4649ce54"
+    },
+    {
+      "id": "i-expand",
+      "name": "fullscreen-line",
+      "package_path": "package/icons/Media/fullscreen-line.svg",
+      "sha256": "4c98301c55d2d8fadc57a0d2cfc06005ef285d48b5d9aec64bfe3023f6429528"
+    },
+    {
+      "id": "i-shrink",
+      "name": "fullscreen-exit-line",
+      "package_path": "package/icons/Media/fullscreen-exit-line.svg",
+      "sha256": "b563ab63baea6e32e64624f3dc0e52316ed22474e8d3bb7b688a0c018df2a30b"
+    },
+    {
+      "id": "i-arrow",
+      "name": "arrow-right-line",
+      "package_path": "package/icons/Arrows/arrow-right-line.svg",
+      "sha256": "194837901f0a243ea17e2c435d12e3eebc0a9ae455749aa7ce28ff562f125f38"
+    },
+    {
+      "id": "i-check",
+      "name": "check-line",
+      "package_path": "package/icons/System/check-line.svg",
+      "sha256": "b83a64bf881169d5edeaa6134a7ba37192f0ddc80c2e2a890578ae0f2f8f9169"
+    },
+    {
+      "id": "i-sort-up",
+      "name": "arrow-up-line",
+      "package_path": "package/icons/Arrows/arrow-up-line.svg",
+      "sha256": "047242b33db3e4a7c2aa9bfd0786c5c6e4a5dd6c3742770e7500cc7923a17554"
+    },
+    {
+      "id": "i-sort-down",
+      "name": "arrow-down-line",
+      "package_path": "package/icons/Arrows/arrow-down-line.svg",
+      "sha256": "b1b1432f71a0ac7fbd3b1a114101edeb6406efc33c13c5957d2f17facf6875e7"
+    },
+    {
+      "id": "i-sort",
+      "name": "arrow-up-down-line",
+      "package_path": "package/icons/Arrows/arrow-up-down-line.svg",
+      "sha256": "ea1068e4a39a3f8608cffb4ac9d31b8081a3c2b46dd6cda0114d4f4ff88b15c3"
+    },
+    {
+      "id": "i-add",
+      "name": "add-line",
+      "package_path": "package/icons/System/add-line.svg",
+      "sha256": "b03a98dbb2f1d4c1aed7987ce4be58b6af4b4be8af47b08aadb77c4a35d6a645"
+    },
+    {
+      "id": "i-upload",
+      "name": "upload-cloud-2-line",
+      "package_path": "package/icons/System/upload-cloud-2-line.svg",
+      "sha256": "bc3b08183b423e07775c50e87136bc60fff81b53055bd9e20c448812324c3c38"
+    },
+    {
+      "id": "i-file",
+      "name": "file-list-3-line",
+      "package_path": "package/icons/Document/file-list-3-line.svg",
+      "sha256": "f90b0760329c60892afb682c566c515543ddc6525a0504a64a548d77b4a847e7"
+    },
+    {
+      "id": "i-download",
+      "name": "download-2-line",
+      "package_path": "package/icons/System/download-2-line.svg",
+      "sha256": "4fa3657656589ab193548fce4f170dac76e3dce114ae688fa0c6c81685bd198d"
+    },
+    {
+      "id": "i-star",
+      "name": "star-line",
+      "package_path": "package/icons/System/star-line.svg",
+      "sha256": "bf10036893a04a9a68d69be5c5150d856f1aab34b771f7d49a3bf9c39688c5e7"
+    },
+    {
+      "id": "i-starred",
+      "name": "star-fill",
+      "package_path": "package/icons/System/star-fill.svg",
+      "sha256": "f770ca9f38ea6432b5959a731025aebd4224ce802b0935d6a4eb73cfc0b4c5c1"
+    },
+    {
+      "id": "i-delete",
+      "name": "delete-bin-line",
+      "package_path": "package/icons/System/delete-bin-line.svg",
+      "sha256": "a3484fc34454104f58430d605047d353c6f9669fd037b2b30a98d4f58ad66a3e"
+    },
+    {
+      "id": "i-settings",
+      "name": "settings-3-line",
+      "package_path": "package/icons/System/settings-3-line.svg",
+      "sha256": "f2e1fd30e6eadb8d5636f5037cf477f38ef81b235757d3ed290b92b2c002fec1"
+    },
+    {
+      "id": "i-calc",
+      "name": "calculator-line",
+      "package_path": "package/icons/Business/calculator-line.svg",
+      "sha256": "8d2471702808c0631aa85b17ce2c5c71bdde93aafd4b4b0082c1dbf98bbefc55"
+    },
+    {
+      "id": "i-history",
+      "name": "history-line",
+      "package_path": "package/icons/System/history-line.svg",
+      "sha256": "8a9e56b2de2daddf64fc31414d456b07ada11f8cb93bd7a280832782b836dfd5"
+    },
+    {
+      "id": "i-image",
+      "name": "image-line",
+      "package_path": "package/icons/Media/image-line.svg",
+      "sha256": "da8ec323a5f37d6e7feacce550f2ba25c3f6e0fd37b94b4ac652dbd809130d4e"
+    },
+    {
+      "id": "i-database",
+      "name": "database-2-line",
+      "package_path": "package/icons/Device/database-2-line.svg",
+      "sha256": "45c686a7a81d621113473f09d9f7b4bbe679440ab53c3a0dbfad7635a88de703"
+    }
+  ]
+}

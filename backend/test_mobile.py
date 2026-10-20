@@ -16,7 +16,7 @@ def seed_fixture(path):
     c = sqlite3.connect(path)
     c.executescript('''
     CREATE TABLE index_daily (date TEXT,name TEXT,open REAL,high REAL,low REAL,close REAL,change REAL,volume REAL);
-    CREATE TABLE overview (date TEXT,totalVolume REAL,upCount INTEGER,downCount INTEGER,flatCount INTEGER,limitUp INTEGER,limitDown INTEGER);
+    CREATE TABLE overview (date TEXT,totalVolume REAL,upCount INTEGER,downCount INTEGER,flatCount INTEGER,limitUp INTEGER,limitDown INTEGER,netFlow REAL);
     CREATE TABLE stock_daily (ts_code TEXT,trade_date TEXT,name TEXT,open REAL,high REAL,low REAL,close REAL,change REAL,volume REAL,amount REAL);
     CREATE TABLE leaderboard (date TEXT,type TEXT,rank INTEGER,code TEXT,name TEXT,change REAL,reason TEXT);
     CREATE TABLE limitup (date TEXT,code TEXT,name TEXT,marketCap REAL,time TEXT,sector TEXT,volume REAL,streak TEXT,keyword TEXT);
@@ -50,7 +50,7 @@ def seed_fixture(path):
     c.execute("INSERT INTO stock_daily VALUES ('000002.SZ','2026-09-12','日期测试',11,13,10,12,2,100,100000)")
     for code,name,base in codes[1:]:
         c.execute('INSERT INTO index_daily VALUES (?,?,?,?,?,?,?,?)',('20260911',name,base,base+20,base-10,base+10,-.56,3200))
-    c.execute("INSERT INTO overview VALUES ('20260911',21800,3250,1980,81,78,5)")
+    c.execute("INSERT INTO overview VALUES ('20260911',21800,3250,1980,81,78,5,10)")
     for period in ('5日','10日','20日'):
         c.execute("INSERT INTO leaderboard VALUES ('20260911',?,1,'600001','示例科技',35,'测试样本')",(period,))
     c.execute("INSERT INTO limitup VALUES ('20260911','600001','示例科技',120,'09:35','机器人',15,'2板','测试')")
@@ -158,9 +158,12 @@ class MobileTests(unittest.TestCase):
         self.assertEqual(stock_code('900901'),'900901.SH')
         self.assertEqual(stock_code('920001'),'920001.BJ')
 
-    def test_sector_members(self):
-        self.assertEqual(self.get('sectors/detail?name=机器人&date=20260911')['items'][0]['ts_code'],'600001.SH')
-        self.assertEqual(self.get('user-sectors')['items'][0]['stocks'][0]['name'],'示例科技')
+    def test_hot_sector_members_and_old_routes_removed(self):
+        result = self.get('hot-sectors/detail?sector=机器人&date=20260911')
+        self.assertEqual(result['detail']['stocks'][0]['ts_code'],'600001.SH')
+        self.assertEqual(result['detail']['pending_count'],1)
+        self.assertEqual(self.client.get('/api/mobile/sectors/detail?name=机器人').status_code,404)
+        self.assertEqual(self.client.get('/api/mobile/user-sectors').status_code,404)
 
     def test_write_methods_unknown_routes_static_traversal_and_bad_host(self):
         for method in ('post','put','patch','delete','options'):

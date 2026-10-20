@@ -1,0 +1,3782 @@
+{
+  "verified_on": "2026-10-19",
+  "unit_tests": {
+    "command": ".venv/bin/python -m unittest discover -s backend -p test_box_breakout_research.py",
+    "passed": 12
+  },
+  "independent_value_checks": 176,
+  "formula_verification": {
+    "verification_date": "2026-10-19",
+    "source": "Existing Formula/Evaluator and actual local stock_daily, no app import or database writes",
+    "rules": [
+      {
+        "name": "此前20日高低范围不超过35%",
+        "formula": "(MAX(high,20,1) / MIN(low,20,1) - 1) * 100 <= 35"
+      },
+      {
+        "name": "箱体末5日与初5日均价差不超过10%",
+        "formula": "ABS(AVG(close,5,1) / AVG(close,5,16) - 1) * 100 <= 10"
+      },
+      {
+        "name": "收盘超过此前20日最高收盘价至少1%",
+        "formula": "(close / MAX(close,20,1) - 1) * 100 >= 1"
+      },
+      {
+        "name": "成交量至少为此前5日均量的1.2倍",
+        "formula": "volume / AVG(volume,5,1) >= 1.2"
+      },
+      {
+        "name": "当日上涨至少2%",
+        "formula": "change >= 2"
+      },
+      {
+        "name": "收盘处于当日振幅上方40%区域",
+        "formula": "high > low and (close - low) / (high - low) >= 0.6"
+      }
+    ],
+    "cases": [
+      {
+        "name": "中润光学",
+        "code": "688307.SH",
+        "date": "20260302",
+        "calendar_days": 22,
+        "bars_loaded": 22,
+        "daily_ready": true,
+        "valid_suffix": 22,
+        "formula_matched": true,
+        "research_matched": true,
+        "research_window_valid": true,
+        "cross_close": true,
+        "cross_high": true,
+        "prior_close_break": -2.4761162019886873,
+        "cross_close_research": true,
+        "rules": [
+          {
+            "id": "rule1",
+            "name": "此前20日高低范围不超过35%",
+            "state": "matched",
+            "values": [
+              17.27949469884955,
+              35
+            ],
+            "research_value": 17.27949469884955,
+            "research_pass": true
+          },
+          {
+            "id": "rule2",
+            "name": "箱体末5日与初5日均价差不超过10%",
+            "state": "matched",
+            "values": [
+              2.397160158696998,
+              10
+            ],
+            "research_value": 2.397160158696998,
+            "research_pass": true
+          },
+          {
+            "id": "rule3",
+            "name": "收盘超过此前20日最高收盘价至少1%",
+            "state": "matched",
+            "values": [
+              17.020861766426208,
+              1
+            ],
+            "research_value": 17.020861766426208,
+            "research_pass": true
+          },
+          {
+            "id": "rule4",
+            "name": "成交量至少为此前5日均量的1.2倍",
+            "state": "matched",
+            "values": [
+              3.6264633406891855,
+              1.2
+            ],
+            "research_value": 3.6264633406891855,
+            "research_pass": true
+          },
+          {
+            "id": "rule5",
+            "name": "当日上涨至少2%",
+            "state": "matched",
+            "values": [
+              19.992,
+              2
+            ],
+            "research_value": 19.992,
+            "research_pass": true
+          },
+          {
+            "id": "rule6",
+            "name": "收盘处于当日振幅上方40%区域",
+            "state": "matched",
+            "research_value": 1.0,
+            "research_pass": true
+          }
+        ]
+      },
+      {
+        "name": "广钢气体",
+        "code": "688548.SH",
+        "date": "20260622",
+        "calendar_days": 22,
+        "bars_loaded": 22,
+        "daily_ready": true,
+        "valid_suffix": 22,
+        "formula_matched": true,
+        "research_matched": true,
+        "research_window_valid": true,
+        "cross_close": true,
+        "cross_high": true,
+        "prior_close_break": -0.26865671641792543,
+        "cross_close_research": true,
+        "rules": [
+          {
+            "id": "rule1",
+            "name": "此前20日高低范围不超过35%",
+            "state": "matched",
+            "values": [
+              31.30535232961109,
+              35
+            ],
+            "research_value": 31.30535232961109,
+            "research_pass": true
+          },
+          {
+            "id": "rule2",
+            "name": "箱体末5日与初5日均价差不超过10%",
+            "state": "matched",
+            "values": [
+              3.3745630545845673,
+              10
+            ],
+            "research_value": 3.3745630545845673,
+            "research_pass": true
+          },
+          {
+            "id": "rule3",
+            "name": "收盘超过此前20日最高收盘价至少1%",
+            "state": "matched",
+            "values": [
+              14.567164179104486,
+              1
+            ],
+            "research_value": 14.567164179104486,
+            "research_pass": true
+          },
+          {
+            "id": "rule4",
+            "name": "成交量至少为此前5日均量的1.2倍",
+            "state": "matched",
+            "values": [
+              1.3482013883566695,
+              1.2
+            ],
+            "research_value": 1.3482013883566695,
+            "research_pass": true
+          },
+          {
+            "id": "rule5",
+            "name": "当日上涨至少2%",
+            "state": "matched",
+            "values": [
+              14.8758,
+              2
+            ],
+            "research_value": 14.8758,
+            "research_pass": true
+          },
+          {
+            "id": "rule6",
+            "name": "收盘处于当日振幅上方40%区域",
+            "state": "matched",
+            "research_value": 0.7868852459016399,
+            "research_pass": true
+          }
+        ]
+      },
+      {
+        "name": "斯莱克",
+        "code": "300382.SZ",
+        "date": "20260622",
+        "calendar_days": 22,
+        "bars_loaded": 22,
+        "daily_ready": true,
+        "valid_suffix": 22,
+        "formula_matched": true,
+        "research_matched": true,
+        "research_window_valid": true,
+        "cross_close": true,
+        "cross_high": false,
+        "prior_close_break": -6.057076295864894,
+        "cross_close_research": true,
+        "rules": [
+          {
+            "id": "rule1",
+            "name": "此前20日高低范围不超过35%",
+            "state": "matched",
+            "values": [
+              25.702247191011217,
+              35
+            ],
+            "research_value": 25.702247191011217,
+            "research_pass": true
+          },
+          {
+            "id": "rule2",
+            "name": "箱体末5日与初5日均价差不超过10%",
+            "state": "matched",
+            "values": [
+              8.426225578329127,
+              10
+            ],
+            "research_value": 8.426225578329149,
+            "research_pass": true
+          },
+          {
+            "id": "rule3",
+            "name": "收盘超过此前20日最高收盘价至少1%",
+            "state": "matched",
+            "values": [
+              4.135119394292364,
+              1
+            ],
+            "research_value": 4.135119394292364,
+            "research_pass": true
+          },
+          {
+            "id": "rule4",
+            "name": "成交量至少为此前5日均量的1.2倍",
+            "state": "matched",
+            "values": [
+              2.5919271663054584,
+              1.2
+            ],
+            "research_value": 2.591927166305459,
+            "research_pass": true
+          },
+          {
+            "id": "rule5",
+            "name": "当日上涨至少2%",
+            "state": "matched",
+            "values": [
+              10.8493,
+              2
+            ],
+            "research_value": 10.8493,
+            "research_pass": true
+          },
+          {
+            "id": "rule6",
+            "name": "收盘处于当日振幅上方40%区域",
+            "state": "matched",
+            "research_value": 0.9420289855072459,
+            "research_pass": true
+          }
+        ]
+      },
+      {
+        "name": "昆船智能",
+        "code": "301311.SZ",
+        "date": "20260922",
+        "calendar_days": 22,
+        "bars_loaded": 22,
+        "daily_ready": true,
+        "valid_suffix": 22,
+        "formula_matched": true,
+        "research_matched": true,
+        "research_window_valid": true,
+        "cross_close": true,
+        "cross_high": true,
+        "prior_close_break": -3.4916201117318413,
+        "cross_close_research": true,
+        "rules": [
+          {
+            "id": "rule1",
+            "name": "此前20日高低范围不超过35%",
+            "state": "matched",
+            "values": [
+              10.213414634146357,
+              35
+            ],
+            "research_value": 10.213414634146357,
+            "research_pass": true
+          },
+          {
+            "id": "rule2",
+            "name": "箱体末5日与初5日均价差不超过10%",
+            "state": "matched",
+            "values": [
+              1.1091652072387492,
+              10
+            ],
+            "research_value": 1.1091652072387714,
+            "research_pass": true
+          },
+          {
+            "id": "rule3",
+            "name": "收盘超过此前20日最高收盘价至少1%",
+            "state": "matched",
+            "values": [
+              7.5418994413407825,
+              1
+            ],
+            "research_value": 7.5418994413407825,
+            "research_pass": true
+          },
+          {
+            "id": "rule4",
+            "name": "成交量至少为此前5日均量的1.2倍",
+            "state": "matched",
+            "values": [
+              8.887385269702953,
+              1.2
+            ],
+            "research_value": 8.887385269702953,
+            "research_pass": true
+          },
+          {
+            "id": "rule5",
+            "name": "当日上涨至少2%",
+            "state": "matched",
+            "values": [
+              11.4327,
+              2
+            ],
+            "research_value": 11.4327,
+            "research_pass": true
+          },
+          {
+            "id": "rule6",
+            "name": "收盘处于当日振幅上方40%区域",
+            "state": "matched",
+            "research_value": 0.6666666666666664,
+            "research_pass": true
+          }
+        ]
+      },
+      {
+        "name": "向日葵",
+        "code": "300111.SZ",
+        "date": "20261009",
+        "calendar_days": 22,
+        "bars_loaded": 22,
+        "daily_ready": true,
+        "valid_suffix": 22,
+        "formula_matched": true,
+        "research_matched": true,
+        "research_window_valid": true,
+        "cross_close": true,
+        "cross_high": true,
+        "prior_close_break": -7.187500000000002,
+        "cross_close_research": true,
+        "rules": [
+          {
+            "id": "rule1",
+            "name": "此前20日高低范围不超过35%",
+            "state": "matched",
+            "values": [
+              14.827586206896548,
+              35
+            ],
+            "research_value": 14.827586206896548,
+            "research_pass": true
+          },
+          {
+            "id": "rule2",
+            "name": "箱体末5日与初5日均价差不超过10%",
+            "state": "matched",
+            "values": [
+              4.871794871794877,
+              10
+            ],
+            "research_value": 4.871794871794877,
+            "research_pass": true
+          },
+          {
+            "id": "rule3",
+            "name": "收盘超过此前20日最高收盘价至少1%",
+            "state": "matched",
+            "values": [
+              6.562500000000004,
+              1
+            ],
+            "research_value": 6.562500000000004,
+            "research_pass": true
+          },
+          {
+            "id": "rule4",
+            "name": "成交量至少为此前5日均量的1.2倍",
+            "state": "matched",
+            "values": [
+              5.847923901240983,
+              1.2
+            ],
+            "research_value": 5.847923901240983,
+            "research_pass": true
+          },
+          {
+            "id": "rule5",
+            "name": "当日上涨至少2%",
+            "state": "matched",
+            "values": [
+              14.8148,
+              2
+            ],
+            "research_value": 14.8148,
+            "research_pass": true
+          },
+          {
+            "id": "rule6",
+            "name": "收盘处于当日振幅上方40%区域",
+            "state": "matched",
+            "research_value": 0.736842105263158,
+            "research_pass": true
+          }
+        ]
+      },
+      {
+        "name": "晶雪节能",
+        "code": "301010.SZ",
+        "date": "20261008",
+        "calendar_days": 22,
+        "bars_loaded": 22,
+        "daily_ready": true,
+        "valid_suffix": 22,
+        "formula_matched": true,
+        "research_matched": true,
+        "research_window_valid": true,
+        "cross_close": false,
+        "cross_high": true,
+        "prior_close_break": 1.116751269035543,
+        "cross_close_research": false,
+        "rules": [
+          {
+            "id": "rule1",
+            "name": "此前20日高低范围不超过35%",
+            "state": "matched",
+            "values": [
+              24.02957486136783,
+              35
+            ],
+            "research_value": 24.02957486136783,
+            "research_pass": true
+          },
+          {
+            "id": "rule2",
+            "name": "箱体末5日与初5日均价差不超过10%",
+            "state": "matched",
+            "values": [
+              8.624527042065422,
+              10
+            ],
+            "research_value": 8.624527042065422,
+            "research_pass": true
+          },
+          {
+            "id": "rule3",
+            "name": "收盘超过此前20日最高收盘价至少1%",
+            "state": "matched",
+            "values": [
+              6.174698795180711,
+              1
+            ],
+            "research_value": 6.174698795180711,
+            "research_pass": true
+          },
+          {
+            "id": "rule4",
+            "name": "成交量至少为此前5日均量的1.2倍",
+            "state": "matched",
+            "values": [
+              2.0014909458387313,
+              1.2
+            ],
+            "research_value": 2.0014909458387313,
+            "research_pass": true
+          },
+          {
+            "id": "rule5",
+            "name": "当日上涨至少2%",
+            "state": "matched",
+            "values": [
+              6.1747,
+              2
+            ],
+            "research_value": 6.1747,
+            "research_pass": true
+          },
+          {
+            "id": "rule6",
+            "name": "收盘处于当日振幅上方40%区域",
+            "state": "matched",
+            "research_value": 0.6113744075829382,
+            "research_pass": true
+          }
+        ]
+      },
+      {
+        "name": "国力电子",
+        "code": "688103.SH",
+        "date": "20260630",
+        "calendar_days": 22,
+        "bars_loaded": 22,
+        "daily_ready": true,
+        "valid_suffix": 22,
+        "formula_matched": true,
+        "research_matched": true,
+        "research_window_valid": true,
+        "cross_close": false,
+        "cross_high": true,
+        "prior_close_break": 3.4653465346534684,
+        "cross_close_research": false,
+        "rules": [
+          {
+            "id": "rule1",
+            "name": "此前20日高低范围不超过35%",
+            "state": "matched",
+            "values": [
+              21.607142857142847,
+              35
+            ],
+            "research_value": 21.607142857142847,
+            "research_pass": true
+          },
+          {
+            "id": "rule2",
+            "name": "箱体末5日与初5日均价差不超过10%",
+            "state": "matched",
+            "values": [
+              0.8415825621513551,
+              10
+            ],
+            "research_value": 0.8415825621513551,
+            "research_pass": true
+          },
+          {
+            "id": "rule3",
+            "name": "收盘超过此前20日最高收盘价至少1%",
+            "state": "matched",
+            "values": [
+              11.258971291866038,
+              1
+            ],
+            "research_value": 11.258971291866038,
+            "research_pass": true
+          },
+          {
+            "id": "rule4",
+            "name": "成交量至少为此前5日均量的1.2倍",
+            "state": "matched",
+            "values": [
+              1.6896954366869965,
+              1.2
+            ],
+            "research_value": 1.6896954366869965,
+            "research_pass": true
+          },
+          {
+            "id": "rule5",
+            "name": "当日上涨至少2%",
+            "state": "matched",
+            "values": [
+              11.259,
+              2
+            ],
+            "research_value": 11.259,
+            "research_pass": true
+          },
+          {
+            "id": "rule6",
+            "name": "收盘处于当日振幅上方40%区域",
+            "state": "matched",
+            "research_value": 0.7846607669616519,
+            "research_pass": true
+          }
+        ]
+      },
+      {
+        "name": "杰恩股份",
+        "code": "300668.SZ",
+        "date": "20260323",
+        "calendar_days": 22,
+        "bars_loaded": 22,
+        "daily_ready": true,
+        "valid_suffix": 22,
+        "formula_matched": true,
+        "research_matched": true,
+        "research_window_valid": true,
+        "cross_close": true,
+        "cross_high": false,
+        "prior_close_break": -1.0715520221223573,
+        "cross_close_research": true,
+        "rules": [
+          {
+            "id": "rule1",
+            "name": "此前20日高低范围不超过35%",
+            "state": "matched",
+            "values": [
+              21.417004048583,
+              35
+            ],
+            "research_value": 21.417004048583,
+            "research_pass": true
+          },
+          {
+            "id": "rule2",
+            "name": "箱体末5日与初5日均价差不超过10%",
+            "state": "matched",
+            "values": [
+              9.096435899384447,
+              10
+            ],
+            "research_value": 9.096435899384447,
+            "research_pass": true
+          },
+          {
+            "id": "rule3",
+            "name": "收盘超过此前20日最高收盘价至少1%",
+            "state": "matched",
+            "values": [
+              3.4911856204631997,
+              1
+            ],
+            "research_value": 3.4911856204631997,
+            "research_pass": true
+          },
+          {
+            "id": "rule4",
+            "name": "成交量至少为此前5日均量的1.2倍",
+            "state": "matched",
+            "values": [
+              2.1413132427795856,
+              1.2
+            ],
+            "research_value": 2.1413132427795856,
+            "research_pass": true
+          },
+          {
+            "id": "rule5",
+            "name": "当日上涨至少2%",
+            "state": "matched",
+            "values": [
+              4.6122,
+              2
+            ],
+            "research_value": 4.6122,
+            "research_pass": true
+          },
+          {
+            "id": "rule6",
+            "name": "收盘处于当日振幅上方40%区域",
+            "state": "matched",
+            "research_value": 0.6397515527950313,
+            "research_pass": true
+          }
+        ]
+      },
+      {
+        "name": "善水科技",
+        "code": "301190.SZ",
+        "date": "20260928",
+        "calendar_days": 22,
+        "bars_loaded": 22,
+        "daily_ready": true,
+        "valid_suffix": 22,
+        "formula_matched": true,
+        "research_matched": true,
+        "research_window_valid": true,
+        "cross_close": true,
+        "cross_high": true,
+        "prior_close_break": -2.850467289719627,
+        "cross_close_research": true,
+        "rules": [
+          {
+            "id": "rule1",
+            "name": "此前20日高低范围不超过35%",
+            "state": "matched",
+            "values": [
+              31.06562311860326,
+              35
+            ],
+            "research_value": 31.06562311860326,
+            "research_pass": true
+          },
+          {
+            "id": "rule2",
+            "name": "箱体末5日与初5日均价差不超过10%",
+            "state": "matched",
+            "values": [
+              1.1880990415335413,
+              10
+            ],
+            "research_value": 1.1880990415335413,
+            "research_pass": true
+          },
+          {
+            "id": "rule3",
+            "name": "收盘超过此前20日最高收盘价至少1%",
+            "state": "matched",
+            "values": [
+              16.588785046728983,
+              1
+            ],
+            "research_value": 16.588785046728983,
+            "research_pass": true
+          },
+          {
+            "id": "rule4",
+            "name": "成交量至少为此前5日均量的1.2倍",
+            "state": "matched",
+            "values": [
+              2.4735992575442713,
+              1.2
+            ],
+            "research_value": 2.4735992575442713,
+            "research_pass": true
+          },
+          {
+            "id": "rule5",
+            "name": "当日上涨至少2%",
+            "state": "matched",
+            "values": [
+              20.0096,
+              2
+            ],
+            "research_value": 20.0096,
+            "research_pass": true
+          },
+          {
+            "id": "rule6",
+            "name": "收盘处于当日振幅上方40%区域",
+            "state": "matched",
+            "research_value": 1.0,
+            "research_pass": true
+          }
+        ]
+      },
+      {
+        "name": "近岸蛋白",
+        "code": "688137.SH",
+        "date": "20260807",
+        "calendar_days": 22,
+        "bars_loaded": 22,
+        "daily_ready": true,
+        "valid_suffix": 22,
+        "formula_matched": true,
+        "research_matched": true,
+        "research_window_valid": true,
+        "cross_close": true,
+        "cross_high": true,
+        "prior_close_break": -3.9476930668640553,
+        "cross_close_research": true,
+        "rules": [
+          {
+            "id": "rule1",
+            "name": "此前20日高低范围不超过35%",
+            "state": "matched",
+            "values": [
+              26.506024096385538,
+              35
+            ],
+            "research_value": 26.506024096385538,
+            "research_pass": true
+          },
+          {
+            "id": "rule2",
+            "name": "箱体末5日与初5日均价差不超过10%",
+            "state": "matched",
+            "values": [
+              4.142250959789862,
+              10
+            ],
+            "research_value": 4.142250959789862,
+            "research_pass": true
+          },
+          {
+            "id": "rule3",
+            "name": "收盘超过此前20日最高收盘价至少1%",
+            "state": "matched",
+            "values": [
+              15.27263755243029,
+              1
+            ],
+            "research_value": 15.27263755243029,
+            "research_pass": true
+          },
+          {
+            "id": "rule4",
+            "name": "成交量至少为此前5日均量的1.2倍",
+            "state": "matched",
+            "values": [
+              2.6653592238598787,
+              1.2
+            ],
+            "research_value": 2.6653592238598787,
+            "research_pass": true
+          },
+          {
+            "id": "rule5",
+            "name": "当日上涨至少2%",
+            "state": "matched",
+            "values": [
+              20.0103,
+              2
+            ],
+            "research_value": 20.0103,
+            "research_pass": true
+          },
+          {
+            "id": "rule6",
+            "name": "收盘处于当日振幅上方40%区域",
+            "state": "matched",
+            "research_value": 1.0,
+            "research_pass": true
+          }
+        ]
+      },
+      {
+        "name": "澳弘电子",
+        "code": "605058.SH",
+        "date": "20260910",
+        "calendar_days": 22,
+        "bars_loaded": 22,
+        "daily_ready": true,
+        "valid_suffix": 22,
+        "formula_matched": true,
+        "research_matched": true,
+        "research_window_valid": true,
+        "cross_close": false,
+        "cross_high": false,
+        "prior_close_break": 3.167420814479649,
+        "cross_close_research": false,
+        "rules": [
+          {
+            "id": "rule1",
+            "name": "此前20日高低范围不超过35%",
+            "state": "matched",
+            "values": [
+              17.808219178082197,
+              35
+            ],
+            "research_value": 17.808219178082197,
+            "research_pass": true
+          },
+          {
+            "id": "rule2",
+            "name": "箱体末5日与初5日均价差不超过10%",
+            "state": "matched",
+            "values": [
+              4.60893854748603,
+              10
+            ],
+            "research_value": 4.60893854748603,
+            "research_pass": true
+          },
+          {
+            "id": "rule3",
+            "name": "收盘超过此前20日最高收盘价至少1%",
+            "state": "matched",
+            "values": [
+              2.1592442645074206,
+              1
+            ],
+            "research_value": 2.1592442645074206,
+            "research_pass": true
+          },
+          {
+            "id": "rule4",
+            "name": "成交量至少为此前5日均量的1.2倍",
+            "state": "matched",
+            "values": [
+              2.189668354795838,
+              1.2
+            ],
+            "research_value": 2.189668354795838,
+            "research_pass": true
+          },
+          {
+            "id": "rule5",
+            "name": "当日上涨至少2%",
+            "state": "matched",
+            "values": [
+              2.1592,
+              2
+            ],
+            "research_value": 2.1592,
+            "research_pass": true
+          },
+          {
+            "id": "rule6",
+            "name": "收盘处于当日振幅上方40%区域",
+            "state": "matched",
+            "research_value": 0.9191176470588239,
+            "research_pass": true
+          }
+        ]
+      }
+    ],
+    "differences": [
+      "Research valid_bars requires finite positive amount for every day; production formula Evaluator only requires amount when a condition references amount.",
+      "Research also requires finite change on the oldest included bar; Evaluator checks change only on internal newer-to-older links and requested change fields.",
+      "Production numeric comparisons apply math.isclose tolerance 1e-12; vectorized research compares raw floating values.",
+      "Production screen runs _daily_context date/readiness validation; this verification explicitly runs the same check for each case.",
+      "Both use raw unadjusted daily prices and validate all internal reference links within needed windows at 0.15 percentage point tolerance.",
+      "Extra CROSS history may be unavailable without invalidating shorter base rules; production Evaluator derives a valid suffix and evaluates each rule window separately."
+    ],
+    "summary": {
+      "formula_pass": 11,
+      "case_count": 11,
+      "research_pass": 11,
+      "rule_state_mismatches": [],
+      "cross_close_pass": [
+        "中润光学",
+        "广钢气体",
+        "斯莱克",
+        "昆船智能",
+        "向日葵",
+        "杰恩股份",
+        "善水科技",
+        "近岸蛋白"
+      ],
+      "cross_close_fail": [
+        "晶雪节能",
+        "国力电子",
+        "澳弘电子"
+      ],
+      "cross_close_missing": [],
+      "cross_mismatches": []
+    }
+  },
+  "data_audit": [
+    {
+      "name": "中润光学",
+      "ts_code": "688307.SH",
+      "date": "20260302",
+      "trading_day": true,
+      "bar_window_start": "20250826",
+      "expected_bars": 121,
+      "present_bars": 121,
+      "missing_bars": [],
+      "invalid_bar_dates": [],
+      "reference_mismatches": [
+        {
+          "date": "20251023",
+          "stored_change": -3.3981,
+          "raw_change": -3.644241,
+          "difference_pp": -0.246141,
+          "previous_close": 39.24,
+          "close": 37.81,
+          "trading_days_before_target": 84
+        }
+      ],
+      "daily_names": [
+        "",
+        "中润光学"
+      ],
+      "target_bar": {
+        "id": 525705,
+        "ts_code": "688307.SH",
+        "name": "中润光学",
+        "trade_date": "20260302",
+        "open": 49.02,
+        "high": 60.02,
+        "low": 49.01,
+        "close": 60.02,
+        "change": 19.992,
+        "volume": 100083.07,
+        "amount": 551191.938
+      },
+      "em_coverage": {
+        "1": {
+          "present": 0,
+          "expected": 1
+        },
+        "5": {
+          "present": 0,
+          "expected": 5
+        },
+        "20": {
+          "present": 0,
+          "expected": 20
+        },
+        "60": {
+          "present": 0,
+          "expected": 60
+        },
+        "121": {
+          "present": 0,
+          "expected": 121
+        }
+      },
+      "em_sources": {},
+      "em_target": null,
+      "ths_coverage": {
+        "1": {
+          "present": 0,
+          "expected": 1
+        },
+        "5": {
+          "present": 0,
+          "expected": 5
+        },
+        "20": {
+          "present": 0,
+          "expected": 20
+        },
+        "60": {
+          "present": 0,
+          "expected": 60
+        },
+        "121": {
+          "present": 0,
+          "expected": 121
+        }
+      },
+      "ths_target": null,
+      "ths_turnover_present": 0,
+      "market_overview_days": 121,
+      "market_overview_target": {
+        "id": 279,
+        "date": "20260302",
+        "totalVolume": 30457.64686707,
+        "volumeDiff": 5402.844596260002,
+        "netFlow": -1153.330435,
+        "upCount": 1142,
+        "downCount": 4282,
+        "flatCount": 46,
+        "limitUp": 125,
+        "limitDown": 17,
+        "up7": 188,
+        "up5_7": 107,
+        "up3_5": 177,
+        "up0_3": 670,
+        "down7": 75,
+        "down5_7": 412,
+        "down3_5": 1686,
+        "down0_3": 2109
+      },
+      "sh_index_days": 121,
+      "sh_index_target": {
+        "id": 2736,
+        "date": "20260302",
+        "name": "上证指数",
+        "close": 4182.5909,
+        "change": 0.4735,
+        "volume": 13458.924694000001,
+        "open": 4151.8011,
+        "high": 4188.7702,
+        "low": 4131.3676
+      },
+      "limitup_records": [],
+      "current_sector_constituent": [
+        {
+          "sector_type": "concept",
+          "sector_name": "光刻机",
+          "stock_name": "中润光学",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "机器视觉",
+          "stock_name": "中润光学",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "industry",
+          "sector_name": "光学光电子",
+          "stock_name": "中润光学",
+          "in_date": "2026-10-07"
+        },
+        {
+          "sector_type": "industry",
+          "sector_name": "光学元件",
+          "stock_name": "中润光学",
+          "in_date": "2026-10-07"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "智慧城市",
+          "stock_name": "中润光学",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "智能家居",
+          "stock_name": "中润光学",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "无人机",
+          "stock_name": "中润光学",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "华为概念",
+          "stock_name": "中润光学",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "沪股通",
+          "stock_name": "中润光学",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "无人驾驶",
+          "stock_name": "中润光学",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "专精特新",
+          "stock_name": "中润光学",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "机器人概念",
+          "stock_name": "中润光学",
+          "in_date": "2026-10-10"
+        }
+      ],
+      "sw_industry_member": [
+        {
+          "index_code": "801750.SI",
+          "ts_code": "688307.SH",
+          "in_date": "20230925",
+          "out_date": "",
+          "is_new": "Y"
+        }
+      ],
+      "stock_basic": {
+        "ts_code": "688307.SH",
+        "name": "中润光学",
+        "listing_date": "20230216",
+        "market": "科创板",
+        "status": "normal",
+        "industry": null,
+        "industry_name": null,
+        "area": null,
+        "total_mv": null,
+        "circ_mv": null,
+        "last_sync_date": null,
+        "updated_at": null,
+        "total_share": 12506.06,
+        "float_share": 12506.06,
+        "last_share_sync": "2026-10-16"
+      },
+      "em_missing_last20": [
+        "20260126",
+        "20260127",
+        "20260128",
+        "20260129",
+        "20260130",
+        "20260202",
+        "20260203",
+        "20260204",
+        "20260205",
+        "20260206",
+        "20260209",
+        "20260210",
+        "20260211",
+        "20260212",
+        "20260213",
+        "20260224",
+        "20260225",
+        "20260226",
+        "20260227",
+        "20260302"
+      ],
+      "em_nonfinite_fields": 0,
+      "limitup_target": [],
+      "limitup_market_coverage": 2,
+      "limitup_market_target_records": 0
+    },
+    {
+      "name": "广钢气体",
+      "ts_code": "688548.SH",
+      "date": "20260622",
+      "trading_day": true,
+      "bar_window_start": "20251217",
+      "expected_bars": 121,
+      "present_bars": 121,
+      "missing_bars": [],
+      "invalid_bar_dates": [],
+      "reference_mismatches": [],
+      "daily_names": [
+        "",
+        "广钢气体"
+      ],
+      "target_bar": {
+        "id": 4016950,
+        "ts_code": "688548.SH",
+        "name": "广钢气体",
+        "trade_date": "20260622",
+        "open": 34.41,
+        "high": 39.68,
+        "low": 33.58,
+        "close": 38.38,
+        "change": 14.8758,
+        "volume": 555537.68,
+        "amount": 2047595.482
+      },
+      "em_coverage": {
+        "1": {
+          "present": 1,
+          "expected": 1
+        },
+        "5": {
+          "present": 5,
+          "expected": 5
+        },
+        "20": {
+          "present": 20,
+          "expected": 20
+        },
+        "60": {
+          "present": 49,
+          "expected": 60
+        },
+        "121": {
+          "present": 49,
+          "expected": 121
+        }
+      },
+      "em_sources": {
+        "eastmoney-daykline": 45,
+        "eastmoney-push2": 4
+      },
+      "em_target": {
+        "id": 229960,
+        "trade_date": "20260622",
+        "ts_code": "688548.SH",
+        "code": "688548",
+        "name": "广钢气体",
+        "main_net_inflow": 184953328.0,
+        "main_net_pct": 9.03,
+        "super_net": 90649728.0,
+        "super_pct": 4.43,
+        "big_net": 94303600.0,
+        "big_pct": 4.61,
+        "mid_net": -21074080.0,
+        "mid_pct": -1.03,
+        "small_net": -163879248.0,
+        "small_pct": -8.0,
+        "source": "eastmoney-push2",
+        "updated_at": "2026-06-22 17:48:12",
+        "total_net_inflow": null
+      },
+      "ths_coverage": {
+        "1": {
+          "present": 0,
+          "expected": 1
+        },
+        "5": {
+          "present": 0,
+          "expected": 5
+        },
+        "20": {
+          "present": 0,
+          "expected": 20
+        },
+        "60": {
+          "present": 0,
+          "expected": 60
+        },
+        "121": {
+          "present": 0,
+          "expected": 121
+        }
+      },
+      "ths_target": null,
+      "ths_turnover_present": 0,
+      "market_overview_days": 121,
+      "market_overview_target": {
+        "id": 277,
+        "date": "20260622",
+        "totalVolume": 37621.03098946901,
+        "volumeDiff": 4303.8408577982045,
+        "netFlow": -154.320352,
+        "upCount": 2916,
+        "downCount": 2468,
+        "flatCount": 126,
+        "limitUp": 210,
+        "limitDown": 21,
+        "up7": 364,
+        "up5_7": 246,
+        "up3_5": 422,
+        "up0_3": 1884,
+        "down7": 74,
+        "down5_7": 169,
+        "down3_5": 470,
+        "down0_3": 1755
+      },
+      "sh_index_days": 121,
+      "sh_index_target": {
+        "id": 2728,
+        "date": "20260622",
+        "name": "上证指数",
+        "close": 4163.0965,
+        "change": 1.7752,
+        "volume": 17040.004217,
+        "open": 4093.9546,
+        "high": 4164.4178,
+        "low": 4070.1723
+      },
+      "limitup_records": [],
+      "current_sector_constituent": [
+        {
+          "sector_type": "concept",
+          "sector_name": "粤港自贸",
+          "stock_name": "广钢气体",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "氦气概念",
+          "stock_name": "广钢气体",
+          "in_date": "2026-10-10"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "工业气体",
+          "stock_name": "广钢气体",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "industry",
+          "sector_name": "电子化学品Ⅱ",
+          "stock_name": "广钢气体",
+          "in_date": "2026-10-07"
+        },
+        {
+          "sector_type": "industry",
+          "sector_name": "电子化学品Ⅲ",
+          "stock_name": "广钢气体",
+          "in_date": "2026-10-07"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "MSCI中国",
+          "stock_name": "广钢气体",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "基金重仓",
+          "stock_name": "广钢气体",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "沪股通",
+          "stock_name": "广钢气体",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "半导体概念",
+          "stock_name": "广钢气体",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "中盘成长",
+          "stock_name": "广钢气体",
+          "in_date": "2026-10-10"
+        }
+      ],
+      "sw_industry_member": [
+        {
+          "index_code": "801080.SI",
+          "ts_code": "688548.SH",
+          "in_date": "20230925",
+          "out_date": "",
+          "is_new": "Y"
+        }
+      ],
+      "stock_basic": {
+        "ts_code": "688548.SH",
+        "name": "广钢气体",
+        "listing_date": "20230815",
+        "market": "科创板",
+        "status": "normal",
+        "industry": null,
+        "industry_name": null,
+        "area": null,
+        "total_mv": null,
+        "circ_mv": null,
+        "last_sync_date": null,
+        "updated_at": null,
+        "total_share": 131939.8521,
+        "float_share": 131939.8521,
+        "last_share_sync": "2026-10-16"
+      },
+      "em_missing_last20": [],
+      "em_nonfinite_fields": 0,
+      "limitup_target": [],
+      "limitup_market_coverage": 63,
+      "limitup_market_target_records": 134
+    },
+    {
+      "name": "斯莱克",
+      "ts_code": "300382.SZ",
+      "date": "20260622",
+      "trading_day": true,
+      "bar_window_start": "20251217",
+      "expected_bars": 121,
+      "present_bars": 121,
+      "missing_bars": [],
+      "invalid_bar_dates": [],
+      "reference_mismatches": [],
+      "daily_names": [
+        "",
+        "斯莱克"
+      ],
+      "target_bar": {
+        "id": 4013777,
+        "ts_code": "300382.SZ",
+        "name": "斯莱克",
+        "trade_date": "20260622",
+        "open": 16.09,
+        "high": 18.0,
+        "low": 15.93,
+        "close": 17.88,
+        "change": 10.8493,
+        "volume": 712433.71,
+        "amount": 1225848.84439
+      },
+      "em_coverage": {
+        "1": {
+          "present": 1,
+          "expected": 1
+        },
+        "5": {
+          "present": 5,
+          "expected": 5
+        },
+        "20": {
+          "present": 20,
+          "expected": 20
+        },
+        "60": {
+          "present": 49,
+          "expected": 60
+        },
+        "121": {
+          "present": 49,
+          "expected": 121
+        }
+      },
+      "em_sources": {
+        "eastmoney-daykline": 45,
+        "eastmoney-push2": 4
+      },
+      "em_target": {
+        "id": 230544,
+        "trade_date": "20260622",
+        "ts_code": "300382.SZ",
+        "code": "300382",
+        "name": "斯莱克",
+        "main_net_inflow": 19318307.0,
+        "main_net_pct": 1.58,
+        "super_net": 85992627.0,
+        "super_pct": 7.01,
+        "big_net": -66674320.0,
+        "big_pct": -5.44,
+        "mid_net": -46291296.0,
+        "mid_pct": -3.78,
+        "small_net": 26972995.0,
+        "small_pct": 2.2,
+        "source": "eastmoney-push2",
+        "updated_at": "2026-06-22 17:48:12",
+        "total_net_inflow": null
+      },
+      "ths_coverage": {
+        "1": {
+          "present": 0,
+          "expected": 1
+        },
+        "5": {
+          "present": 0,
+          "expected": 5
+        },
+        "20": {
+          "present": 0,
+          "expected": 20
+        },
+        "60": {
+          "present": 0,
+          "expected": 60
+        },
+        "121": {
+          "present": 0,
+          "expected": 121
+        }
+      },
+      "ths_target": null,
+      "ths_turnover_present": 0,
+      "market_overview_days": 121,
+      "market_overview_target": {
+        "id": 277,
+        "date": "20260622",
+        "totalVolume": 37621.03098946901,
+        "volumeDiff": 4303.8408577982045,
+        "netFlow": -154.320352,
+        "upCount": 2916,
+        "downCount": 2468,
+        "flatCount": 126,
+        "limitUp": 210,
+        "limitDown": 21,
+        "up7": 364,
+        "up5_7": 246,
+        "up3_5": 422,
+        "up0_3": 1884,
+        "down7": 74,
+        "down5_7": 169,
+        "down3_5": 470,
+        "down0_3": 1755
+      },
+      "sh_index_days": 121,
+      "sh_index_target": {
+        "id": 2728,
+        "date": "20260622",
+        "name": "上证指数",
+        "close": 4163.0965,
+        "change": 1.7752,
+        "volume": 17040.004217,
+        "open": 4093.9546,
+        "high": 4164.4178,
+        "low": 4070.1723
+      },
+      "limitup_records": [],
+      "current_sector_constituent": [
+        {
+          "sector_type": "concept",
+          "sector_name": "C2M概念",
+          "stock_name": "斯莱克",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "减速器",
+          "stock_name": "斯莱克",
+          "in_date": "2026-10-10"
+        },
+        {
+          "sector_type": "industry",
+          "sector_name": "其他专用设备",
+          "stock_name": "斯莱克",
+          "in_date": "2026-10-07"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "创业板综",
+          "stock_name": "斯莱克",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "物联网",
+          "stock_name": "斯莱克",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "光伏概念",
+          "stock_name": "斯莱克",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "新能源车",
+          "stock_name": "斯莱克",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "专精特新",
+          "stock_name": "斯莱克",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "人形机器人",
+          "stock_name": "斯莱克",
+          "in_date": "2026-10-10"
+        }
+      ],
+      "sw_industry_member": [
+        {
+          "index_code": "801890.SI",
+          "ts_code": "300382.SZ",
+          "in_date": "20140221",
+          "out_date": "",
+          "is_new": "Y"
+        }
+      ],
+      "stock_basic": {
+        "ts_code": "300382.SZ",
+        "name": "斯莱克",
+        "listing_date": "20140129",
+        "market": "创业板",
+        "status": "normal",
+        "industry": null,
+        "industry_name": null,
+        "area": null,
+        "total_mv": null,
+        "circ_mv": null,
+        "last_sync_date": null,
+        "updated_at": null,
+        "total_share": 64839.9994,
+        "float_share": 64833.8222,
+        "last_share_sync": "2026-10-16"
+      },
+      "em_missing_last20": [],
+      "em_nonfinite_fields": 0,
+      "limitup_target": [],
+      "limitup_market_coverage": 63,
+      "limitup_market_target_records": 134
+    },
+    {
+      "name": "昆船智能",
+      "ts_code": "301311.SZ",
+      "date": "20260922",
+      "trading_day": true,
+      "bar_window_start": "20260331",
+      "expected_bars": 121,
+      "present_bars": 121,
+      "missing_bars": [],
+      "invalid_bar_dates": [],
+      "reference_mismatches": [],
+      "daily_names": [
+        "昆船智能"
+      ],
+      "target_bar": {
+        "id": 4412946,
+        "ts_code": "301311.SZ",
+        "name": "昆船智能",
+        "trade_date": "20260922",
+        "open": 13.92,
+        "high": 16.26,
+        "low": 13.68,
+        "close": 15.4,
+        "change": 11.4327,
+        "volume": 202578.1,
+        "amount": 306214.71722
+      },
+      "em_coverage": {
+        "1": {
+          "present": 1,
+          "expected": 1
+        },
+        "5": {
+          "present": 5,
+          "expected": 5
+        },
+        "20": {
+          "present": 20,
+          "expected": 20
+        },
+        "60": {
+          "present": 59,
+          "expected": 60
+        },
+        "121": {
+          "present": 114,
+          "expected": 121
+        }
+      },
+      "em_sources": {
+        "eastmoney-daykline": 45,
+        "eastmoney-push2": 69
+      },
+      "em_target": {
+        "id": 723737,
+        "trade_date": "20260922",
+        "ts_code": "301311.SZ",
+        "code": "301311",
+        "name": "昆船智能",
+        "main_net_inflow": 35475947.0,
+        "main_net_pct": 11.59,
+        "super_net": 12775646.0,
+        "super_pct": 4.17,
+        "big_net": 22700301.0,
+        "big_pct": 7.41,
+        "mid_net": 1088018.0,
+        "mid_pct": 0.36,
+        "small_net": -36563967.0,
+        "small_pct": -11.94,
+        "source": "eastmoney-push2",
+        "updated_at": "2026-09-22 18:24:39",
+        "total_net_inflow": null
+      },
+      "ths_coverage": {
+        "1": {
+          "present": 1,
+          "expected": 1
+        },
+        "5": {
+          "present": 5,
+          "expected": 5
+        },
+        "20": {
+          "present": 20,
+          "expected": 20
+        },
+        "60": {
+          "present": 23,
+          "expected": 60
+        },
+        "121": {
+          "present": 23,
+          "expected": 121
+        }
+      },
+      "ths_target": {
+        "id": 159285,
+        "trade_date": "20260922",
+        "ts_code": "301311.SZ",
+        "code": "301311",
+        "name": "昆船智能",
+        "close": 15.4,
+        "change_pct": 11.43,
+        "turnover_pct": 8.44,
+        "inflow": 178000000.0,
+        "outflow": 128000000.0,
+        "net": 50569000.0,
+        "amount": 306000000.0,
+        "big_inflow": null,
+        "updated_at": "2026-09-22 18:03:46"
+      },
+      "ths_turnover_present": 23,
+      "market_overview_days": 121,
+      "market_overview_target": {
+        "id": 754,
+        "date": "20260922",
+        "totalVolume": 21536.521900535503,
+        "volumeDiff": 1055.1851354470018,
+        "netFlow": -678.706193,
+        "upCount": 2374,
+        "downCount": 3030,
+        "flatCount": 150,
+        "limitUp": 85,
+        "limitDown": 9,
+        "up7": 127,
+        "up5_7": 108,
+        "up3_5": 237,
+        "up0_3": 1902,
+        "down7": 23,
+        "down5_7": 25,
+        "down3_5": 168,
+        "down0_3": 2814
+      },
+      "sh_index_days": 121,
+      "sh_index_target": {
+        "id": 4237,
+        "date": "20260922",
+        "name": "上证指数",
+        "close": 3952.128,
+        "change": 0.0562,
+        "volume": 10079.956108823,
+        "open": 3963.8073,
+        "high": 3967.6812,
+        "low": 3945.4165
+      },
+      "limitup_records": [
+        {
+          "id": 24789,
+          "date": "20260512",
+          "code": "301311.SZ",
+          "name": "昆船智能",
+          "marketCap": 19.0,
+          "time": "10:02:36",
+          "sector": "军工 (新质战斗力)",
+          "volume": 3.8,
+          "streak": "首板",
+          "keyword": "军工（中船系）+机器人+智能物流+智能产线"
+        }
+      ],
+      "current_sector_constituent": [
+        {
+          "sector_type": "concept",
+          "sector_name": "近期新高",
+          "stock_name": "昆船智能",
+          "in_date": "2026-10-07"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "百日新高",
+          "stock_name": "昆船智能",
+          "in_date": "2026-10-07"
+        },
+        {
+          "sector_type": "industry",
+          "sector_name": "其他通用设备",
+          "stock_name": "昆船智能",
+          "in_date": "2026-10-07"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "军工",
+          "stock_name": "昆船智能",
+          "in_date": "2026-10-10"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "创业板综",
+          "stock_name": "昆船智能",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "人工智能",
+          "stock_name": "昆船智能",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "专精特新",
+          "stock_name": "昆船智能",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "机器人概念",
+          "stock_name": "昆船智能",
+          "in_date": "2026-10-10"
+        }
+      ],
+      "sw_industry_member": [
+        {
+          "index_code": "801890.SI",
+          "ts_code": "301311.SZ",
+          "in_date": "20221207",
+          "out_date": "",
+          "is_new": "Y"
+        }
+      ],
+      "stock_basic": {
+        "ts_code": "301311.SZ",
+        "name": "昆船智能",
+        "listing_date": "20221130",
+        "market": "创业板",
+        "status": "normal",
+        "industry": null,
+        "industry_name": null,
+        "area": null,
+        "total_mv": null,
+        "circ_mv": null,
+        "last_sync_date": null,
+        "updated_at": null,
+        "total_share": 24000.0,
+        "float_share": 24000.0,
+        "last_share_sync": "2026-10-16"
+      },
+      "em_missing_last20": [],
+      "em_nonfinite_fields": 0,
+      "limitup_target": [],
+      "limitup_market_coverage": 123,
+      "limitup_market_target_records": 63
+    },
+    {
+      "name": "向日葵",
+      "ts_code": "300111.SZ",
+      "date": "20261009",
+      "trading_day": true,
+      "bar_window_start": "20260410",
+      "expected_bars": 121,
+      "present_bars": 121,
+      "missing_bars": [],
+      "invalid_bar_dates": [],
+      "reference_mismatches": [],
+      "daily_names": [
+        "",
+        "向日葵"
+      ],
+      "target_bar": {
+        "id": 4450739,
+        "ts_code": "300111.SZ",
+        "name": "向日葵",
+        "trade_date": "20261009",
+        "open": 3.02,
+        "high": 3.56,
+        "low": 2.99,
+        "close": 3.41,
+        "change": 14.8148,
+        "volume": 2679792.66,
+        "amount": 912946.94264
+      },
+      "em_coverage": {
+        "1": {
+          "present": 1,
+          "expected": 1
+        },
+        "5": {
+          "present": 5,
+          "expected": 5
+        },
+        "20": {
+          "present": 20,
+          "expected": 20
+        },
+        "60": {
+          "present": 59,
+          "expected": 60
+        },
+        "121": {
+          "present": 120,
+          "expected": 121
+        }
+      },
+      "em_sources": {
+        "eastmoney-daykline": 44,
+        "eastmoney-push2": 76
+      },
+      "em_target": {
+        "id": 1081763,
+        "trade_date": "20261009",
+        "ts_code": "300111.SZ",
+        "code": "300111",
+        "name": "向日葵",
+        "main_net_inflow": 251585584.0,
+        "main_net_pct": 27.56,
+        "super_net": 184318002.0,
+        "super_pct": 20.19,
+        "big_net": 67267582.0,
+        "big_pct": 7.37,
+        "mid_net": -76664953.0,
+        "mid_pct": -8.4,
+        "small_net": -174920619.0,
+        "small_pct": -19.16,
+        "source": "eastmoney-push2",
+        "updated_at": "2026-10-09 17:28:30",
+        "total_net_inflow": null
+      },
+      "ths_coverage": {
+        "1": {
+          "present": 1,
+          "expected": 1
+        },
+        "5": {
+          "present": 5,
+          "expected": 5
+        },
+        "20": {
+          "present": 20,
+          "expected": 20
+        },
+        "60": {
+          "present": 30,
+          "expected": 60
+        },
+        "121": {
+          "present": 30,
+          "expected": 121
+        }
+      },
+      "ths_target": {
+        "id": 216588,
+        "trade_date": "20261009",
+        "ts_code": "300111.SZ",
+        "code": "300111",
+        "name": "向日葵",
+        "close": 3.4,
+        "change_pct": 14.48,
+        "turnover_pct": 20.66,
+        "inflow": 381000000.0,
+        "outflow": 525000000.0,
+        "net": -145000000.0,
+        "amount": 906000000.0,
+        "big_inflow": null,
+        "updated_at": "2026-10-09 17:09:02"
+      },
+      "ths_turnover_present": 30,
+      "market_overview_days": 121,
+      "market_overview_target": {
+        "id": 769,
+        "date": "20261009",
+        "totalVolume": 19166.9155909396,
+        "volumeDiff": 2224.0031799484022,
+        "netFlow": 91.17143600000001,
+        "upCount": 3297,
+        "downCount": 2145,
+        "flatCount": 117,
+        "limitUp": 99,
+        "limitDown": 15,
+        "up7": 164,
+        "up5_7": 161,
+        "up3_5": 478,
+        "up0_3": 2494,
+        "down7": 47,
+        "down5_7": 118,
+        "down3_5": 322,
+        "down0_3": 1658
+      },
+      "sh_index_days": 121,
+      "sh_index_target": {
+        "id": 4324,
+        "date": "20261009",
+        "name": "上证指数",
+        "close": 3813.7913,
+        "change": 0.0495,
+        "volume": 8885.611982639,
+        "open": 3804.0896,
+        "high": 3824.7091,
+        "low": 3754.1353
+      },
+      "limitup_records": [],
+      "current_sector_constituent": [
+        {
+          "sector_type": "concept",
+          "sector_name": "幽门螺杆菌概念",
+          "stock_name": "向日葵",
+          "in_date": "2026-10-10"
+        },
+        {
+          "sector_type": "industry",
+          "sector_name": "化学制剂",
+          "stock_name": "向日葵",
+          "in_date": "2026-10-07"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "创业板综",
+          "stock_name": "向日葵",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "深股通",
+          "stock_name": "向日葵",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "低价股",
+          "stock_name": "向日葵",
+          "in_date": "2026-10-10"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "昨日高振幅",
+          "stock_name": "向日葵",
+          "in_date": "2026-10-10"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "破发股",
+          "stock_name": "向日葵",
+          "in_date": "2026-10-10"
+        }
+      ],
+      "sw_industry_member": [
+        {
+          "index_code": "801730.SI",
+          "ts_code": "300111.SZ",
+          "in_date": "20140221",
+          "out_date": "20220729",
+          "is_new": "N"
+        },
+        {
+          "index_code": "801150.SI",
+          "ts_code": "300111.SZ",
+          "in_date": "20220801",
+          "out_date": "",
+          "is_new": "Y"
+        },
+        {
+          "index_code": "801080.SI",
+          "ts_code": "300111.SZ",
+          "in_date": "20100906",
+          "out_date": "20110930",
+          "is_new": "N"
+        }
+      ],
+      "stock_basic": {
+        "ts_code": "300111.SZ",
+        "name": "向日葵",
+        "listing_date": "20100827",
+        "market": "创业板",
+        "status": "normal",
+        "industry": null,
+        "industry_name": null,
+        "area": null,
+        "total_mv": null,
+        "circ_mv": null,
+        "last_sync_date": null,
+        "updated_at": null,
+        "total_share": 128721.0714,
+        "float_share": 128721.0714,
+        "last_share_sync": "2026-10-16"
+      },
+      "em_missing_last20": [],
+      "em_nonfinite_fields": 0,
+      "limitup_target": [],
+      "limitup_market_coverage": 123,
+      "limitup_market_target_records": 69
+    },
+    {
+      "name": "晶雪节能",
+      "ts_code": "301010.SZ",
+      "date": "20261008",
+      "trading_day": true,
+      "bar_window_start": "20260409",
+      "expected_bars": 121,
+      "present_bars": 121,
+      "missing_bars": [],
+      "invalid_bar_dates": [],
+      "reference_mismatches": [],
+      "daily_names": [
+        "晶雪节能"
+      ],
+      "target_bar": {
+        "id": 4446030,
+        "ts_code": "301010.SZ",
+        "name": "晶雪节能",
+        "trade_date": "20261008",
+        "open": 20.08,
+        "high": 21.97,
+        "low": 19.86,
+        "close": 21.15,
+        "change": 6.1747,
+        "volume": 78446.26,
+        "amount": 165210.4333
+      },
+      "em_coverage": {
+        "1": {
+          "present": 1,
+          "expected": 1
+        },
+        "5": {
+          "present": 5,
+          "expected": 5
+        },
+        "20": {
+          "present": 20,
+          "expected": 20
+        },
+        "60": {
+          "present": 59,
+          "expected": 60
+        },
+        "121": {
+          "present": 120,
+          "expected": 121
+        }
+      },
+      "em_sources": {
+        "eastmoney-daykline": 45,
+        "eastmoney-push2": 75
+      },
+      "em_target": {
+        "id": 1061115,
+        "trade_date": "20261008",
+        "ts_code": "301010.SZ",
+        "code": "301010",
+        "name": "晶雪节能",
+        "main_net_inflow": 10479761.0,
+        "main_net_pct": 6.34,
+        "super_net": -1554184.0,
+        "super_pct": -0.94,
+        "big_net": 12033945.0,
+        "big_pct": 7.28,
+        "mid_net": 15554540.0,
+        "mid_pct": 9.41,
+        "small_net": -26034301.0,
+        "small_pct": -15.76,
+        "source": "eastmoney-push2",
+        "updated_at": "2026-10-08 17:18:50",
+        "total_net_inflow": null
+      },
+      "ths_coverage": {
+        "1": {
+          "present": 1,
+          "expected": 1
+        },
+        "5": {
+          "present": 5,
+          "expected": 5
+        },
+        "20": {
+          "present": 20,
+          "expected": 20
+        },
+        "60": {
+          "present": 29,
+          "expected": 60
+        },
+        "121": {
+          "present": 29,
+          "expected": 121
+        }
+      },
+      "ths_target": {
+        "id": 211477,
+        "trade_date": "20261008",
+        "ts_code": "301010.SZ",
+        "code": "301010",
+        "name": "晶雪节能",
+        "close": 21.15,
+        "change_pct": 6.17,
+        "turnover_pct": 7.26,
+        "inflow": 81088000.0,
+        "outflow": 81797500.0,
+        "net": -709500.0,
+        "amount": 165000000.0,
+        "big_inflow": null,
+        "updated_at": "2026-10-08 17:14:27"
+      },
+      "ths_turnover_present": 29,
+      "market_overview_days": 121,
+      "market_overview_target": {
+        "id": 767,
+        "date": "20261008",
+        "totalVolume": 16942.912410991197,
+        "volumeDiff": 2442.138279999097,
+        "netFlow": -746.9783160000001,
+        "upCount": 1698,
+        "downCount": 3748,
+        "flatCount": 111,
+        "limitUp": 56,
+        "limitDown": 51,
+        "up7": 94,
+        "up5_7": 67,
+        "up3_5": 192,
+        "up0_3": 1345,
+        "down7": 173,
+        "down5_7": 279,
+        "down3_5": 704,
+        "down0_3": 2592
+      },
+      "sh_index_days": 121,
+      "sh_index_target": {
+        "id": 4312,
+        "date": "20261008",
+        "name": "上证指数",
+        "close": 3811.9043,
+        "change": -0.7884,
+        "volume": 8111.830963653,
+        "open": 3838.9774,
+        "high": 3864.1181,
+        "low": 3795.374
+      },
+      "limitup_records": [],
+      "current_sector_constituent": [
+        {
+          "sector_type": "concept",
+          "sector_name": "节能环保",
+          "stock_name": "晶雪节能",
+          "in_date": "2026-10-10"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "生物疫苗",
+          "stock_name": "晶雪节能",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "冷链物流",
+          "stock_name": "晶雪节能",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "建筑节能",
+          "stock_name": "晶雪节能",
+          "in_date": "2026-10-10"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "微盘股",
+          "stock_name": "晶雪节能",
+          "in_date": "2026-10-10"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "冰雪经济",
+          "stock_name": "晶雪节能",
+          "in_date": "2026-10-10"
+        },
+        {
+          "sector_type": "industry",
+          "sector_name": "装修建材",
+          "stock_name": "晶雪节能",
+          "in_date": "2026-10-07"
+        },
+        {
+          "sector_type": "industry",
+          "sector_name": "建筑材料",
+          "stock_name": "晶雪节能",
+          "in_date": "2026-10-07"
+        },
+        {
+          "sector_type": "industry",
+          "sector_name": "其他建材Ⅲ",
+          "stock_name": "晶雪节能",
+          "in_date": "2026-10-07"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "创业板综",
+          "stock_name": "晶雪节能",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "融资融券",
+          "stock_name": "晶雪节能",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "专精特新",
+          "stock_name": "晶雪节能",
+          "in_date": "2026-10-09"
+        }
+      ],
+      "sw_industry_member": [
+        {
+          "index_code": "801030.SI",
+          "ts_code": "301010.SZ",
+          "in_date": "20210625",
+          "out_date": "20211210",
+          "is_new": "N"
+        },
+        {
+          "index_code": "801710.SI",
+          "ts_code": "301010.SZ",
+          "in_date": "20211213",
+          "out_date": "",
+          "is_new": "Y"
+        }
+      ],
+      "stock_basic": {
+        "ts_code": "301010.SZ",
+        "name": "晶雪节能",
+        "listing_date": "20210618",
+        "market": "创业板",
+        "status": "normal",
+        "industry": null,
+        "industry_name": null,
+        "area": null,
+        "total_mv": null,
+        "circ_mv": null,
+        "last_sync_date": null,
+        "updated_at": null,
+        "total_share": 10800.0,
+        "float_share": 10800.0,
+        "last_share_sync": "2026-10-16"
+      },
+      "em_missing_last20": [],
+      "em_nonfinite_fields": 0,
+      "limitup_target": [],
+      "limitup_market_coverage": 123,
+      "limitup_market_target_records": 43
+    },
+    {
+      "name": "国力电子",
+      "ts_code": "688103.SH",
+      "date": "20260630",
+      "trading_day": true,
+      "bar_window_start": "20251225",
+      "expected_bars": 121,
+      "present_bars": 121,
+      "missing_bars": [],
+      "invalid_bar_dates": [],
+      "reference_mismatches": [],
+      "daily_names": [
+        "",
+        "国力电子"
+      ],
+      "target_bar": {
+        "id": 4055193,
+        "ts_code": "688103.SH",
+        "name": "国力电子",
+        "trade_date": "20260630",
+        "open": 66.78,
+        "high": 76.6,
+        "low": 66.43,
+        "close": 74.41,
+        "change": 11.259,
+        "volume": 65624.78,
+        "amount": 478216.266
+      },
+      "em_coverage": {
+        "1": {
+          "present": 1,
+          "expected": 1
+        },
+        "5": {
+          "present": 4,
+          "expected": 5
+        },
+        "20": {
+          "present": 19,
+          "expected": 20
+        },
+        "60": {
+          "present": 54,
+          "expected": 60
+        },
+        "121": {
+          "present": 54,
+          "expected": 121
+        }
+      },
+      "em_sources": {
+        "eastmoney-daykline": 45,
+        "eastmoney-push2": 9
+      },
+      "em_target": {
+        "id": 265852,
+        "trade_date": "20260630",
+        "ts_code": "688103.SH",
+        "code": "688103",
+        "name": "国力电子",
+        "main_net_inflow": -9589622.0,
+        "main_net_pct": -2.01,
+        "super_net": 36406763.0,
+        "super_pct": 7.61,
+        "big_net": -45996385.0,
+        "big_pct": -9.62,
+        "mid_net": -24187368.0,
+        "mid_pct": -5.06,
+        "small_net": 33776991.0,
+        "small_pct": 7.06,
+        "source": "eastmoney-push2",
+        "updated_at": "2026-06-30 20:26:22",
+        "total_net_inflow": null
+      },
+      "ths_coverage": {
+        "1": {
+          "present": 0,
+          "expected": 1
+        },
+        "5": {
+          "present": 0,
+          "expected": 5
+        },
+        "20": {
+          "present": 0,
+          "expected": 20
+        },
+        "60": {
+          "present": 0,
+          "expected": 60
+        },
+        "121": {
+          "present": 0,
+          "expected": 121
+        }
+      },
+      "ths_target": null,
+      "ths_turnover_present": 0,
+      "market_overview_days": 121,
+      "market_overview_target": {
+        "id": 300,
+        "date": "20260630",
+        "totalVolume": 32938.195568400304,
+        "volumeDiff": -2455.215507708199,
+        "netFlow": 850.0382290000001,
+        "upCount": 3054,
+        "downCount": 2364,
+        "flatCount": 90,
+        "limitUp": 275,
+        "limitDown": 12,
+        "up7": 467,
+        "up5_7": 334,
+        "up3_5": 598,
+        "up0_3": 1655,
+        "down7": 39,
+        "down5_7": 51,
+        "down3_5": 318,
+        "down0_3": 1956
+      },
+      "sh_index_days": 121,
+      "sh_index_target": {
+        "id": 2848,
+        "date": "20260630",
+        "name": "上证指数",
+        "close": 4094.3972,
+        "change": 0.5031,
+        "volume": 15303.259617,
+        "open": 4058.1695,
+        "high": 4097.415,
+        "low": 4052.17
+      },
+      "limitup_records": [],
+      "current_sector_constituent": [
+        {
+          "sector_type": "concept",
+          "sector_name": "培育钻石",
+          "stock_name": "国力电子",
+          "in_date": "2026-10-10"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "高压快充",
+          "stock_name": "国力电子",
+          "in_date": "2026-10-10"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "飞行汽车(eVTOL)",
+          "stock_name": "国力电子",
+          "in_date": "2026-10-10"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "可控核聚变",
+          "stock_name": "国力电子",
+          "in_date": "2026-10-10"
+        },
+        {
+          "sector_type": "industry",
+          "sector_name": "其他电子Ⅱ",
+          "stock_name": "国力电子",
+          "in_date": "2026-10-07"
+        },
+        {
+          "sector_type": "industry",
+          "sector_name": "其他电子Ⅲ",
+          "stock_name": "国力电子",
+          "in_date": "2026-10-07"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "军工",
+          "stock_name": "国力电子",
+          "in_date": "2026-10-10"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "新能源",
+          "stock_name": "国力电子",
+          "in_date": "2026-10-10"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "转债标的",
+          "stock_name": "国力电子",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "光伏概念",
+          "stock_name": "国力电子",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "风能",
+          "stock_name": "国力电子",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "大飞机",
+          "stock_name": "国力电子",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "沪股通",
+          "stock_name": "国力电子",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "新能源车",
+          "stock_name": "国力电子",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "半导体概念",
+          "stock_name": "国力电子",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "商业航天",
+          "stock_name": "国力电子",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "固态电池",
+          "stock_name": "国力电子",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "华为汽车",
+          "stock_name": "国力电子",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "储能概念",
+          "stock_name": "国力电子",
+          "in_date": "2026-10-09"
+        }
+      ],
+      "sw_industry_member": [
+        {
+          "index_code": "801080.SI",
+          "ts_code": "688103.SH",
+          "in_date": "20230925",
+          "out_date": "",
+          "is_new": "Y"
+        }
+      ],
+      "stock_basic": {
+        "ts_code": "688103.SH",
+        "name": "国力电子",
+        "listing_date": "20210910",
+        "market": "科创板",
+        "status": "normal",
+        "industry": null,
+        "industry_name": null,
+        "area": null,
+        "total_mv": null,
+        "circ_mv": null,
+        "last_sync_date": null,
+        "updated_at": null,
+        "total_share": 9531.7169,
+        "float_share": 9531.7169,
+        "last_share_sync": "2026-10-16"
+      },
+      "em_missing_last20": [
+        "20260629"
+      ],
+      "em_nonfinite_fields": 0,
+      "limitup_target": [],
+      "limitup_market_coverage": 69,
+      "limitup_market_target_records": 140
+    },
+    {
+      "name": "杰恩股份",
+      "ts_code": "300668.SZ",
+      "date": "20260323",
+      "trading_day": true,
+      "bar_window_start": "20250916",
+      "expected_bars": 121,
+      "present_bars": 121,
+      "missing_bars": [],
+      "invalid_bar_dates": [],
+      "reference_mismatches": [],
+      "daily_names": [
+        "",
+        "杰恩股份"
+      ],
+      "target_bar": {
+        "id": 298500,
+        "ts_code": "300668.SZ",
+        "name": "杰恩股份",
+        "trade_date": "20260323",
+        "open": 28.29,
+        "high": 31.1,
+        "low": 27.88,
+        "close": 29.94,
+        "change": 4.6122,
+        "volume": 99323.5,
+        "amount": 298639.538
+      },
+      "em_coverage": {
+        "1": {
+          "present": 0,
+          "expected": 1
+        },
+        "5": {
+          "present": 0,
+          "expected": 5
+        },
+        "20": {
+          "present": 0,
+          "expected": 20
+        },
+        "60": {
+          "present": 0,
+          "expected": 60
+        },
+        "121": {
+          "present": 0,
+          "expected": 121
+        }
+      },
+      "em_sources": {},
+      "em_target": null,
+      "ths_coverage": {
+        "1": {
+          "present": 0,
+          "expected": 1
+        },
+        "5": {
+          "present": 0,
+          "expected": 5
+        },
+        "20": {
+          "present": 0,
+          "expected": 20
+        },
+        "60": {
+          "present": 0,
+          "expected": 60
+        },
+        "121": {
+          "present": 0,
+          "expected": 121
+        }
+      },
+      "ths_target": null,
+      "ths_turnover_present": 0,
+      "market_overview_days": 121,
+      "market_overview_target": {
+        "id": 257,
+        "date": "20260323",
+        "totalVolume": 24481.052223709998,
+        "volumeDiff": 1452.8061066400005,
+        "netFlow": -1163.693843,
+        "upCount": 305,
+        "downCount": 5172,
+        "flatCount": 6,
+        "limitUp": 36,
+        "limitDown": 131,
+        "up7": 47,
+        "up5_7": 33,
+        "up3_5": 51,
+        "up0_3": 174,
+        "down7": 1235,
+        "down5_7": 2179,
+        "down3_5": 1211,
+        "down0_3": 547
+      },
+      "sh_index_days": 121,
+      "sh_index_target": {
+        "id": 2615,
+        "date": "20260323",
+        "name": "上证指数",
+        "close": 3813.2829,
+        "change": -3.6333,
+        "volume": 10862.48286,
+        "open": 3904.9513,
+        "high": 3906.622,
+        "low": 3794.6844
+      },
+      "limitup_records": [],
+      "current_sector_constituent": [
+        {
+          "sector_type": "concept",
+          "sector_name": "股权转让",
+          "stock_name": "杰恩股份",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "ERP概念",
+          "stock_name": "杰恩股份",
+          "in_date": "2026-10-10"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "微利股",
+          "stock_name": "杰恩股份",
+          "in_date": "2026-10-07"
+        },
+        {
+          "sector_type": "industry",
+          "sector_name": "工程咨询服务Ⅱ",
+          "stock_name": "杰恩股份",
+          "in_date": "2026-10-07"
+        },
+        {
+          "sector_type": "industry",
+          "sector_name": "工程咨询服务Ⅲ",
+          "stock_name": "杰恩股份",
+          "in_date": "2026-10-07"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "创业板综",
+          "stock_name": "杰恩股份",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "深圳特区",
+          "stock_name": "杰恩股份",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "虚拟现实",
+          "stock_name": "杰恩股份",
+          "in_date": "2026-10-09"
+        }
+      ],
+      "sw_industry_member": [
+        {
+          "index_code": "801720.SI",
+          "ts_code": "300668.SZ",
+          "in_date": "20170626",
+          "out_date": "",
+          "is_new": "Y"
+        }
+      ],
+      "stock_basic": {
+        "ts_code": "300668.SZ",
+        "name": "杰恩股份",
+        "listing_date": "20170619",
+        "market": "创业板",
+        "status": "normal",
+        "industry": null,
+        "industry_name": null,
+        "area": null,
+        "total_mv": null,
+        "circ_mv": null,
+        "last_sync_date": null,
+        "updated_at": null,
+        "total_share": 12038.1273,
+        "float_share": 9969.3862,
+        "last_share_sync": "2026-10-16"
+      },
+      "em_missing_last20": [
+        "20260224",
+        "20260225",
+        "20260226",
+        "20260227",
+        "20260302",
+        "20260303",
+        "20260304",
+        "20260305",
+        "20260306",
+        "20260309",
+        "20260310",
+        "20260311",
+        "20260312",
+        "20260313",
+        "20260316",
+        "20260317",
+        "20260318",
+        "20260319",
+        "20260320",
+        "20260323"
+      ],
+      "em_nonfinite_fields": 0,
+      "limitup_target": [],
+      "limitup_market_coverage": 2,
+      "limitup_market_target_records": 0
+    },
+    {
+      "name": "善水科技",
+      "ts_code": "301190.SZ",
+      "date": "20260928",
+      "trading_day": true,
+      "bar_window_start": "20260403",
+      "expected_bars": 121,
+      "present_bars": 121,
+      "missing_bars": [],
+      "invalid_bar_dates": [],
+      "reference_mismatches": [
+        {
+          "date": "20260714",
+          "stored_change": 2.0216,
+          "raw_change": 1.068091,
+          "difference_pp": -0.953509,
+          "previous_close": 14.98,
+          "close": 15.14,
+          "trading_days_before_target": 53
+        }
+      ],
+      "daily_names": [
+        "善水科技"
+      ],
+      "target_bar": {
+        "id": 4429513,
+        "ts_code": "301190.SZ",
+        "name": "善水科技",
+        "trade_date": "20260928",
+        "open": 20.96,
+        "high": 24.95,
+        "low": 20.95,
+        "close": 24.95,
+        "change": 20.0096,
+        "volume": 166219.79,
+        "amount": 382851.17588
+      },
+      "em_coverage": {
+        "1": {
+          "present": 1,
+          "expected": 1
+        },
+        "5": {
+          "present": 5,
+          "expected": 5
+        },
+        "20": {
+          "present": 20,
+          "expected": 20
+        },
+        "60": {
+          "present": 59,
+          "expected": 60
+        },
+        "121": {
+          "present": 117,
+          "expected": 121
+        }
+      },
+      "em_sources": {
+        "eastmoney-daykline": 45,
+        "eastmoney-push2": 72
+      },
+      "em_target": {
+        "id": 755354,
+        "trade_date": "20260928",
+        "ts_code": "301190.SZ",
+        "code": "301190",
+        "name": "善水科技",
+        "main_net_inflow": 63392923.0,
+        "main_net_pct": 16.56,
+        "super_net": 68552071.0,
+        "super_pct": 17.91,
+        "big_net": -5159148.0,
+        "big_pct": -1.35,
+        "mid_net": -22329514.0,
+        "mid_pct": -5.83,
+        "small_net": -41063409.0,
+        "small_pct": -10.73,
+        "source": "eastmoney-push2",
+        "updated_at": "2026-09-28 18:48:53",
+        "total_net_inflow": null
+      },
+      "ths_coverage": {
+        "1": {
+          "present": 1,
+          "expected": 1
+        },
+        "5": {
+          "present": 5,
+          "expected": 5
+        },
+        "20": {
+          "present": 20,
+          "expected": 20
+        },
+        "60": {
+          "present": 26,
+          "expected": 60
+        },
+        "121": {
+          "present": 26,
+          "expected": 121
+        }
+      },
+      "ths_target": {
+        "id": 185321,
+        "trade_date": "20260928",
+        "ts_code": "301190.SZ",
+        "code": "301190",
+        "name": "善水科技",
+        "close": 24.95,
+        "change_pct": 20.01,
+        "turnover_pct": 9.14,
+        "inflow": 191000000.0,
+        "outflow": 192000000.0,
+        "net": -1720400.0,
+        "amount": 383000000.0,
+        "big_inflow": null,
+        "updated_at": "2026-09-28 17:07:06"
+      },
+      "ths_turnover_present": 26,
+      "market_overview_days": 121,
+      "market_overview_target": {
+        "id": 761,
+        "date": "20260928",
+        "totalVolume": 17167.1221811513,
+        "volumeDiff": 475.999438631301,
+        "netFlow": -850.040758,
+        "upCount": 898,
+        "downCount": 4554,
+        "flatCount": 105,
+        "limitUp": 40,
+        "limitDown": 123,
+        "up7": 48,
+        "up5_7": 35,
+        "up3_5": 93,
+        "up0_3": 722,
+        "down7": 409,
+        "down5_7": 450,
+        "down3_5": 966,
+        "down0_3": 2729
+      },
+      "sh_index_days": 121,
+      "sh_index_target": {
+        "id": 4276,
+        "date": "20260928",
+        "name": "上证指数",
+        "close": 3823.6206,
+        "change": -1.6653,
+        "volume": 8045.437047079001,
+        "open": 3878.4088,
+        "high": 3878.4088,
+        "low": 3806.6708
+      },
+      "limitup_records": [
+        {
+          "id": 29440,
+          "date": "20260720",
+          "code": "301190.SZ",
+          "name": "善水科技",
+          "marketCap": 24.9,
+          "time": "13:17:33",
+          "sector": "公告",
+          "volume": 2.1,
+          "streak": "首板",
+          "keyword": "中报预增+农药+氰虫苯甲酰胺原料+染料中间体"
+        },
+        {
+          "id": 33134,
+          "date": "20260928",
+          "code": "301190.SZ",
+          "name": "善水科技",
+          "marketCap": 45.4,
+          "time": "13:47:00",
+          "sector": "其他",
+          "volume": 3.8,
+          "streak": "首板",
+          "keyword": "销体涨价+农药+氯虫苯甲酰胺原料+染料中间体"
+        }
+      ],
+      "current_sector_constituent": [
+        {
+          "sector_type": "concept",
+          "sector_name": "参股银行",
+          "stock_name": "善水科技",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "融资融券",
+          "stock_name": "善水科技",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "创业板综",
+          "stock_name": "善水科技",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "深股通",
+          "stock_name": "善水科技",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "幽门螺杆菌概念",
+          "stock_name": "善水科技",
+          "in_date": "2026-10-10"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "东方财富热股",
+          "stock_name": "善水科技",
+          "in_date": "2026-10-10"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "最近多板",
+          "stock_name": "善水科技",
+          "in_date": "2026-10-07"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "病原体防治",
+          "stock_name": "善水科技",
+          "in_date": "2026-10-07"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "近期新高",
+          "stock_name": "善水科技",
+          "in_date": "2026-10-07"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "百日新高",
+          "stock_name": "善水科技",
+          "in_date": "2026-10-07"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "题材股",
+          "stock_name": "善水科技",
+          "in_date": "2026-10-07"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "2026中报预增",
+          "stock_name": "善水科技",
+          "in_date": "2026-10-07"
+        },
+        {
+          "sector_type": "industry",
+          "sector_name": "化学原料",
+          "stock_name": "善水科技",
+          "in_date": "2026-10-07"
+        },
+        {
+          "sector_type": "industry",
+          "sector_name": "基础化工",
+          "stock_name": "善水科技",
+          "in_date": "2026-10-07"
+        },
+        {
+          "sector_type": "industry",
+          "sector_name": "其他化学原料",
+          "stock_name": "善水科技",
+          "in_date": "2026-10-07"
+        }
+      ],
+      "sw_industry_member": [
+        {
+          "index_code": "801030.SI",
+          "ts_code": "301190.SZ",
+          "in_date": "20211231",
+          "out_date": "",
+          "is_new": "Y"
+        }
+      ],
+      "stock_basic": {
+        "ts_code": "301190.SZ",
+        "name": "善水科技",
+        "listing_date": "20211224",
+        "market": "创业板",
+        "status": "normal",
+        "industry": null,
+        "industry_name": null,
+        "area": null,
+        "total_mv": null,
+        "circ_mv": null,
+        "last_sync_date": null,
+        "updated_at": null,
+        "total_share": 21463.65,
+        "float_share": 18185.4,
+        "last_share_sync": "2026-10-16"
+      },
+      "em_missing_last20": [],
+      "em_nonfinite_fields": 0,
+      "limitup_target": [
+        {
+          "id": 33134,
+          "date": "20260928",
+          "code": "301190.SZ",
+          "name": "善水科技",
+          "marketCap": 45.4,
+          "time": "13:47:00",
+          "sector": "其他",
+          "volume": 3.8,
+          "streak": "首板",
+          "keyword": "销体涨价+农药+氯虫苯甲酰胺原料+染料中间体"
+        }
+      ],
+      "limitup_market_coverage": 123,
+      "limitup_market_target_records": 32
+    },
+    {
+      "name": "近岸蛋白",
+      "ts_code": "688137.SH",
+      "date": "20260807",
+      "trading_day": true,
+      "bar_window_start": "20260205",
+      "expected_bars": 121,
+      "present_bars": 121,
+      "missing_bars": [],
+      "invalid_bar_dates": [],
+      "reference_mismatches": [],
+      "daily_names": [
+        "",
+        "近岸蛋白"
+      ],
+      "target_bar": {
+        "id": 4231962,
+        "ts_code": "688137.SH",
+        "name": "近岸蛋白",
+        "trade_date": "20260807",
+        "open": 38.8,
+        "high": 46.72,
+        "low": 38.56,
+        "close": 46.72,
+        "change": 20.0103,
+        "volume": 39262.17,
+        "amount": 171227.019
+      },
+      "em_coverage": {
+        "1": {
+          "present": 1,
+          "expected": 1
+        },
+        "5": {
+          "present": 5,
+          "expected": 5
+        },
+        "20": {
+          "present": 19,
+          "expected": 20
+        },
+        "60": {
+          "present": 59,
+          "expected": 60
+        },
+        "121": {
+          "present": 82,
+          "expected": 121
+        }
+      },
+      "em_sources": {
+        "eastmoney-daykline": 45,
+        "eastmoney-push2": 37
+      },
+      "em_target": {
+        "id": 464888,
+        "trade_date": "20260807",
+        "ts_code": "688137.SH",
+        "code": "688137",
+        "name": "近岸蛋白",
+        "main_net_inflow": 28700534.0,
+        "main_net_pct": 16.76,
+        "super_net": 31233199.0,
+        "super_pct": 18.24,
+        "big_net": -2532665.0,
+        "big_pct": -1.48,
+        "mid_net": -13254804.0,
+        "mid_pct": -7.74,
+        "small_net": -15445730.0,
+        "small_pct": -9.02,
+        "source": "eastmoney-push2",
+        "updated_at": "2026-08-07 18:11:26",
+        "total_net_inflow": null
+      },
+      "ths_coverage": {
+        "1": {
+          "present": 0,
+          "expected": 1
+        },
+        "5": {
+          "present": 0,
+          "expected": 5
+        },
+        "20": {
+          "present": 0,
+          "expected": 20
+        },
+        "60": {
+          "present": 0,
+          "expected": 60
+        },
+        "121": {
+          "present": 0,
+          "expected": 121
+        }
+      },
+      "ths_target": null,
+      "ths_turnover_present": 0,
+      "market_overview_days": 121,
+      "market_overview_target": {
+        "id": 360,
+        "date": "20260807",
+        "totalVolume": 26834.0172938207,
+        "volumeDiff": 1358.9057183877012,
+        "netFlow": 73.32047200000002,
+        "upCount": 2856,
+        "downCount": 2536,
+        "flatCount": 143,
+        "limitUp": 144,
+        "limitDown": 8,
+        "up7": 281,
+        "up5_7": 213,
+        "up3_5": 436,
+        "up0_3": 1926,
+        "down7": 26,
+        "down5_7": 26,
+        "down3_5": 113,
+        "down0_3": 2371
+      },
+      "sh_index_days": 121,
+      "sh_index_target": {
+        "id": 3220,
+        "date": "20260807",
+        "name": "上证指数",
+        "close": 3940.0371,
+        "change": 1.0175,
+        "volume": 12095.435732943999,
+        "open": 3896.4854,
+        "high": 3940.9347,
+        "low": 3885.6248
+      },
+      "limitup_records": [
+        {
+          "id": 30768,
+          "date": "20260807",
+          "code": "688137.SH",
+          "name": "近岸蛋白",
+          "marketCap": 32.7,
+          "time": "11:26:55",
+          "sector": "医疗医药",
+          "volume": 1.7,
+          "streak": "首板",
+          "keyword": "AI医疗+合成生物+CRO"
+        }
+      ],
+      "current_sector_constituent": [
+        {
+          "sector_type": "concept",
+          "sector_name": "融资融券",
+          "stock_name": "近岸蛋白",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "体外诊断概念",
+          "stock_name": "近岸蛋白",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "CRO",
+          "stock_name": "近岸蛋白",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "专精特新",
+          "stock_name": "近岸蛋白",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "百元股",
+          "stock_name": "近岸蛋白",
+          "in_date": "2026-10-10"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "重组蛋白",
+          "stock_name": "近岸蛋白",
+          "in_date": "2026-10-10"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "创新药",
+          "stock_name": "近岸蛋白",
+          "in_date": "2026-10-10"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "合成生物",
+          "stock_name": "近岸蛋白",
+          "in_date": "2026-10-10"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "精准诊断",
+          "stock_name": "近岸蛋白",
+          "in_date": "2026-10-07"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "近期新高",
+          "stock_name": "近岸蛋白",
+          "in_date": "2026-10-07"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "历史新高",
+          "stock_name": "近岸蛋白",
+          "in_date": "2026-10-07"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "百日新高",
+          "stock_name": "近岸蛋白",
+          "in_date": "2026-10-07"
+        },
+        {
+          "sector_type": "industry",
+          "sector_name": "生物制品",
+          "stock_name": "近岸蛋白",
+          "in_date": "2026-10-07"
+        },
+        {
+          "sector_type": "industry",
+          "sector_name": "医药生物",
+          "stock_name": "近岸蛋白",
+          "in_date": "2026-10-07"
+        },
+        {
+          "sector_type": "industry",
+          "sector_name": "其他生物制品",
+          "stock_name": "近岸蛋白",
+          "in_date": "2026-10-07"
+        }
+      ],
+      "sw_industry_member": [
+        {
+          "index_code": "801150.SI",
+          "ts_code": "688137.SH",
+          "in_date": "20230925",
+          "out_date": "",
+          "is_new": "Y"
+        }
+      ],
+      "stock_basic": {
+        "ts_code": "688137.SH",
+        "name": "近岸蛋白",
+        "listing_date": "20220929",
+        "market": "科创板",
+        "status": "normal",
+        "industry": null,
+        "industry_name": null,
+        "area": null,
+        "total_mv": null,
+        "circ_mv": null,
+        "last_sync_date": null,
+        "updated_at": null,
+        "total_share": 6991.7453,
+        "float_share": 6991.7453,
+        "last_share_sync": "2026-10-16"
+      },
+      "em_missing_last20": [
+        "20260731"
+      ],
+      "em_nonfinite_fields": 0,
+      "limitup_target": [
+        {
+          "id": 30768,
+          "date": "20260807",
+          "code": "688137.SH",
+          "name": "近岸蛋白",
+          "marketCap": 32.7,
+          "time": "11:26:55",
+          "sector": "医疗医药",
+          "volume": 1.7,
+          "streak": "首板",
+          "keyword": "AI医疗+合成生物+CRO"
+        }
+      ],
+      "limitup_market_coverage": 97,
+      "limitup_market_target_records": 74
+    },
+    {
+      "name": "澳弘电子",
+      "ts_code": "605058.SH",
+      "date": "20260910",
+      "trading_day": true,
+      "bar_window_start": "20260319",
+      "expected_bars": 121,
+      "present_bars": 121,
+      "missing_bars": [],
+      "invalid_bar_dates": [],
+      "reference_mismatches": [
+        {
+          "date": "20260701",
+          "stored_change": -5.889,
+          "raw_change": -7.190265,
+          "difference_pp": -1.301265,
+          "previous_close": 36.16,
+          "close": 33.56,
+          "trading_days_before_target": 51
+        }
+      ],
+      "daily_names": [
+        "",
+        "澳弘电子"
+      ],
+      "target_bar": {
+        "id": 4370346,
+        "ts_code": "605058.SH",
+        "name": "澳弘电子",
+        "trade_date": "20260910",
+        "open": 29.5,
+        "high": 30.39,
+        "low": 29.03,
+        "close": 30.28,
+        "change": 2.1592,
+        "volume": 49934.8,
+        "amount": 149744.753
+      },
+      "em_coverage": {
+        "1": {
+          "present": 1,
+          "expected": 1
+        },
+        "5": {
+          "present": 5,
+          "expected": 5
+        },
+        "20": {
+          "present": 20,
+          "expected": 20
+        },
+        "60": {
+          "present": 59,
+          "expected": 60
+        },
+        "121": {
+          "present": 106,
+          "expected": 121
+        }
+      },
+      "em_sources": {
+        "eastmoney-daykline": 45,
+        "eastmoney-push2": 61
+      },
+      "em_target": {
+        "id": 633623,
+        "trade_date": "20260910",
+        "ts_code": "605058.SH",
+        "code": "605058",
+        "name": "澳弘电子",
+        "main_net_inflow": 12092927.0,
+        "main_net_pct": 8.08,
+        "super_net": 2112071.0,
+        "super_pct": 1.41,
+        "big_net": 9980856.0,
+        "big_pct": 6.67,
+        "mid_net": 10454094.0,
+        "mid_pct": 6.98,
+        "small_net": -22547020.0,
+        "small_pct": -15.06,
+        "source": "eastmoney-push2",
+        "updated_at": "2026-09-10 17:07:41",
+        "total_net_inflow": null
+      },
+      "ths_coverage": {
+        "1": {
+          "present": 1,
+          "expected": 1
+        },
+        "5": {
+          "present": 5,
+          "expected": 5
+        },
+        "20": {
+          "present": 15,
+          "expected": 20
+        },
+        "60": {
+          "present": 15,
+          "expected": 60
+        },
+        "121": {
+          "present": 15,
+          "expected": 121
+        }
+      },
+      "ths_target": {
+        "id": 104313,
+        "trade_date": "20260910",
+        "ts_code": "605058.SH",
+        "code": "605058",
+        "name": "澳弘电子",
+        "close": 30.28,
+        "change_pct": 2.16,
+        "turnover_pct": 3.49,
+        "inflow": 66235300.0,
+        "outflow": 83509300.0,
+        "net": -17274000.0,
+        "amount": 150000000.0,
+        "big_inflow": null,
+        "updated_at": "2026-09-10 17:04:03"
+      },
+      "ths_turnover_present": 15,
+      "market_overview_days": 121,
+      "market_overview_target": {
+        "id": 738,
+        "date": "20260910",
+        "totalVolume": 16623.375260044202,
+        "volumeDiff": -2107.2951377888967,
+        "netFlow": -704.083915,
+        "upCount": 955,
+        "downCount": 4512,
+        "flatCount": 82,
+        "limitUp": 43,
+        "limitDown": 21,
+        "up7": 58,
+        "up5_7": 44,
+        "up3_5": 91,
+        "up0_3": 762,
+        "down7": 75,
+        "down5_7": 133,
+        "down3_5": 679,
+        "down0_3": 3625
+      },
+      "sh_index_days": 121,
+      "sh_index_target": {
+        "id": 4136,
+        "date": "20260910",
+        "name": "上证指数",
+        "close": 3934.4036,
+        "change": -0.4328,
+        "volume": 7796.726922697,
+        "open": 3939.0948,
+        "high": 3949.2549,
+        "low": 3927.3472
+      },
+      "limitup_records": [
+        {
+          "id": 25803,
+          "date": "20260615",
+          "code": "605058.SH",
+          "name": "澳弘电子",
+          "marketCap": 58.0,
+          "time": "10:45:44",
+          "sector": "PCB",
+          "volume": 1.8,
+          "streak": "首板",
+          "keyword": "PCB+HDI+AI算力+汽车电子"
+        }
+      ],
+      "current_sector_constituent": [
+        {
+          "sector_type": "concept",
+          "sector_name": "最近多板",
+          "stock_name": "澳弘电子",
+          "in_date": "2026-10-07"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "题材股",
+          "stock_name": "澳弘电子",
+          "in_date": "2026-10-07"
+        },
+        {
+          "sector_type": "industry",
+          "sector_name": "元件",
+          "stock_name": "澳弘电子",
+          "in_date": "2026-10-07"
+        },
+        {
+          "sector_type": "industry",
+          "sector_name": "印制电路板",
+          "stock_name": "澳弘电子",
+          "in_date": "2026-10-07"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "转债标的",
+          "stock_name": "澳弘电子",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "工业互联",
+          "stock_name": "澳弘电子",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "PCB",
+          "stock_name": "澳弘电子",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "卫星互联网",
+          "stock_name": "澳弘电子",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "一带一路",
+          "stock_name": "澳弘电子",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "新能源车",
+          "stock_name": "澳弘电子",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "商业航天",
+          "stock_name": "澳弘电子",
+          "in_date": "2026-10-09"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "新型工业化",
+          "stock_name": "澳弘电子",
+          "in_date": "2026-10-10"
+        },
+        {
+          "sector_type": "concept",
+          "sector_name": "昨日高振幅",
+          "stock_name": "澳弘电子",
+          "in_date": "2026-10-10"
+        }
+      ],
+      "sw_industry_member": [
+        {
+          "index_code": "801080.SI",
+          "ts_code": "605058.SH",
+          "in_date": "20201028",
+          "out_date": "",
+          "is_new": "Y"
+        }
+      ],
+      "stock_basic": {
+        "ts_code": "605058.SH",
+        "name": "澳弘电子",
+        "listing_date": "20201021",
+        "market": "主板",
+        "status": "normal",
+        "industry": null,
+        "industry_name": null,
+        "area": null,
+        "total_mv": null,
+        "circ_mv": null,
+        "last_sync_date": null,
+        "updated_at": null,
+        "total_share": 14292.9012,
+        "float_share": 14292.9012,
+        "last_share_sync": "2026-10-16"
+      },
+      "em_missing_last20": [],
+      "em_nonfinite_fields": 0,
+      "limitup_target": [],
+      "limitup_market_coverage": 119,
+      "limitup_market_target_records": 35
+    }
+  ],
+  "candidate_count": 863,
+  "distinct_candidates": 804,
+  "future_chart_bars": 0,
+  "chart_verification": {
+    "echarts_ssr_stock_window_combinations": 44,
+    "browser_observed": [
+      "initial 60-day chart",
+      "switch to 斯莱克; close-break +4.14%, wick-break -0.11%",
+      "candlestick and volume and prior-only box visible"
+    ],
+    "screenshot": "/tmp/tradeiq-box-breakout-20261019-slike.png"
+  },
+  "files": {
+    "box-breakout-20261018-cases.csv": "66b1baeb111816c066d55a31cdded75ce2e602a43bad348720cb18e9be0bdb57",
+    "box-breakout-20261018-candidates.csv": "a0764f607ca72c166db4668a5805fca2d674c4c1a2010bcc26558dd7c3f795ac",
+    "box-breakout-20261018-results.json": "3c7dbbebd0cabbb9fc652e5755cdf488165861696816651b60263e9d8053c68e",
+    "box-breakout-20261018-charts.html": "1df0e4b95b931f230269391c2fcb4a7c869f3f54c70c3ffaa28dc2c6ebc2abfc",
+    "box-breakout-20261018.md": "b4ba16c100294b128f9d39b9de511f55e3539114cf0977a9f7331b90265cf242"
+  },
+  "scope": "Read-only local research; no business page, API, strategy setting or database writes."
+}

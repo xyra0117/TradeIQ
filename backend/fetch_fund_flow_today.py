@@ -283,8 +283,45 @@ def fetch_today_market(progress_callback=None, headless: bool = False, verbose: 
 
     _emit("start", actual_date=actual_date, today=today)
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=headless, channel="chrome")
-        page = browser.new_page(viewport={"width": 1920, "height": 1080})
+        # 长跑后端 (5h+) Playwright 偶发 TargetClosedError: Chrome 一启动就死, 还没连上 CDP.
+        # 加 ① 重试退避 ② 稳健 launch args ③ 独立 user_data_dir 三件套规避 stale state.
+        # 注意: 后端跑在 mcode-sandbox 沙箱里, TMPDIR 指向沙箱内只读路径,
+        #       Playwright 默认 user-data-dir 落到沙箱里 Chrome 写不动 → 立即死.
+        #       显式把 user_data_dir 指到 /tmp/tradeiq-chrome/ 绕开沙箱.
+        import time as _launch_t
+        import shutil as _shutil
+        _PROFILE_ROOT = '/tmp/tradeiq-chrome'
+        os.makedirs(_PROFILE_ROOT, exist_ok=True)
+        last_err = None
+        browser = None
+        for _attempt in range(1, 4):
+            user_dir = os.path.join(_PROFILE_ROOT, f'attempt-{os.getpid()}-{int(_launch_t.time())}')
+            os.makedirs(user_dir, exist_ok=True)
+            try:
+                # 用 launch_persistent_context 才能传 user_data_dir, 规避长跑后端 stale state
+                # 返回 BrowserContext, .new_page() / .close() 用法跟之前一样
+                # viewport 必须在 context 这一层传, new_page() 不接受 viewport
+                browser = p.chromium.launch_persistent_context(
+                    user_data_dir=user_dir,
+                    headless=headless,
+                    channel="chrome",
+                    viewport={"width": 1920, "height": 1080},
+                    args=['--no-sandbox', '--disable-dev-shm-usage'],
+                )
+                if verbose and _attempt > 1:
+                    print(f'[{datetime.now():%H:%M:%S}] ✅ 第 {_attempt} 次重试 launch 成功 ({user_dir})')
+                break
+            except Exception as e:
+                last_err = e
+                if verbose:
+                    print(f'[{datetime.now():%H:%M:%S}] ⚠ launch 第 {_attempt}/3 次失败: {type(e).__name__}: {str(e)[:120]}')
+                _shutil.rmtree(user_dir, ignore_errors=True)
+                if _attempt < 3:
+                    _launch_t.sleep(3 * _attempt)  # 3s, 6s
+        if browser is None:
+            # 3 次都失败: 把最后一次原始异常抛回去, 让上层 _em_sync_market_bg 捕获并落到 state.errors
+            raise last_err
+        page = browser.new_page()
 
         if verbose:
             print(f"[{datetime.now():%H:%M:%S}] 打开页面建立 session...")
@@ -436,8 +473,37 @@ def fetch_5day_market(target_date: str, progress_callback=None, headless: bool =
 
     _emit("start", actual_date=actual_date, today=actual_date)
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=headless, channel="chrome")
-        page = browser.new_page(viewport={"width": 1920, "height": 1080})
+        # 5d 历史回溯也走 persistent context, 同沙箱 TMPDIR 修复 (用 /tmp/tradeiq-chrome 绕开)
+        import time as _launch_t
+        import shutil as _shutil
+        _PROFILE_ROOT_5D = '/tmp/tradeiq-chrome-5d'
+        os.makedirs(_PROFILE_ROOT_5D, exist_ok=True)
+        last_err = None
+        browser = None
+        for _attempt in range(1, 4):
+            user_dir = os.path.join(_PROFILE_ROOT_5D, f'attempt-{os.getpid()}-{int(_launch_t.time())}')
+            os.makedirs(user_dir, exist_ok=True)
+            try:
+                browser = p.chromium.launch_persistent_context(
+                    user_data_dir=user_dir,
+                    headless=headless,
+                    channel="chrome",
+                    viewport={"width": 1920, "height": 1080},
+                    args=['--no-sandbox', '--disable-dev-shm-usage'],
+                )
+                if verbose and _attempt > 1:
+                    print(f'[{datetime.now():%H:%M:%S}] ✅ [5d] 第 {_attempt} 次重试 launch 成功')
+                break
+            except Exception as e:
+                last_err = e
+                if verbose:
+                    print(f'[{datetime.now():%H:%M:%S}] ⚠ [5d] launch 第 {_attempt}/3 次失败: {type(e).__name__}: {str(e)[:120]}')
+                _shutil.rmtree(user_dir, ignore_errors=True)
+                if _attempt < 3:
+                    _launch_t.sleep(3 * _attempt)
+        if browser is None:
+            raise last_err
+        page = browser.new_page()
 
         if verbose:
             print(f"[5d] 打开页面建立 session...")

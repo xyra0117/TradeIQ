@@ -6,7 +6,7 @@ const html = fs.readFileSync(`${__dirname}/index.html`, 'utf8');
 assert.match(html, /key: 'conditionalNew', label: '条件选股新'/);
 assert.match(html, /id="picksVolumeRatioInput"[^>]*min="1"[^>]*max="100"[^>]*value="80"/);
 assert.match(html, /\/api\/conditional-picks\/new\?/);
-assert.match(html, /const cacheKey = `\$\{picksSelDate \|\| 'latest'\}\|\$\{threshold\}\|\$\{volumeRatio\}`/);
+assert.match(html, /_fetchPicksResult\('\/api\/conditional-picks\/new\?/); // Full date/ratio/threshold query is the shared key.
 assert.match(html, /requestId !== _conditionalNewRequestId/);
 assert.match(html, /currentPicksGroup === 'conditionalPreferred' \|\| currentPicksGroup === 'combined'/,
   '条件优选必须进入 T+N 实时刷新分支');

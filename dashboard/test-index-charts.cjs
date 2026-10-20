@@ -58,7 +58,7 @@ const reply = async (request, data, ok = true) => {
     '交割分析的 B/S 标签应距离 K 线 16 像素');
   assert.match(source, /const KLINE_MA_COLORS = \{ 5: '#7ac8ff', 10: '#e8a45a', 20: '#c89cff', 30: '#4dd0e1', 60: '#6fbf73' \}/,
     '每条均线应有固定且不同的颜色');
-  assert.equal((html.match(/\{pickDate:/g) || []).length, 17, '选股推荐和条件优选的名称/代码入口都应传入选股日期');
+  assert.equal((html.match(/\{pickDate:/g) || []).length, 18, '选股推荐、诊断预览和条件优选的名称/代码入口都应传入选股日期');
   await run("showKlineModal('000001.SH','上证指数',{kind:'index',date:'20250102'})");
   const oldMin = requests.at(-1);
   assert.match(oldMin.url, /index\/minline.*date=20250102/);

@@ -1,0 +1,41 @@
+{
+  "resourceVersion": "20261009.7",
+  "designVersion": "1.9",
+  "images": [
+    {
+      "file": "hot-heat-color-1440-dark.jpg",
+      "sha256": "05b4d25258e0a08a724d4986a5bf9b1dad4ef84a946d738736f1ac3c76b89824"
+    },
+    {
+      "file": "hot-heat-color-1440-light.jpg",
+      "sha256": "3fd621c0bd513cb6f5b6d43e3000a465ae8eb1f5579b2713c11187a0cd059c51"
+    },
+    {
+      "file": "hot-heat-color-1920-dark.jpg",
+      "sha256": "17a3be0f3f720ab627456065a8cbfe95309b879b6aeece47b43243769f98c9f2"
+    },
+    {
+      "file": "hot-heat-color-1920-light.jpg",
+      "sha256": "ad0f316e1fd9ef314f1f52f146af05d0731476a959e21ee60d86c536b5016d94"
+    },
+    {
+      "file": "hot-heat-color-2560-dark.jpg",
+      "sha256": "5cafa67bfc8161f1e6739c76940e37bf1a7867d66520eb2eb982326e569e5365"
+    },
+    {
+      "file": "hot-heat-color-2560-light.jpg",
+      "sha256": "34a397d82dd72dfb4f77f84a305e689fdba3af9c756c1d147cc2c2b48ccefb5a"
+    }
+  ],
+  "sources": {
+    "dashboard/redesign/workspace.css": "57c4f4d1b357d7892d57eb31f7b92d4aa896c3ee50fd14ab08a0831f2333e2b8",
+    "dashboard/redesign/pages.css": "4108dcb1bd2d00c984068197bdbf3c80f73d2b6c2f9f1551f49ce95d2f180072",
+    "dashboard/redesign/pages.js": "50726b207b80101969a7189d67cb02bf32a5b3b0848304f27c62e86c3c041c7f",
+    "dashboard/redesign/components.js": "dab32ebf92601efd078b189454cc8834874d750e8b401eb5d7430ee6831262ae",
+    "dashboard/redesign/index.html": "08c647f441247d38bbb6ecf64de80adc2b8b667f87742028c9b9bd8c2e69a2ca",
+    "dashboard/redesign/components.html": "ea35068bc87b873366ed24ee06305e9f2442c06966e523443885cbc279a3b801",
+    "docs/design/2026-10-04-tradeiq-design-system.md": "a66b4cd63712ea6d57d855339a45dc42a55f9c18742e007fdea2c42173ef67d8",
+    "docs/design/2026-10-09-tradeiq-strategies-hot-sectors.md": "af8cdd779cbc0773f17941d1e9b16619c4bd7d719004bcb7a8f4d05a13a254b0"
+  },
+  "verificationSha256": "8f04c2569024e375f7d61a6417eb0cad62cfb0e90d99ef923308380a9abbc9be"
+}

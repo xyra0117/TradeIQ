@@ -1,6 +1,6 @@
 /* Only this exact set of public app resources may enter Cache Storage. */
 'use strict';
-const VERSION = 'tradeiq-mobile-shell-v1';
+const VERSION = 'tradeiq-mobile-shell-v3-recent-hot-sectors';
 const SHELL = ['/', '/app.css', '/app.js', '/manifest.webmanifest', '/icon-180.png', '/icon-192.png', '/icon-512.png', '/vendor/echarts.min.js'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(VERSION).then(cache => cache.addAll(SHELL)).then(()=>self.skipWaiting()));

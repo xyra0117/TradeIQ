@@ -1,0 +1,1208 @@
+{
+  "checks": [
+    "two trend cards visible",
+    "simple mode has four entrances",
+    "overview title and active entry",
+    "old simple nav retained",
+    "each trend has all four legends",
+    "indices 10 days redraws exactly",
+    "indices shortcut pressed 10",
+    "indices 20 days redraws exactly",
+    "indices shortcut pressed 20",
+    "indices 60 days redraws exactly",
+    "indices shortcut pressed 60",
+    "indices 90 days redraws exactly",
+    "indices shortcut pressed 90",
+    "breadth 10 days redraws exactly",
+    "breadth shortcut pressed 10",
+    "breadth 20 days redraws exactly",
+    "breadth shortcut pressed 20",
+    "breadth 60 days redraws exactly",
+    "breadth shortcut pressed 60",
+    "breadth 90 days redraws exactly",
+    "breadth shortcut pressed 90",
+    "ranges are independent",
+    "small tier hides its line",
+    "tooltip excludes hidden legend",
+    "tooltip has explicit units",
+    "wheel changes interval",
+    "drag pans date interval",
+    "keyboard pans interval",
+    "start slider updates date window",
+    "end slider updates date window",
+    "navigator start handle expands window",
+    "hidden all series has restore instruction",
+    "one legend can restore chart",
+    "date change resets both to 10 days",
+    "chart cutoff follows selected date",
+    "loading state rendered",
+    "empty state rendered",
+    "error state rendered",
+    "missing state rendered",
+    "missing sample creates a broken line",
+    "normal state rendered",
+    "barometer table remains 31 columns",
+    "overview restores trend cards",
+    "simple stock search still opens",
+    "simple picks still visible",
+    "full mode restores eight entries",
+    "workbench layout 1440/light",
+    "workbench layout 1440/dark",
+    "workbench layout 1920/light",
+    "workbench layout 1920/dark",
+    "workbench layout 2560/light",
+    "workbench layout 2560/dark",
+    "component light trend count",
+    "component light no overflow",
+    "component dark trend count",
+    "component dark no overflow",
+    "component comparison trend count",
+    "component comparison no overflow",
+    "component light trend count",
+    "component light no overflow",
+    "component dark trend count",
+    "component dark no overflow",
+    "component comparison trend count",
+    "component comparison no overflow",
+    "component light trend count",
+    "component light no overflow",
+    "component dark trend count",
+    "component dark no overflow",
+    "component comparison trend count",
+    "component comparison no overflow",
+    "no JavaScript errors",
+    "no business requests",
+    "no resource failures"
+  ],
+  "layouts": [
+    {
+      "surface": "workbench",
+      "width": 1440,
+      "theme": "light"
+    },
+    {
+      "surface": "workbench",
+      "width": 1440,
+      "theme": "dark"
+    },
+    {
+      "surface": "workbench",
+      "width": 1920,
+      "theme": "light"
+    },
+    {
+      "surface": "workbench",
+      "width": 1920,
+      "theme": "dark"
+    },
+    {
+      "surface": "workbench",
+      "width": 2560,
+      "theme": "light"
+    },
+    {
+      "surface": "workbench",
+      "width": 2560,
+      "theme": "dark"
+    },
+    {
+      "surface": "components",
+      "width": 1440,
+      "theme": "light"
+    },
+    {
+      "surface": "components",
+      "width": 1440,
+      "theme": "dark"
+    },
+    {
+      "surface": "components",
+      "width": 1440,
+      "theme": "comparison"
+    },
+    {
+      "surface": "components",
+      "width": 1920,
+      "theme": "light"
+    },
+    {
+      "surface": "components",
+      "width": 1920,
+      "theme": "dark"
+    },
+    {
+      "surface": "components",
+      "width": 1920,
+      "theme": "comparison"
+    },
+    {
+      "surface": "components",
+      "width": 2560,
+      "theme": "light"
+    },
+    {
+      "surface": "components",
+      "width": 2560,
+      "theme": "dark"
+    },
+    {
+      "surface": "components",
+      "width": 2560,
+      "theme": "comparison"
+    }
+  ],
+  "errors": [],
+  "api": [],
+  "failed": [],
+  "date": "2026-10-06",
+  "scope": "UI-only fictional market trend charts",
+  "browser": "System Google Chrome via Playwright",
+  "syntax_checks": "4 scripts passed",
+  "diff_check": "passed",
+  "retained_sources": {
+    "dashboard/index.html": "fbb38c42678faff976c430c4cf7d62112cd7122ba90e49d2ea87e5a0732d95dd",
+    "backend/app.py": "24260f285a7b2ef04921bdc83f2a3370f744cc2fcc0c9c146edbbd303fda0b8f"
+  },
+  "visual_review": [
+    "market-overview-light.png",
+    "market-trends-dark.png",
+    "market-overview-dark.png"
+  ],
+  "production_limitations": [
+    "No real market API, backend task, database read/write, trading calendar or financial calculations implemented or verified."
+  ],
+  "visibility_followup": {
+    "date": "2026-10-06",
+    "browser": "Codex in-app browser",
+    "viewport": [
+      1047,
+      664
+    ],
+    "both_trend_groups_present": true,
+    "layout": "vertically stacked at narrow viewport",
+    "direct_focus": "focus=trends",
+    "resource_version": "20261006.2",
+    "preview_service_http": 200,
+    "original_cache_cause": "not confirmed"
+  },
+  "initial_checks_revision": "20261006.1; includes now-removed duplicate sliders",
+  "compact_timeline_followup": {
+    "revision": "20261006.3",
+    "browser": "Codex in-app browser",
+    "workbench": [
+      {
+        "overflow": false,
+        "ranges": 0,
+        "theme": "light",
+        "timelines": [
+          20,
+          20
+        ],
+        "width": 1440
+      },
+      {
+        "overflow": false,
+        "ranges": 0,
+        "theme": "light",
+        "timelines": [
+          20,
+          20
+        ],
+        "width": 1920
+      },
+      {
+        "overflow": false,
+        "ranges": 0,
+        "theme": "light",
+        "timelines": [
+          20,
+          20
+        ],
+        "width": 2560
+      },
+      {
+        "overflow": false,
+        "ranges": 0,
+        "theme": "dark",
+        "timelines": [
+          20,
+          20
+        ],
+        "width": 1440
+      },
+      {
+        "overflow": false,
+        "ranges": 0,
+        "theme": "dark",
+        "timelines": [
+          20,
+          20
+        ],
+        "width": 1920
+      },
+      {
+        "overflow": false,
+        "ranges": 0,
+        "theme": "dark",
+        "timelines": [
+          20,
+          20
+        ],
+        "width": 2560
+      }
+    ],
+    "components": [
+      {
+        "overflow": false,
+        "ranges": 0,
+        "timelines": [
+          20,
+          20,
+          20,
+          20
+        ],
+        "width": 1440
+      },
+      {
+        "overflow": false,
+        "ranges": 0,
+        "timelines": [
+          20,
+          20,
+          20,
+          20
+        ],
+        "width": 1920
+      },
+      {
+        "overflow": false,
+        "ranges": 0,
+        "timelines": [
+          20,
+          20,
+          20,
+          20
+        ],
+        "width": 2560
+      }
+    ],
+    "interaction": {
+      "leftHandleDrag": true,
+      "rightHandleDrag": true,
+      "selectionPan": true,
+      "independentCharts": true,
+      "handleKeyboard": true,
+      "focusPreserved": true
+    },
+    "errors": []
+  },
+  "range_timeline_followup": {
+    "revision": "20261006.4",
+    "workbench": [
+      {
+        "overflow": false,
+        "theme": "light",
+        "timelines": [
+          {
+            "curves": 0,
+            "height": 16,
+            "opacity": "1",
+            "selection": "rgb(29, 30, 32)",
+            "track": "rgb(247, 247, 245)",
+            "selection_track_contrast": 15.55
+          },
+          {
+            "curves": 0,
+            "height": 16,
+            "opacity": "1",
+            "selection": "rgb(29, 30, 32)",
+            "track": "rgb(247, 247, 245)",
+            "selection_track_contrast": 15.55
+          }
+        ],
+        "width": 1440
+      },
+      {
+        "overflow": false,
+        "theme": "light",
+        "timelines": [
+          {
+            "curves": 0,
+            "height": 16,
+            "opacity": "1",
+            "selection": "rgb(29, 30, 32)",
+            "track": "rgb(247, 247, 245)",
+            "selection_track_contrast": 15.55
+          },
+          {
+            "curves": 0,
+            "height": 16,
+            "opacity": "1",
+            "selection": "rgb(29, 30, 32)",
+            "track": "rgb(247, 247, 245)",
+            "selection_track_contrast": 15.55
+          }
+        ],
+        "width": 1920
+      },
+      {
+        "overflow": false,
+        "theme": "light",
+        "timelines": [
+          {
+            "curves": 0,
+            "height": 16,
+            "opacity": "1",
+            "selection": "rgb(29, 30, 32)",
+            "track": "rgb(247, 247, 245)",
+            "selection_track_contrast": 15.55
+          },
+          {
+            "curves": 0,
+            "height": 16,
+            "opacity": "1",
+            "selection": "rgb(29, 30, 32)",
+            "track": "rgb(247, 247, 245)",
+            "selection_track_contrast": 15.55
+          }
+        ],
+        "width": 2560
+      },
+      {
+        "overflow": false,
+        "theme": "dark",
+        "timelines": [
+          {
+            "curves": 0,
+            "height": 16,
+            "opacity": "1",
+            "selection": "rgb(237, 236, 232)",
+            "track": "rgb(28, 29, 31)",
+            "selection_track_contrast": 14.27
+          },
+          {
+            "curves": 0,
+            "height": 16,
+            "opacity": "1",
+            "selection": "rgb(237, 236, 232)",
+            "track": "rgb(28, 29, 31)",
+            "selection_track_contrast": 14.27
+          }
+        ],
+        "width": 1440
+      },
+      {
+        "overflow": false,
+        "theme": "dark",
+        "timelines": [
+          {
+            "curves": 0,
+            "height": 16,
+            "opacity": "1",
+            "selection": "rgb(237, 236, 232)",
+            "track": "rgb(28, 29, 31)",
+            "selection_track_contrast": 14.27
+          },
+          {
+            "curves": 0,
+            "height": 16,
+            "opacity": "1",
+            "selection": "rgb(237, 236, 232)",
+            "track": "rgb(28, 29, 31)",
+            "selection_track_contrast": 14.27
+          }
+        ],
+        "width": 1920
+      },
+      {
+        "overflow": false,
+        "theme": "dark",
+        "timelines": [
+          {
+            "curves": 0,
+            "height": 16,
+            "opacity": "1",
+            "selection": "rgb(237, 236, 232)",
+            "track": "rgb(28, 29, 31)",
+            "selection_track_contrast": 14.27
+          },
+          {
+            "curves": 0,
+            "height": 16,
+            "opacity": "1",
+            "selection": "rgb(237, 236, 232)",
+            "track": "rgb(28, 29, 31)",
+            "selection_track_contrast": 14.27
+          }
+        ],
+        "width": 2560
+      }
+    ],
+    "components": {
+      "duplicates": 0,
+      "height": 720,
+      "overflow": false,
+      "theme": "comparison",
+      "timelines": [
+        {
+          "curves": 0,
+          "height": 16,
+          "opacity": "1",
+          "selection": "rgb(29, 30, 32)",
+          "track": "rgb(247, 247, 245)",
+          "selection_track_contrast": 15.55
+        },
+        {
+          "curves": 0,
+          "height": 16,
+          "opacity": "1",
+          "selection": "rgb(29, 30, 32)",
+          "track": "rgb(247, 247, 245)",
+          "selection_track_contrast": 15.55
+        },
+        {
+          "curves": 0,
+          "height": 16,
+          "opacity": "1",
+          "selection": "rgb(237, 236, 232)",
+          "track": "rgb(28, 29, 31)",
+          "selection_track_contrast": 14.27
+        },
+        {
+          "curves": 0,
+          "height": 16,
+          "opacity": "1",
+          "selection": "rgb(237, 236, 232)",
+          "track": "rgb(28, 29, 31)",
+          "selection_track_contrast": 14.27
+        }
+      ],
+      "version": "01版本 1.4 · 2026.10.06双主题Remix Icon桌面界面",
+      "width": 1280
+    },
+    "interaction": {
+      "before": [
+        {
+          "date": "2026.09.09 — 2026.09.22",
+          "end": 89,
+          "start": 80
+        },
+        {
+          "date": "2026.09.09 — 2026.09.22",
+          "end": 89,
+          "start": 80
+        }
+      ],
+      "left": [
+        {
+          "date": "2026.08.27 — 2026.09.22",
+          "end": 89,
+          "start": 71
+        },
+        {
+          "date": "2026.09.09 — 2026.09.22",
+          "end": 89,
+          "start": 80
+        }
+      ],
+      "right": [
+        {
+          "date": "2026.08.27 — 2026.09.16",
+          "end": 85,
+          "start": 71
+        },
+        {
+          "date": "2026.09.09 — 2026.09.22",
+          "end": 89,
+          "start": 80
+        }
+      ],
+      "pan": [
+        {
+          "date": "2026.08.20 — 2026.09.09",
+          "end": 80,
+          "start": 66
+        },
+        {
+          "date": "2026.09.09 — 2026.09.22",
+          "end": 89,
+          "start": 80
+        }
+      ],
+      "keyboard": [
+        {
+          "date": "2026.08.20 — 2026.09.08",
+          "end": 79,
+          "start": 66
+        },
+        {
+          "date": "2026.09.09 — 2026.09.22",
+          "end": 89,
+          "start": 80
+        }
+      ]
+    },
+    "errors": []
+  },
+  "alignment_followup": {
+    "revision": "20261006.5",
+    "layouts": [
+      {
+        "cards": [
+          {
+            "border": "rgb(209, 211, 204)",
+            "buttonBg": "rgb(231, 231, 228)",
+            "buttonFont": "11px",
+            "curves": 0,
+            "groupPadding": "3px",
+            "groupRadius": "6px",
+            "height": 16,
+            "overlap": false,
+            "selectionBg": "rgb(231, 231, 228)",
+            "selectionToken": "#e7e7e4",
+            "shared": true
+          },
+          {
+            "border": "rgb(209, 211, 204)",
+            "buttonBg": "rgb(231, 231, 228)",
+            "buttonFont": "11px",
+            "curves": 0,
+            "groupPadding": "3px",
+            "groupRadius": "6px",
+            "height": 16,
+            "overlap": false,
+            "selectionBg": "rgb(231, 231, 228)",
+            "selectionToken": "#e7e7e4",
+            "shared": true
+          }
+        ],
+        "overflow": false,
+        "theme": "light",
+        "width": 1440
+      },
+      {
+        "cards": [
+          {
+            "border": "rgb(209, 211, 204)",
+            "buttonBg": "rgb(231, 231, 228)",
+            "buttonFont": "11px",
+            "curves": 0,
+            "groupPadding": "3px",
+            "groupRadius": "6px",
+            "height": 16,
+            "overlap": false,
+            "selectionBg": "rgb(231, 231, 228)",
+            "selectionToken": "#e7e7e4",
+            "shared": true
+          },
+          {
+            "border": "rgb(209, 211, 204)",
+            "buttonBg": "rgb(231, 231, 228)",
+            "buttonFont": "11px",
+            "curves": 0,
+            "groupPadding": "3px",
+            "groupRadius": "6px",
+            "height": 16,
+            "overlap": false,
+            "selectionBg": "rgb(231, 231, 228)",
+            "selectionToken": "#e7e7e4",
+            "shared": true
+          }
+        ],
+        "overflow": false,
+        "theme": "light",
+        "width": 1920
+      },
+      {
+        "cards": [
+          {
+            "border": "rgb(209, 211, 204)",
+            "buttonBg": "rgb(231, 231, 228)",
+            "buttonFont": "11px",
+            "curves": 0,
+            "groupPadding": "3px",
+            "groupRadius": "6px",
+            "height": 16,
+            "overlap": false,
+            "selectionBg": "rgb(231, 231, 228)",
+            "selectionToken": "#e7e7e4",
+            "shared": true
+          },
+          {
+            "border": "rgb(209, 211, 204)",
+            "buttonBg": "rgb(231, 231, 228)",
+            "buttonFont": "11px",
+            "curves": 0,
+            "groupPadding": "3px",
+            "groupRadius": "6px",
+            "height": 16,
+            "overlap": false,
+            "selectionBg": "rgb(231, 231, 228)",
+            "selectionToken": "#e7e7e4",
+            "shared": true
+          }
+        ],
+        "overflow": false,
+        "theme": "light",
+        "width": 2560
+      },
+      {
+        "cards": [
+          {
+            "border": "rgb(66, 69, 72)",
+            "buttonBg": "rgb(44, 46, 48)",
+            "buttonFont": "11px",
+            "curves": 0,
+            "groupPadding": "3px",
+            "groupRadius": "6px",
+            "height": 16,
+            "overlap": false,
+            "selectionBg": "rgb(44, 46, 48)",
+            "selectionToken": "#2c2e30",
+            "shared": true
+          },
+          {
+            "border": "rgb(66, 69, 72)",
+            "buttonBg": "rgb(44, 46, 48)",
+            "buttonFont": "11px",
+            "curves": 0,
+            "groupPadding": "3px",
+            "groupRadius": "6px",
+            "height": 16,
+            "overlap": false,
+            "selectionBg": "rgb(44, 46, 48)",
+            "selectionToken": "#2c2e30",
+            "shared": true
+          }
+        ],
+        "overflow": false,
+        "theme": "dark",
+        "width": 1440
+      },
+      {
+        "cards": [
+          {
+            "border": "rgb(66, 69, 72)",
+            "buttonBg": "rgb(44, 46, 48)",
+            "buttonFont": "11px",
+            "curves": 0,
+            "groupPadding": "3px",
+            "groupRadius": "6px",
+            "height": 16,
+            "overlap": false,
+            "selectionBg": "rgb(44, 46, 48)",
+            "selectionToken": "#2c2e30",
+            "shared": true
+          },
+          {
+            "border": "rgb(66, 69, 72)",
+            "buttonBg": "rgb(44, 46, 48)",
+            "buttonFont": "11px",
+            "curves": 0,
+            "groupPadding": "3px",
+            "groupRadius": "6px",
+            "height": 16,
+            "overlap": false,
+            "selectionBg": "rgb(44, 46, 48)",
+            "selectionToken": "#2c2e30",
+            "shared": true
+          }
+        ],
+        "overflow": false,
+        "theme": "dark",
+        "width": 1920
+      },
+      {
+        "cards": [
+          {
+            "border": "rgb(66, 69, 72)",
+            "buttonBg": "rgb(44, 46, 48)",
+            "buttonFont": "11px",
+            "curves": 0,
+            "groupPadding": "3px",
+            "groupRadius": "6px",
+            "height": 16,
+            "overlap": false,
+            "selectionBg": "rgb(44, 46, 48)",
+            "selectionToken": "#2c2e30",
+            "shared": true
+          },
+          {
+            "border": "rgb(66, 69, 72)",
+            "buttonBg": "rgb(44, 46, 48)",
+            "buttonFont": "11px",
+            "curves": 0,
+            "groupPadding": "3px",
+            "groupRadius": "6px",
+            "height": 16,
+            "overlap": false,
+            "selectionBg": "rgb(44, 46, 48)",
+            "selectionToken": "#2c2e30",
+            "shared": true
+          }
+        ],
+        "overflow": false,
+        "theme": "dark",
+        "width": 2560
+      }
+    ],
+    "components": {
+      "count": 4,
+      "overflow": false,
+      "timelines": [
+        {
+          "curves": 0,
+          "height": 16,
+          "selection": "rgb(231, 231, 228)"
+        },
+        {
+          "curves": 0,
+          "height": 16,
+          "selection": "rgb(231, 231, 228)"
+        },
+        {
+          "curves": 0,
+          "height": 16,
+          "selection": "rgb(44, 46, 48)"
+        },
+        {
+          "curves": 0,
+          "height": 16,
+          "selection": "rgb(44, 46, 48)"
+        }
+      ],
+      "version": "01版本 1.5 · 2026.10.06双主题Remix Icon桌面界面"
+    },
+    "shortcuts": [
+      {
+        "active": [
+          10
+        ],
+        "end": 89,
+        "pressed": [
+          10
+        ],
+        "start": 80
+      },
+      {
+        "active": [
+          20
+        ],
+        "end": 89,
+        "pressed": [
+          20
+        ],
+        "start": 70
+      },
+      {
+        "active": [
+          60
+        ],
+        "end": 89,
+        "pressed": [
+          60
+        ],
+        "start": 30
+      },
+      {
+        "active": [
+          90
+        ],
+        "end": 89,
+        "pressed": [
+          90
+        ],
+        "start": 0
+      }
+    ],
+    "customRange": {
+      "active": 0,
+      "pressed": 0
+    },
+    "errors": []
+  },
+  "simple_tabs_followup": {
+    "revision": "20261006.6",
+    "layouts": [
+      {
+        "background": "rgba(0, 0, 0, 0)",
+        "buttons": [
+          {
+            "bottom": 126,
+            "left": 88,
+            "right": 140,
+            "top": 87
+          },
+          {
+            "bottom": 126,
+            "left": 163,
+            "right": 228,
+            "top": 87
+          },
+          {
+            "bottom": 126,
+            "left": 251,
+            "right": 303,
+            "top": 87
+          },
+          {
+            "bottom": 126,
+            "left": 326,
+            "right": 378,
+            "top": 87
+          }
+        ],
+        "documentWidth": 1440,
+        "font": "13px",
+        "gap": "23px",
+        "height": 39,
+        "ink": "#1d1e20",
+        "metaOverlaps": false,
+        "navWidth": 1328,
+        "selected": [
+          "overview"
+        ],
+        "theme": "light",
+        "underlineColor": "rgb(29, 30, 32)",
+        "underlineHeight": "2px",
+        "viewport": 1440,
+        "weight": "600"
+      },
+      {
+        "background": "rgba(0, 0, 0, 0)",
+        "buttons": [
+          {
+            "bottom": 126,
+            "left": 88,
+            "right": 140,
+            "top": 87
+          },
+          {
+            "bottom": 126,
+            "left": 164,
+            "right": 229,
+            "top": 87
+          },
+          {
+            "bottom": 126,
+            "left": 253,
+            "right": 305,
+            "top": 87
+          },
+          {
+            "bottom": 126,
+            "left": 329,
+            "right": 381,
+            "top": 87
+          }
+        ],
+        "documentWidth": 1920,
+        "font": "13px",
+        "gap": "24px",
+        "height": 39,
+        "ink": "#1d1e20",
+        "metaOverlaps": false,
+        "navWidth": 1808,
+        "selected": [
+          "overview"
+        ],
+        "theme": "light",
+        "underlineColor": "rgb(29, 30, 32)",
+        "underlineHeight": "2px",
+        "viewport": 1920,
+        "weight": "600"
+      },
+      {
+        "background": "rgba(0, 0, 0, 0)",
+        "buttons": [
+          {
+            "bottom": 126,
+            "left": 88,
+            "right": 140,
+            "top": 87
+          },
+          {
+            "bottom": 126,
+            "left": 164,
+            "right": 229,
+            "top": 87
+          },
+          {
+            "bottom": 126,
+            "left": 253,
+            "right": 305,
+            "top": 87
+          },
+          {
+            "bottom": 126,
+            "left": 329,
+            "right": 381,
+            "top": 87
+          }
+        ],
+        "documentWidth": 2560,
+        "font": "13px",
+        "gap": "24px",
+        "height": 39,
+        "ink": "#1d1e20",
+        "metaOverlaps": false,
+        "navWidth": 2448,
+        "selected": [
+          "overview"
+        ],
+        "theme": "light",
+        "underlineColor": "rgb(29, 30, 32)",
+        "underlineHeight": "2px",
+        "viewport": 2560,
+        "weight": "600"
+      },
+      {
+        "background": "rgba(0, 0, 0, 0)",
+        "buttons": [
+          {
+            "bottom": 126,
+            "left": 88,
+            "right": 140,
+            "top": 87
+          },
+          {
+            "bottom": 126,
+            "left": 163,
+            "right": 228,
+            "top": 87
+          },
+          {
+            "bottom": 126,
+            "left": 251,
+            "right": 303,
+            "top": 87
+          },
+          {
+            "bottom": 126,
+            "left": 326,
+            "right": 378,
+            "top": 87
+          }
+        ],
+        "documentWidth": 1440,
+        "font": "13px",
+        "gap": "23px",
+        "height": 39,
+        "ink": "#edece8",
+        "metaOverlaps": false,
+        "navWidth": 1328,
+        "selected": [
+          "overview"
+        ],
+        "theme": "dark",
+        "underlineColor": "rgb(237, 236, 232)",
+        "underlineHeight": "2px",
+        "viewport": 1440,
+        "weight": "600"
+      },
+      {
+        "background": "rgba(0, 0, 0, 0)",
+        "buttons": [
+          {
+            "bottom": 126,
+            "left": 88,
+            "right": 140,
+            "top": 87
+          },
+          {
+            "bottom": 126,
+            "left": 164,
+            "right": 229,
+            "top": 87
+          },
+          {
+            "bottom": 126,
+            "left": 253,
+            "right": 305,
+            "top": 87
+          },
+          {
+            "bottom": 126,
+            "left": 329,
+            "right": 381,
+            "top": 87
+          }
+        ],
+        "documentWidth": 1920,
+        "font": "13px",
+        "gap": "24px",
+        "height": 39,
+        "ink": "#edece8",
+        "metaOverlaps": false,
+        "navWidth": 1808,
+        "selected": [
+          "overview"
+        ],
+        "theme": "dark",
+        "underlineColor": "rgb(237, 236, 232)",
+        "underlineHeight": "2px",
+        "viewport": 1920,
+        "weight": "600"
+      },
+      {
+        "background": "rgba(0, 0, 0, 0)",
+        "buttons": [
+          {
+            "bottom": 126,
+            "left": 88,
+            "right": 140,
+            "top": 87
+          },
+          {
+            "bottom": 126,
+            "left": 164,
+            "right": 229,
+            "top": 87
+          },
+          {
+            "bottom": 126,
+            "left": 253,
+            "right": 305,
+            "top": 87
+          },
+          {
+            "bottom": 126,
+            "left": 329,
+            "right": 381,
+            "top": 87
+          }
+        ],
+        "documentWidth": 2560,
+        "font": "13px",
+        "gap": "24px",
+        "height": 39,
+        "ink": "#edece8",
+        "metaOverlaps": false,
+        "navWidth": 2448,
+        "selected": [
+          "overview"
+        ],
+        "theme": "dark",
+        "underlineColor": "rgb(237, 236, 232)",
+        "underlineHeight": "2px",
+        "viewport": 2560,
+        "weight": "600"
+      }
+    ],
+    "interactions": [
+      {
+        "buttons": [
+          {
+            "active": true,
+            "background": "rgba(0, 0, 0, 0)",
+            "font": "13px",
+            "height": 39,
+            "key": "overview",
+            "pressed": "true",
+            "underline": "2px",
+            "weight": "600"
+          },
+          {
+            "active": false,
+            "background": "rgba(0, 0, 0, 0)",
+            "font": "13px",
+            "height": 39,
+            "key": "barometer",
+            "pressed": "false",
+            "underline": "auto",
+            "weight": "400"
+          },
+          {
+            "active": false,
+            "background": "rgba(0, 0, 0, 0)",
+            "font": "13px",
+            "height": 39,
+            "key": "search",
+            "pressed": "false",
+            "underline": "auto",
+            "weight": "400"
+          },
+          {
+            "active": false,
+            "background": "rgba(0, 0, 0, 0)",
+            "font": "13px",
+            "height": 39,
+            "key": "picks",
+            "pressed": "false",
+            "underline": "auto",
+            "weight": "400"
+          }
+        ],
+        "step": "initial",
+        "title": "市场总览"
+      },
+      {
+        "selected": [
+          "barometer"
+        ],
+        "step": "barometer",
+        "title": "盘面晴雨表"
+      },
+      {
+        "selected": [
+          "picks"
+        ],
+        "step": "picks",
+        "strategies": "系统推荐条件选股条件选股新条件优选低吸选股低吸选股2.0冲高观察观察池组合选股",
+        "title": "选股工作台"
+      },
+      {
+        "dialog": "个股资金搜索",
+        "selected": [
+          "picks"
+        ],
+        "step": "search-open"
+      },
+      {
+        "dialogOpen": false,
+        "selected": [
+          "picks"
+        ],
+        "step": "search-close"
+      },
+      {
+        "simpleHidden": true,
+        "step": "full-mode",
+        "strategies": "系统推荐条件选股条件选股新条件优选低吸选股低吸选股2.0冲高观察观察池组合选股"
+      },
+      {
+        "selected": [
+          "overview"
+        ],
+        "step": "simple-mode",
+        "title": "市场总览"
+      }
+    ],
+    "components": [
+      {
+        "height": 39,
+        "ink": "#1d1e20",
+        "selected": [
+          "barometer"
+        ],
+        "theme": "light",
+        "underline": "2px",
+        "underlineColor": "rgb(29, 30, 32)"
+      },
+      {
+        "height": 39,
+        "ink": "#edece8",
+        "selected": [
+          "barometer"
+        ],
+        "theme": "dark",
+        "underline": "2px",
+        "underlineColor": "rgb(237, 236, 232)"
+      }
+    ],
+    "workspace_errors": [],
+    "component_errors": [],
+    "validation": "passed",
+    "scope": "Simple workspace underline tabs; fictional UI only"
+  }
+}

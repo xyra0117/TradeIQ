@@ -1,0 +1,21 @@
+{
+  "design_version": "1.11",
+  "resource_version": "20261010.1",
+  "files": {
+    "docs/design/2026-10-04-tradeiq-design-system-assets/semantic-tags-components-comparison.jpg": "5d89d187336623c7687b4d5125e8ebec1b56396e50f2bd3b84155680d43a1e8e",
+    "docs/design/2026-10-04-tradeiq-design-system-assets/semantic-tags-components-dark.jpg": "bc3b9960ae31663340c15c35924e10132b056078a5f48b7d6eff66088a1cbce4",
+    "docs/design/2026-10-04-tradeiq-design-system-assets/semantic-tags-components-light.jpg": "1453d2333ea93da8e018771d763686907ae734a5c154118e67aa611854f7c5bf",
+    "docs/design/2026-10-04-tradeiq-design-system-assets/semantic-tags-hot-sectors-dark.jpg": "5ec83306c614d3a55096624f615fa3b8ec0528e836ca3f339c6b75407bf8a5b5",
+    "docs/design/2026-10-04-tradeiq-design-system-assets/semantic-tags-hot-sectors-light.jpg": "d65443125fc662a31da9377f9706f9db5fc37c13ed6b5ef788a2e7769a04ede5",
+    "docs/design/2026-10-04-tradeiq-design-system-assets/semantic-tags-stock-list-light.jpg": "3a5038bf3451154b1c8223719170deab18ad829d2dbba7e0521dfd9ab980bad1",
+    "docs/design/2026-10-04-tradeiq-design-system-assets/semantic-tags-verification.json": "8ec806dddbdf970e884a5880f15e1356826aabbd96fea18acce8882c094152f2",
+    "dashboard/redesign/workspace.css": "adb10fc6ed2c4178c7718b8be598b0276e6711fd70f3aaf019ba1cd3b9d00032",
+    "dashboard/redesign/pages.css": "7f3712b9fbc0590bfb7aa8b0cd31a4614f8215a3cb97b0a4dd949b8604100dcc",
+    "dashboard/redesign/pages.js": "c2c143b940ab356d507f1dafa701dd29808843bbeb65033191d4901202a010de",
+    "dashboard/redesign/workspace.js": "87a445fc71b8ad0632fc66a0d5f3d9831a6f05521c2caeaf9dcc08cd90023039",
+    "dashboard/redesign/components.js": "2ccd923595b2f83e3a4db170651ea47f10f21f62663cce280f37a0f87111be39",
+    "dashboard/redesign/index.html": "27f688ccd693693bf46d843bbcf66bd95c4e143be46ef57c85c63851ddfaff5a",
+    "dashboard/redesign/components.html": "69a7e124f53c15f2a720c5f37c752340d274d86a9bc7ffc7cc046a973aa5049f",
+    "docs/design/2026-10-04-tradeiq-design-system.md": "66ad942599545828b5fe9da8195be7f85428c65553d52a3c76a3c1b41c44920f"
+  }
+}

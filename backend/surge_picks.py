@@ -1,11 +1,45 @@
 """Closed-session surge watchlist; no provider requests, writes, or persistent caches."""
 import math
 import sqlite3
+import json
 from contextlib import closing
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
+
+# 东方财富资金流的两个来源标签, 口径已逐字段验证一致 (见 backfill_flow_daykline.py 头部):
+#   eastmoney-push2    每日 clist/get 抓的「当日排行」, 只有 20260616 之后
+#   eastmoney-daykline 逐股 daykline 补的历史, 只有 20260615 及之前
+# 任何按 source 过滤的查询都会把其中一段整段漏掉 —— 5 月及更早的资金流列全空就是这么来的.
+# 下面的 flow_source_for_range 按区间实际覆盖的源来选, 调用方别再硬编码 source.
+EM_FLOW_SOURCES = ('eastmoney-push2', 'eastmoney-daykline')
+
+
+def flow_source_for_range(conn, start, end):
+    """返回 [start, end] 区间该用哪个源, 按实际覆盖天数多的那个选 (优先 push2).
+
+    窗口可能横跨 6/16 分界, 那种情况两段都得读 —— 这时返回 'both', 调用方用
+    source IN (?, ?) 一次查完, 靠 (ts_code, trade_date) 主键去重 (同一天两个源值一致).
+    """
+    counts = {}
+    for src in EM_FLOW_SOURCES:
+        counts[src] = conn.execute(
+            'SELECT COUNT(DISTINCT trade_date) FROM fund_flow '
+            'WHERE source=? AND trade_date BETWEEN ? AND ?',
+            (src, start, end)).fetchone()[0]
+    if not any(counts.values()):
+        return None
+    if all(counts.values()):
+        return 'both'
+    return max(counts, key=lambda s: (counts[s], s == EM_FLOW_SOURCES[0]))
+
+
+def _flow_where(source):
+    """把选源结果转成 WHERE 片段 + 参数, 供 SQL 拼接."""
+    if source == 'both':
+        return 'source IN (?, ?)', list(EM_FLOW_SOURCES)
+    return 'source=?', [source]
 
 
 def _number(value):
@@ -26,6 +60,38 @@ def _reference_valid(row, previous):
 
 def _closed(day, now):
     return day < now.strftime('%Y%m%d') or (day == now.strftime('%Y%m%d') and (now.hour, now.minute) >= (15, 5))
+
+
+def attach_sector_history(conn, rows, key='ts_code'):
+    """给每行补 sector_history (阶段涨幅榜单同款: 前端 renderSectorPills 直接吃这个字段).
+
+    排序跟 app.py 的 _attach_sector 一致: is_latest 排最前, 其余 count 降序.
+    板块数据缺失时置空数组, 前端会显示「近期未涨停」占位, 不影响其他列.
+    """
+    if not rows:
+        return rows
+    codes = list({r.get(key) for r in rows if r.get(key)})
+    if not codes:
+        return rows
+    out = {}
+    # SQLite 参数上限 999, 分批查避免 SQLITE_MAX_VARIABLE_NUMBER 超限
+    for start in range(0, len(codes), 900):
+        chunk = codes[start:start + 900]
+        placeholders = ','.join('?' * len(chunk))
+        for code, payload in conn.execute(
+            f'SELECT ts_code, sectors_json FROM stock_sector_summary WHERE ts_code IN ({placeholders})',
+            chunk
+        ):
+            out[code] = payload
+    for row in rows:
+        code = row.get(key)
+        try:
+            sectors = json.loads(out.get(code) or '[]')
+        except (TypeError, ValueError):
+            sectors = []
+        row['sector_history'] = sorted(
+            sectors, key=lambda s: (not s.get('is_latest', False), -s.get('count', 0)))
+    return rows
 
 
 def _outcome(rows, future_dates, anchor, now):
@@ -99,9 +165,11 @@ def screen_surge(conn, requested_date='', now=None):
                             'FROM stock_daily WHERE trade_date BETWEEN ? AND ?', (dates[0], day)):
         history[row['ts_code']][row['trade_date']] = row
     flows = defaultdict(dict)
+    _fs = flow_source_for_range(conn, dates[-5], day)
+    _fw, _fp = _flow_where(_fs)
     for row in conn.execute("SELECT ts_code,trade_date,main_net_inflow FROM fund_flow "
-                            "WHERE source='eastmoney-push2' AND trade_date BETWEEN ? AND ?",
-                            (dates[-5], day)):
+                            f"WHERE {_fw} AND trade_date BETWEEN ? AND ?",
+                            (*_fp, dates[-5], day)):
         flows[row['ts_code']][row['trade_date']] = row['main_net_inflow']
     hits = []
     for code in sorted(history):
@@ -178,6 +246,7 @@ def register_surge_picks(app, db_path):
                 conn.execute('PRAGMA query_only=ON')
                 conn.execute('BEGIN')
                 payload = screen_surge(conn, request.args.get('date', ''))
+                attach_sector_history(conn, payload.get('results') or [])
             response = jsonify(payload)
             response.headers['Cache-Control'] = 'no-store'
             return response

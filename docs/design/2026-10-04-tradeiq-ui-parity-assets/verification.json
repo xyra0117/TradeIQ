@@ -1,0 +1,2456 @@
+{
+  "date": "2026-10-04",
+  "scope": "UI-only fictional desktop examples; no real market/account API or writes",
+  "browser": "System Google Chrome via Playwright",
+  "page_view_count": 33,
+  "page_layouts": 198,
+  "component_layouts": 9,
+  "assertions": 105,
+  "formal_screenshots": 29,
+  "old_source_unchanged": {
+    "dashboard/index.html": "01afcff8d28c14ce35aca5c51294cd35a95b09bf8ccba485dac8bb9eaed3df64",
+    "backend/app.py": "5e6b9503cdb5b90ac88132c5451aec5aee26efe3689f87ed4c312fa2a703460c"
+  },
+  "syntax_checks": [
+    "workspace.js",
+    "pages.js",
+    "preview-charts.js",
+    "components.js"
+  ],
+  "diff_check": "passed",
+  "visual_review": [
+    "stock-detail-dark.png",
+    "trades-import-light.png",
+    "business-components-comparison.png",
+    "workspace-light.png"
+  ],
+  "limitations": [
+    "Real backend requests, races and financial/market computations are not implemented or validated in this stage.",
+    "Import, OCR, sync and removal are in-memory UI demonstrations; no actual files or account data are read.",
+    "Source checks and browser previews do not establish production parity."
+  ],
+  "workbench": {
+    "checks": [
+      "preferred custom threshold narrows sample",
+      "preferred custom volume narrows sample",
+      "preferred toggle disabled ratio field",
+      "all dates entry visible",
+      "all dates mode applied",
+      "live mode applied",
+      "dip has no general threshold",
+      "dip latest closed mode exists",
+      "surge has no general threshold",
+      "surge momentum and strength columns",
+      "new volume has independent sample filtering",
+      "market background date changes independently",
+      "quick add persists date-specific record",
+      "my picks shows added record",
+      "history sample table exists",
+      "history independent ratio changes samples",
+      "history period updates sample heading",
+      "PNG preview download and copy exist",
+      "sample PNG has valid signature",
+      "preview retry exists",
+      "preview retry restores snapshot",
+      "stock chart has complete indicators",
+      "fund multi-select leaves main active",
+      "all chart pointer guides sync",
+      "fund tooltip has selected cumulative periods",
+      "wheel changes shared range",
+      "stock detail expands",
+      "calculator complete comparisons",
+      "calculator lot shortcut",
+      "plan candidates and infeasible state",
+      "plan adopted",
+      "plan stale state",
+      "plan trigger state",
+      "plan cancellation clears card",
+      "delisted sample searchable",
+      "trade history has fees and realized PnL",
+      "trade mapping distinct",
+      "missing required field disables next",
+      "stale import reapply choice",
+      "partial import excludes invalid sample",
+      "sector role groups exist",
+      "slot replacement visible",
+      "member removed from sample",
+      "whole user sector removed from list",
+      "create sector with roles and note",
+      "barometer 31 columns",
+      "index and overview histories both exist",
+      "similar has nine independently named fields",
+      "next match selection moves",
+      "12 month frequency control works",
+      "five tier market legend",
+      "market daily chart has amount and ratio",
+      "global search has all cumulative windows",
+      "global market filter narrows samples",
+      "backfill progress and health shown",
+      "backfill failure state",
+      "simple mode has three entrances",
+      "simple mode hides extra nav",
+      "simple search opens",
+      "full mode restores all eight entries",
+      "no JavaScript errors",
+      "no business API requests",
+      "no external requests"
+    ],
+    "layouts": [
+      {
+        "width": 1440,
+        "theme": "light",
+        "params": {
+          "page": "index",
+          "view": "overview"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "light",
+        "params": {
+          "page": "index",
+          "view": "history"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "light",
+        "params": {
+          "page": "index",
+          "view": "barometer"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "light",
+        "params": {
+          "page": "leaderboard",
+          "view": "ranking"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "light",
+        "params": {
+          "page": "leaderboard",
+          "view": "frequency"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "light",
+        "params": {
+          "page": "leaderboard",
+          "view": "top1"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "light",
+        "params": {
+          "page": "limitup"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "light",
+        "params": {
+          "page": "collection",
+          "view": "sealed"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "light",
+        "params": {
+          "page": "collection",
+          "view": "broken"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "light",
+        "params": {
+          "page": "flow",
+          "view": "em"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "light",
+        "params": {
+          "page": "flow",
+          "view": "ths"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "light",
+        "params": {
+          "page": "flow",
+          "view": "sector",
+          "category": "industry"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "light",
+        "params": {
+          "page": "flow",
+          "view": "sector",
+          "category": "concept"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "light",
+        "params": {
+          "page": "positions",
+          "view": "open"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "light",
+        "params": {
+          "page": "positions",
+          "view": "buy"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "light",
+        "params": {
+          "page": "positions",
+          "view": "sell"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "light",
+        "params": {
+          "page": "positions",
+          "view": "reconcile"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "light",
+        "params": {
+          "page": "positions",
+          "view": "delivery"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "light",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "system"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "light",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "conditional"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "light",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "new"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "light",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "preferred"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "light",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "dip"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "light",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "dip2"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "light",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "surge"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "light",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "combined"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "light",
+        "params": {
+          "page": "picks",
+          "source": "ths",
+          "strategy": "system"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "light",
+        "params": {
+          "page": "picks",
+          "source": "ths",
+          "strategy": "conditional"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "light",
+        "params": {
+          "page": "picks",
+          "source": "ths",
+          "strategy": "combined"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "light",
+        "params": {
+          "page": "picks",
+          "source": "user"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "light",
+        "params": {
+          "page": "sectors",
+          "view": "all"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "light",
+        "params": {
+          "page": "sectors",
+          "view": "user"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "light",
+        "params": {
+          "page": "sectors",
+          "view": "user",
+          "sector": "计算机"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "dark",
+        "params": {
+          "page": "index",
+          "view": "overview"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "dark",
+        "params": {
+          "page": "index",
+          "view": "history"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "dark",
+        "params": {
+          "page": "index",
+          "view": "barometer"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "dark",
+        "params": {
+          "page": "leaderboard",
+          "view": "ranking"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "dark",
+        "params": {
+          "page": "leaderboard",
+          "view": "frequency"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "dark",
+        "params": {
+          "page": "leaderboard",
+          "view": "top1"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "dark",
+        "params": {
+          "page": "limitup"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "dark",
+        "params": {
+          "page": "collection",
+          "view": "sealed"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "dark",
+        "params": {
+          "page": "collection",
+          "view": "broken"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "dark",
+        "params": {
+          "page": "flow",
+          "view": "em"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "dark",
+        "params": {
+          "page": "flow",
+          "view": "ths"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "dark",
+        "params": {
+          "page": "flow",
+          "view": "sector",
+          "category": "industry"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "dark",
+        "params": {
+          "page": "flow",
+          "view": "sector",
+          "category": "concept"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "dark",
+        "params": {
+          "page": "positions",
+          "view": "open"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "dark",
+        "params": {
+          "page": "positions",
+          "view": "buy"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "dark",
+        "params": {
+          "page": "positions",
+          "view": "sell"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "dark",
+        "params": {
+          "page": "positions",
+          "view": "reconcile"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "dark",
+        "params": {
+          "page": "positions",
+          "view": "delivery"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "dark",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "system"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "dark",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "conditional"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "dark",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "new"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "dark",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "preferred"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "dark",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "dip"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "dark",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "dip2"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "dark",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "surge"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "dark",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "combined"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "dark",
+        "params": {
+          "page": "picks",
+          "source": "ths",
+          "strategy": "system"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "dark",
+        "params": {
+          "page": "picks",
+          "source": "ths",
+          "strategy": "conditional"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "dark",
+        "params": {
+          "page": "picks",
+          "source": "ths",
+          "strategy": "combined"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "dark",
+        "params": {
+          "page": "picks",
+          "source": "user"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "dark",
+        "params": {
+          "page": "sectors",
+          "view": "all"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "dark",
+        "params": {
+          "page": "sectors",
+          "view": "user"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1440,
+        "theme": "dark",
+        "params": {
+          "page": "sectors",
+          "view": "user",
+          "sector": "计算机"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "light",
+        "params": {
+          "page": "index",
+          "view": "overview"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "light",
+        "params": {
+          "page": "index",
+          "view": "history"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "light",
+        "params": {
+          "page": "index",
+          "view": "barometer"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "light",
+        "params": {
+          "page": "leaderboard",
+          "view": "ranking"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "light",
+        "params": {
+          "page": "leaderboard",
+          "view": "frequency"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "light",
+        "params": {
+          "page": "leaderboard",
+          "view": "top1"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "light",
+        "params": {
+          "page": "limitup"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "light",
+        "params": {
+          "page": "collection",
+          "view": "sealed"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "light",
+        "params": {
+          "page": "collection",
+          "view": "broken"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "light",
+        "params": {
+          "page": "flow",
+          "view": "em"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "light",
+        "params": {
+          "page": "flow",
+          "view": "ths"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "light",
+        "params": {
+          "page": "flow",
+          "view": "sector",
+          "category": "industry"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "light",
+        "params": {
+          "page": "flow",
+          "view": "sector",
+          "category": "concept"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "light",
+        "params": {
+          "page": "positions",
+          "view": "open"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "light",
+        "params": {
+          "page": "positions",
+          "view": "buy"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "light",
+        "params": {
+          "page": "positions",
+          "view": "sell"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "light",
+        "params": {
+          "page": "positions",
+          "view": "reconcile"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "light",
+        "params": {
+          "page": "positions",
+          "view": "delivery"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "light",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "system"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "light",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "conditional"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "light",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "new"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "light",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "preferred"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "light",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "dip"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "light",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "dip2"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "light",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "surge"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "light",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "combined"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "light",
+        "params": {
+          "page": "picks",
+          "source": "ths",
+          "strategy": "system"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "light",
+        "params": {
+          "page": "picks",
+          "source": "ths",
+          "strategy": "conditional"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "light",
+        "params": {
+          "page": "picks",
+          "source": "ths",
+          "strategy": "combined"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "light",
+        "params": {
+          "page": "picks",
+          "source": "user"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "light",
+        "params": {
+          "page": "sectors",
+          "view": "all"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "light",
+        "params": {
+          "page": "sectors",
+          "view": "user"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "light",
+        "params": {
+          "page": "sectors",
+          "view": "user",
+          "sector": "计算机"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "dark",
+        "params": {
+          "page": "index",
+          "view": "overview"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "dark",
+        "params": {
+          "page": "index",
+          "view": "history"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "dark",
+        "params": {
+          "page": "index",
+          "view": "barometer"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "dark",
+        "params": {
+          "page": "leaderboard",
+          "view": "ranking"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "dark",
+        "params": {
+          "page": "leaderboard",
+          "view": "frequency"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "dark",
+        "params": {
+          "page": "leaderboard",
+          "view": "top1"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "dark",
+        "params": {
+          "page": "limitup"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "dark",
+        "params": {
+          "page": "collection",
+          "view": "sealed"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "dark",
+        "params": {
+          "page": "collection",
+          "view": "broken"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "dark",
+        "params": {
+          "page": "flow",
+          "view": "em"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "dark",
+        "params": {
+          "page": "flow",
+          "view": "ths"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "dark",
+        "params": {
+          "page": "flow",
+          "view": "sector",
+          "category": "industry"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "dark",
+        "params": {
+          "page": "flow",
+          "view": "sector",
+          "category": "concept"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "dark",
+        "params": {
+          "page": "positions",
+          "view": "open"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "dark",
+        "params": {
+          "page": "positions",
+          "view": "buy"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "dark",
+        "params": {
+          "page": "positions",
+          "view": "sell"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "dark",
+        "params": {
+          "page": "positions",
+          "view": "reconcile"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "dark",
+        "params": {
+          "page": "positions",
+          "view": "delivery"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "dark",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "system"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "dark",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "conditional"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "dark",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "new"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "dark",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "preferred"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "dark",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "dip"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "dark",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "dip2"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "dark",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "surge"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "dark",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "combined"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "dark",
+        "params": {
+          "page": "picks",
+          "source": "ths",
+          "strategy": "system"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "dark",
+        "params": {
+          "page": "picks",
+          "source": "ths",
+          "strategy": "conditional"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "dark",
+        "params": {
+          "page": "picks",
+          "source": "ths",
+          "strategy": "combined"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "dark",
+        "params": {
+          "page": "picks",
+          "source": "user"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "dark",
+        "params": {
+          "page": "sectors",
+          "view": "all"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "dark",
+        "params": {
+          "page": "sectors",
+          "view": "user"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 1920,
+        "theme": "dark",
+        "params": {
+          "page": "sectors",
+          "view": "user",
+          "sector": "计算机"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "light",
+        "params": {
+          "page": "index",
+          "view": "overview"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "light",
+        "params": {
+          "page": "index",
+          "view": "history"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "light",
+        "params": {
+          "page": "index",
+          "view": "barometer"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "light",
+        "params": {
+          "page": "leaderboard",
+          "view": "ranking"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "light",
+        "params": {
+          "page": "leaderboard",
+          "view": "frequency"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "light",
+        "params": {
+          "page": "leaderboard",
+          "view": "top1"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "light",
+        "params": {
+          "page": "limitup"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "light",
+        "params": {
+          "page": "collection",
+          "view": "sealed"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "light",
+        "params": {
+          "page": "collection",
+          "view": "broken"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "light",
+        "params": {
+          "page": "flow",
+          "view": "em"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "light",
+        "params": {
+          "page": "flow",
+          "view": "ths"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "light",
+        "params": {
+          "page": "flow",
+          "view": "sector",
+          "category": "industry"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "light",
+        "params": {
+          "page": "flow",
+          "view": "sector",
+          "category": "concept"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "light",
+        "params": {
+          "page": "positions",
+          "view": "open"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "light",
+        "params": {
+          "page": "positions",
+          "view": "buy"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "light",
+        "params": {
+          "page": "positions",
+          "view": "sell"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "light",
+        "params": {
+          "page": "positions",
+          "view": "reconcile"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "light",
+        "params": {
+          "page": "positions",
+          "view": "delivery"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "light",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "system"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "light",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "conditional"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "light",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "new"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "light",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "preferred"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "light",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "dip"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "light",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "dip2"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "light",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "surge"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "light",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "combined"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "light",
+        "params": {
+          "page": "picks",
+          "source": "ths",
+          "strategy": "system"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "light",
+        "params": {
+          "page": "picks",
+          "source": "ths",
+          "strategy": "conditional"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "light",
+        "params": {
+          "page": "picks",
+          "source": "ths",
+          "strategy": "combined"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "light",
+        "params": {
+          "page": "picks",
+          "source": "user"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "light",
+        "params": {
+          "page": "sectors",
+          "view": "all"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "light",
+        "params": {
+          "page": "sectors",
+          "view": "user"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "light",
+        "params": {
+          "page": "sectors",
+          "view": "user",
+          "sector": "计算机"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "dark",
+        "params": {
+          "page": "index",
+          "view": "overview"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "dark",
+        "params": {
+          "page": "index",
+          "view": "history"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "dark",
+        "params": {
+          "page": "index",
+          "view": "barometer"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "dark",
+        "params": {
+          "page": "leaderboard",
+          "view": "ranking"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "dark",
+        "params": {
+          "page": "leaderboard",
+          "view": "frequency"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "dark",
+        "params": {
+          "page": "leaderboard",
+          "view": "top1"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "dark",
+        "params": {
+          "page": "limitup"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "dark",
+        "params": {
+          "page": "collection",
+          "view": "sealed"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "dark",
+        "params": {
+          "page": "collection",
+          "view": "broken"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "dark",
+        "params": {
+          "page": "flow",
+          "view": "em"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "dark",
+        "params": {
+          "page": "flow",
+          "view": "ths"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "dark",
+        "params": {
+          "page": "flow",
+          "view": "sector",
+          "category": "industry"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "dark",
+        "params": {
+          "page": "flow",
+          "view": "sector",
+          "category": "concept"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "dark",
+        "params": {
+          "page": "positions",
+          "view": "open"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "dark",
+        "params": {
+          "page": "positions",
+          "view": "buy"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "dark",
+        "params": {
+          "page": "positions",
+          "view": "sell"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "dark",
+        "params": {
+          "page": "positions",
+          "view": "reconcile"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "dark",
+        "params": {
+          "page": "positions",
+          "view": "delivery"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "dark",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "system"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "dark",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "conditional"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "dark",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "new"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "dark",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "preferred"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "dark",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "dip"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "dark",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "dip2"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "dark",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "surge"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "dark",
+        "params": {
+          "page": "picks",
+          "source": "em",
+          "strategy": "combined"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "dark",
+        "params": {
+          "page": "picks",
+          "source": "ths",
+          "strategy": "system"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "dark",
+        "params": {
+          "page": "picks",
+          "source": "ths",
+          "strategy": "conditional"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "dark",
+        "params": {
+          "page": "picks",
+          "source": "ths",
+          "strategy": "combined"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "dark",
+        "params": {
+          "page": "picks",
+          "source": "user"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": true,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "dark",
+        "params": {
+          "page": "sectors",
+          "view": "all"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "dark",
+        "params": {
+          "page": "sectors",
+          "view": "user"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      },
+      {
+        "width": 2560,
+        "theme": "dark",
+        "params": {
+          "page": "sectors",
+          "view": "user",
+          "sector": "计算机"
+        },
+        "bodyOverflow": false,
+        "tableOverflow": false,
+        "brokenImages": false
+      }
+    ],
+    "errors": [],
+    "apiRequests": [],
+    "externalRequests": []
+  },
+  "focused_and_components": {
+    "checks": [
+      "blank threshold rejected",
+      "preferred column hides",
+      "preferred column restores",
+      "MA60 toggles independently",
+      "MA5 remains on",
+      "selected fund tiers determine cumulative ratio readout",
+      "drag pans plotted interval",
+      "reset restores all 90 sample points",
+      "empty filtered list closes its detail",
+      "cancelled preview cannot replace next dialog",
+      "missing scenario disables next",
+      "mapping correction enables next",
+      "trade number is required",
+      "invalid record excluded from import count",
+      "unchecked reapply leaves stale record alone",
+      "checked reapply is explicit",
+      "zero selected records disables confirmation",
+      "missing OCR code disables next",
+      "corrected OCR code enables next",
+      "corrected OCR hides stale error",
+      "OCR text is escaped",
+      "index 20-day range shown",
+      "index 60-day range shown",
+      "missing selected-day minute chart has no substitution",
+      "new-strategy invalid ratio visible",
+      "repeated invalid ratio remains visible",
+      "catalog 1440/light no horizontal overflow",
+      "catalog 1440/dark no horizontal overflow",
+      "catalog 1440/comparison no horizontal overflow",
+      "catalog 1920/light no horizontal overflow",
+      "catalog 1920/dark no horizontal overflow",
+      "catalog 1920/comparison no horizontal overflow",
+      "catalog 2560/light no horizontal overflow",
+      "catalog 2560/dark no horizontal overflow",
+      "catalog 2560/comparison no horizontal overflow",
+      "business component family visible",
+      "comparison has two shared chart groups",
+      "component quick-add changes to added state",
+      "dark sample fund toggle independent",
+      "all rendered icon references exist",
+      "no JavaScript errors",
+      "no business or external requests"
+    ],
+    "layouts": [
+      {
+        "width": 1440,
+        "theme": "light"
+      },
+      {
+        "width": 1440,
+        "theme": "dark"
+      },
+      {
+        "width": 1440,
+        "theme": "comparison"
+      },
+      {
+        "width": 1920,
+        "theme": "light"
+      },
+      {
+        "width": 1920,
+        "theme": "dark"
+      },
+      {
+        "width": 1920,
+        "theme": "comparison"
+      },
+      {
+        "width": 2560,
+        "theme": "light"
+      },
+      {
+        "width": 2560,
+        "theme": "dark"
+      },
+      {
+        "width": 2560,
+        "theme": "comparison"
+      }
+    ],
+    "errors": [],
+    "requests": []
+  },
+  "capture_errors": [],
+  "final_artifact_checks": {
+    "gallery_images_decoded": 29,
+    "light_and_dark_filter_visible_images": 14,
+    "gallery_horizontal_overflow": false,
+    "quick_add_overlaps_stock_name": false,
+    "two_line_row_height_px_max": 54,
+    "1440px_detail_and_collapsed_sidebar_overflow": false,
+    "javascript_errors": []
+  }
+}

@@ -18,7 +18,7 @@ const ctx = vm.createContext({
     getElementById(id) { if (!elements.has(id)) elements.set(id, el()); return elements.get(id); },
     querySelector(selector) { const match=selector.match(/data-preferred-index="([^"]+)"/); return match ? cards.get(match[1]) : null; },
   },
-  URLSearchParams, console, _conditionalPreferredRequestId:0, conditionalPreferredPicksCache:[], picksSelDate:'20260911',
+  URLSearchParams, console, _conditionalPreferredRequestId:0, conditionalPreferredPicksCache:[], currentPicksGroup:'conditionalPreferred', picksSelDate:'20260911',
   CONDITIONAL_PREFERRED_INDEXES:[{code:'000001.SH'},{code:'399001.SZ'},{code:'399006.SZ'},{code:'000688.SH'}],
   _conditionalPreferredIndexCharts:{},
   _liveNextIndex:1,
@@ -35,6 +35,10 @@ const ctx = vm.createContext({
   openStockFlowDetail(...args) { ctx.openedFlow = args; },
 });
 const preferredStart = html.indexOf('function _renderConditionalPreferredBreadth(');
+ctx._fetchPicksResult = (...args) => ctx.fetch(...args);
+ctx.PicksResultCache = {invalidate(){}};
+vm.runInContext(html.slice(html.indexOf('function renderSectorPills(stock)'), html.indexOf('function initFilters()')),ctx);
+vm.runInContext(html.slice(html.indexOf('// 条件优选「站上5日线」开关'), html.indexOf('const _VOLUME_RATIO_SPEC')), ctx);
 vm.runInContext(html.slice(preferredStart, html.indexOf('async function loadConditionalNewPicks(')),ctx);
 const item = {ts_code:'A.SZ',name:'<测试>',trade_date:'20260911',close:10,change_pct:-1,volume_ratio_pct:75,
   preferred_priority:1,preferred_mild_shrink:true,preferred_below_ma60:false,preferred_strength5:5,

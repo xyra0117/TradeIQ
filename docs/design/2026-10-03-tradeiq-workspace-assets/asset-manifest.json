@@ -1,0 +1,79 @@
+{
+  "stage": "design-review",
+  "date": "2026-10-03",
+  "preview": "http://127.0.0.1:5555/dashboard/redesign/index.html",
+  "data": "fictional",
+  "iconLibrary": "Remix Icon 4.9.1",
+  "files": [
+    {
+      "path": "dashboard/redesign/index.html",
+      "bytes": 12443,
+      "sha256": "5adda7ffd4d4f202a45fdf90cf5bb4e5d8b31c4cf9d29bad436042a21b9c00e5"
+    },
+    {
+      "path": "dashboard/redesign/workspace.css",
+      "bytes": 29152,
+      "sha256": "d70a863d95a4e132fe136cda2735d0c111a3406414539fa6b988d69949447e2d"
+    },
+    {
+      "path": "dashboard/redesign/workspace.js",
+      "bytes": 30268,
+      "sha256": "652ec6de2bfa43a700ad9c99edfe3fcf8d0231a5b9b20c0de5ba877039f713dc"
+    },
+    {
+      "path": "dashboard/redesign/icons.svg",
+      "bytes": 11209,
+      "sha256": "e710a4b180178f56a59546bcf646ac9b24d5934e1d9d36813fd906e35ce11210"
+    },
+    {
+      "path": "dashboard/redesign/REMIXICON-LICENSE.txt",
+      "bytes": 7198,
+      "sha256": "6f2f21c5f8db34635d31848e9ff831d5dc421bb83ffc9d37f82651364047ae58"
+    },
+    {
+      "path": "dashboard/redesign/remixicon-manifest.json",
+      "bytes": 6289,
+      "sha256": "6bfdc8844e2f6c62845279382305e2cd987acca9d963cee38fd96c86c0273935"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace.md",
+      "bytes": 6042,
+      "sha256": "1905aa3818eef23e18a6335f4f35656b46bae3819133ec4b981f735dc26f4c3f"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/comparison.html",
+      "bytes": 2213,
+      "sha256": "75ffa1620b12beb1e5c192e35a116ae91654b2a72144462f9823b85784597381"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/detail-dark.png",
+      "bytes": 282180,
+      "sha256": "2eeab9a00ec2b35ff011843dda38d2fb3dd865d39965f52a313636e4e19105e6"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/detail-light.png",
+      "bytes": 282525,
+      "sha256": "4f81843108e220ce77b739362487b23ee5ea6731d76d1cd1d4cee3e506ddd128"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/verification.json",
+      "bytes": 4324,
+      "sha256": "2647f56bdc24b33ee3af517873c6a66c6a7c4b5c0cd61d594b74f9ded8c55346"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/workspace-comparison.png",
+      "bytes": 715581,
+      "sha256": "ac79ceec60e2b3fe0b67152df1ea8c5d1cf61c5c80b1136f2a6364ee8d530a05"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/workspace-dark.png",
+      "bytes": 260323,
+      "sha256": "a129702658b7bf9eb90c7878514aac9410647971c8cdf5e8c43c3380cfb3d6f3"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/workspace-light.png",
+      "bytes": 262309,
+      "sha256": "ba4666f0955fa414ec5a0d92b29c5bd736fa2da2de6198f7cf8c299e0205021e"
+    }
+  ]
+}

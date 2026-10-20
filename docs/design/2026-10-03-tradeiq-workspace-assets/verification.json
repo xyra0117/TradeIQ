@@ -1,0 +1,158 @@
+{
+  "status": "passed",
+  "stage": "design-review-only",
+  "data": "fictional demonstration; no live API access",
+  "testedAt": "2026-10-03T13:19:05.747Z",
+  "layouts": [
+    {
+      "theme": "light",
+      "width": 1440,
+      "viewport": 1440,
+      "pageWidth": 1440,
+      "table": {
+        "left": 233,
+        "right": 1415,
+        "width": 1182,
+        "height": 553.75
+      },
+      "workspace": {
+        "left": 208,
+        "right": 1440,
+        "width": 1232,
+        "height": 1016
+      },
+      "controlsOverlap": false,
+      "stockLeft": 280.296875
+    },
+    {
+      "theme": "light",
+      "width": 1920,
+      "viewport": 1920,
+      "pageWidth": 1920,
+      "table": {
+        "left": 233,
+        "right": 1895,
+        "width": 1662,
+        "height": 553.75
+      },
+      "workspace": {
+        "left": 208,
+        "right": 1920,
+        "width": 1712,
+        "height": 1016
+      },
+      "controlsOverlap": false,
+      "stockLeft": 290.375
+    },
+    {
+      "theme": "light",
+      "width": 2560,
+      "viewport": 2560,
+      "pageWidth": 2560,
+      "table": {
+        "left": 233,
+        "right": 2535,
+        "width": 2302,
+        "height": 553.75
+      },
+      "workspace": {
+        "left": 208,
+        "right": 2560,
+        "width": 2352,
+        "height": 1016
+      },
+      "controlsOverlap": false,
+      "stockLeft": 312.46875
+    },
+    {
+      "theme": "dark",
+      "width": 1440,
+      "viewport": 1440,
+      "pageWidth": 1440,
+      "table": {
+        "left": 233,
+        "right": 1415,
+        "width": 1182,
+        "height": 553.75
+      },
+      "workspace": {
+        "left": 208,
+        "right": 1440,
+        "width": 1232,
+        "height": 1016
+      },
+      "controlsOverlap": false,
+      "stockLeft": 280.296875
+    },
+    {
+      "theme": "dark",
+      "width": 1920,
+      "viewport": 1920,
+      "pageWidth": 1920,
+      "table": {
+        "left": 233,
+        "right": 1895,
+        "width": 1662,
+        "height": 553.75
+      },
+      "workspace": {
+        "left": 208,
+        "right": 1920,
+        "width": 1712,
+        "height": 1016
+      },
+      "controlsOverlap": false,
+      "stockLeft": 290.375
+    },
+    {
+      "theme": "dark",
+      "width": 2560,
+      "viewport": 2560,
+      "pageWidth": 2560,
+      "table": {
+        "left": 233,
+        "right": 2535,
+        "width": 2302,
+        "height": 553.75
+      },
+      "workspace": {
+        "left": 208,
+        "right": 2560,
+        "width": 2352,
+        "height": 1016
+      },
+      "controlsOverlap": false,
+      "stockLeft": 312.46875
+    }
+  ],
+  "checks": [
+    "Six layouts: 1440/1920/2560 x light/dark, full width, no page overflow or control overlap",
+    "Sticky stock column and header remain pinned during two-axis table scrolling",
+    "Sidebar expands to 208px and collapses to 64px",
+    "Search filters rows, stock sorting toggles, and detail close preserves search",
+    "Demonstration threshold, volume percentage and filter toggle change shown records",
+    "Column visibility and popup keyboard dismissal work",
+    "Calendar and previous/next dates update T dates; stale refresh cannot replace later date selection",
+    "Loading, empty, missing and failure states; retry preserves filters; missing records stay blank",
+    "Rules and four-index market background expand independently",
+    "Unimplemented source, strategy and workspace entries explicitly show design placeholders",
+    "560px docked detail, adjacent stocks, enlarge/restore, chart tabs, Escape and preserved table scroll",
+    "Narrow desktop uses overlay detail and backdrop dismissal without squeezing the table",
+    "Explicit theme URL overrides preference; theme preference persists on the separate redesign key",
+    "All interface icons reference local Remix Icon sprite; no API or write requests and no browser errors",
+    "Original dashboard and backend SHA-256 unchanged"
+  ],
+  "browserErrors": [],
+  "apiRequests": [],
+  "originalFiles": {
+    "dashboard/index.html": {
+      "sha256": "01afcff8d28c14ce35aca5c51294cd35a95b09bf8ccba485dac8bb9eaed3df64",
+      "unchanged": true
+    },
+    "backend/app.py": {
+      "sha256": "5e6b9503cdb5b90ac88132c5451aec5aee26efe3689f87ed4c312fa2a703460c",
+      "unchanged": true
+    }
+  },
+  "iconLibrary": "Remix Icon 4.9.1"
+}

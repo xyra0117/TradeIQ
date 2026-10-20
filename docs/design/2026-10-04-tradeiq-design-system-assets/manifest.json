@@ -1,0 +1,393 @@
+{
+  "date": "2026-10-04",
+  "stage": "Visual component catalog v1.0",
+  "sampleData": "All quotes, dates, files and workflow results are fictional",
+  "preview": "http://127.0.0.1:5555/dashboard/redesign/components.html",
+  "components": 13,
+  "themes": [
+    "light",
+    "dark",
+    "comparison"
+  ],
+  "iconLibrary": "Remix Icon 4.9.1 (40 local SVG symbols)",
+  "images": 42,
+  "sources": [
+    {
+      "path": "AGENTS.md",
+      "bytes": 11893,
+      "sha256": "54ff492bf8bedfaf4c947ea6d6559e8dbadc50e34eec3ab751632c31d41c2c3c"
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system.md",
+      "bytes": 18718,
+      "sha256": "f12a2ccec50794c313e8a2d5b54242a15a688b96ad7fe264e6a24070e77371dd"
+    },
+    {
+      "path": "dashboard/redesign/components.html",
+      "bytes": 5290,
+      "sha256": "d957cae0cda7045d0ca11c495c4725f7e44401087f951c605e288063eddb39a0"
+    },
+    {
+      "path": "dashboard/redesign/components.css",
+      "bytes": 20744,
+      "sha256": "b7e85bf050733438336864627f9e9f7d7db667b82495f0ba672ee1e8f281891f"
+    },
+    {
+      "path": "dashboard/redesign/components.js",
+      "bytes": 51454,
+      "sha256": "990fa9d8406e191550e1abc550526fa30cce4daa8c7f9bd8d41db67184e9138a"
+    },
+    {
+      "path": "dashboard/redesign/index.html",
+      "bytes": 13384,
+      "sha256": "2d9df9c491ce00b46c464a65be639518d3ea5bb66b5930bbca4965eb6808fec8"
+    },
+    {
+      "path": "dashboard/redesign/workspace.css",
+      "bytes": 29152,
+      "sha256": "d70a863d95a4e132fe136cda2735d0c111a3406414539fa6b988d69949447e2d"
+    },
+    {
+      "path": "dashboard/redesign/pages.css",
+      "bytes": 19860,
+      "sha256": "145da91e792d1e97ed91578d02051e6018de7384956df941d06ab663d62d874b"
+    },
+    {
+      "path": "dashboard/redesign/icons.svg",
+      "bytes": 18071,
+      "sha256": "1c804cce4a3dfee1a5ea89e1b2e13948df5c200d0b91685164b25505a1f3446e"
+    },
+    {
+      "path": "dashboard/redesign/remixicon-manifest.json",
+      "bytes": 8874,
+      "sha256": "e39269ad45bbfdf873178e800b520c03b2b1ecb02e96dd0e0406cc8c1d6408fc"
+    },
+    {
+      "path": "dashboard/redesign/REMIXICON-LICENSE.txt",
+      "bytes": 7198,
+      "sha256": "6f2f21c5f8db34635d31848e9ff831d5dc421bb83ffc9d37f82651364047ae58"
+    }
+  ],
+  "assets": [
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/buttons-dark.png",
+      "bytes": 31644,
+      "sha256": "07688239619ab7f69313580776612683fc911513aa9b750d4dd3e1777cfcb2d9",
+      "width": 816,
+      "height": 399
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/buttons-light.png",
+      "bytes": 31587,
+      "sha256": "fb763a162db3990bbdbc12b0fca7eccc682b0ea733f90e381ad3ff1983835b4c",
+      "width": 816,
+      "height": 399
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/calendar-dark.png",
+      "bytes": 130741,
+      "sha256": "64e5cd81906c52ebe61856193005a6cfa6fa8b8de1755baca4847cc4f7f92ac7",
+      "width": 1920,
+      "height": 1200
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/calendar-light.png",
+      "bytes": 131801,
+      "sha256": "0d3ed3fd917e9f4a06acb29068e0bfbeb6cf1b03aa1d6f84877a0a05f10bc818",
+      "width": 1920,
+      "height": 1200
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/charts-dark.png",
+      "bytes": 41436,
+      "sha256": "1e56d8d4d6b3a2788df611828c50267760ec96a185f0a1ac444f0c3c2a2c400d",
+      "width": 816,
+      "height": 590
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/charts-light.png",
+      "bytes": 41061,
+      "sha256": "07099270f18dca9ed04500fc5852762e4d58b9719a266b1b5180f369a378c758",
+      "width": 816,
+      "height": 590
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/colors-dark.png",
+      "bytes": 31883,
+      "sha256": "7428bde498972e0e5288b526e2bccb2487e945e16d642bfb10c4f324554df819",
+      "width": 816,
+      "height": 537
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/colors-light.png",
+      "bytes": 31051,
+      "sha256": "de8fd36dbe0136bcecc5f47e87671e42fbb1f9c6fcf25ac07435acbd0e455149",
+      "width": 816,
+      "height": 537
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/components-comparison-full.png",
+      "bytes": 1186976,
+      "sha256": "5aa4074e563ff3e16847775516e30329273d1fb8c773dd57690cf1c231035165",
+      "width": 1920,
+      "height": 7945
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/components-comparison.png",
+      "bytes": 703276,
+      "sha256": "4c26b1200d7634951b4dbfd18e411a9677a2e957414cceaecf9afa5c0d63ddec",
+      "width": 1760,
+      "height": 3899
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/components-dark.png",
+      "bytes": 146744,
+      "sha256": "dcbbcf979ddbdab739938beee1aebc15eed3ee055da8132f019b1ac9f02c3fdc",
+      "width": 1920,
+      "height": 1200
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/components-light.png",
+      "bytes": 144645,
+      "sha256": "1a142c02415988fc7a60413fa5ff6a03dc8c300ccdc89579569335f378e0548a",
+      "width": 1920,
+      "height": 1200
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/dialog-import-dark.png",
+      "bytes": 146241,
+      "sha256": "84bb0c4319886046429c54b29d3829b5ad0f24d325f9fa9c105b2d03e4cf8937",
+      "width": 1920,
+      "height": 1200
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/dialog-import-light.png",
+      "bytes": 146220,
+      "sha256": "b1081fae15f894fca19b7e81a80a666e39b88fa5e52b36e07040b5f8e56e26ce",
+      "width": 1920,
+      "height": 1200
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/dialog-normal-dark.png",
+      "bytes": 148397,
+      "sha256": "a694a42e622bef19defd1f0dc5989476f3b7bae57afe99b5646ed873cf0d8b59",
+      "width": 1920,
+      "height": 1200
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/dialog-normal-light.png",
+      "bytes": 147702,
+      "sha256": "48b5add2a5ceec43c3d150d64035582ac1a1e89d4853107053ee5d4b2d9476c6",
+      "width": 1920,
+      "height": 1200
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/dialog-wide-dark.png",
+      "bytes": 160118,
+      "sha256": "3703b8613bdeb45b3a458703a6ecb002898a64935e8f4210b54013e503cd9727",
+      "width": 1920,
+      "height": 1200
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/dialog-wide-light.png",
+      "bytes": 160300,
+      "sha256": "a8a822fc3f4f6f17989da659c0a90d5863c9cf200219b711a8dfeaefb3eab089",
+      "width": 1920,
+      "height": 1200
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/drawer-dark.png",
+      "bytes": 180107,
+      "sha256": "0dfb3d4a45ff990761b90964fc7687ba506927b3500c30b38d942f2083764fa6",
+      "width": 1920,
+      "height": 1200
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/drawer-expanded-dark.png",
+      "bytes": 102499,
+      "sha256": "c411a25fc90de07603bd2e1449b9ba94f3e47ae20b42daaf6c0676f7b229425c",
+      "width": 1920,
+      "height": 1200
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/drawer-expanded-light.png",
+      "bytes": 102076,
+      "sha256": "cf7e4eed91b2fc0c36896d9dd25d182d5518463b490f493cac54ada9634da0c1",
+      "width": 1920,
+      "height": 1200
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/drawer-light.png",
+      "bytes": 179282,
+      "sha256": "a437b89956eb3d9b6ab758df36c652bdcb6673691a96561e09523f204e755f9a",
+      "width": 1920,
+      "height": 1200
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/feedback-dark.png",
+      "bytes": 45510,
+      "sha256": "f544a6a5d1a1737c05b0e46c7678b4fa1de555f8f42c6b7b8c169048313bc725",
+      "width": 816,
+      "height": 521
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/feedback-light.png",
+      "bytes": 44331,
+      "sha256": "61402a0170ba273b0f344396563e3977aea96168da3f5dc660239cde4a6680c2",
+      "width": 816,
+      "height": 521
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/forms-dark.png",
+      "bytes": 45897,
+      "sha256": "25ce4538679b48cb5a53134e4de62a47c26328608c9cf4054ef19f128dd69831",
+      "width": 816,
+      "height": 724
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/forms-light.png",
+      "bytes": 45454,
+      "sha256": "930121780ee48b02467f951e71565c58a7074dc2ced9c805d9d587fe8d297f90",
+      "width": 816,
+      "height": 724
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/gallery.html",
+      "bytes": 7069,
+      "sha256": "081e4d93e49dba1c7efc509a7664b44864ddfea0dd2003100d80d941cf93cf6b"
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/icons-dark.png",
+      "bytes": 40286,
+      "sha256": "7cb262f856c41e8dd7e7aadebdb028b68053eff1d4ab786402546f5485da1b4b",
+      "width": 816,
+      "height": 536
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/icons-light.png",
+      "bytes": 38727,
+      "sha256": "3719297fee26d712baf26f43a2b08e76666b1f3ea4d3ff2c5a140253fc2795a9",
+      "width": 816,
+      "height": 536
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/metrics-dark.png",
+      "bytes": 41817,
+      "sha256": "0ffb34a82706a2ab0385c01f20f5fdc22dae59e0bb084bbd5a94090f2d1c7794",
+      "width": 816,
+      "height": 570
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/metrics-light.png",
+      "bytes": 41747,
+      "sha256": "0db1c8d89d159b424b697526050a6058d568ddf6fb98e47bf027c87229c00ee7",
+      "width": 816,
+      "height": 570
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/navigation-dark.png",
+      "bytes": 31957,
+      "sha256": "c9a23a4cd35691e407a3e504173e43773468b49dd233dd3561999390e77b8ca5",
+      "width": 816,
+      "height": 359
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/navigation-light.png",
+      "bytes": 30656,
+      "sha256": "19ceb8bed25b6dc11b62db9a228536beafbc096ff44384e110407e5184123735",
+      "width": 816,
+      "height": 359
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/overlays-dark.png",
+      "bytes": 35922,
+      "sha256": "95a2b023a76dc042604aa439d42834d3014b8d40167206ba4dcedfb1b5bedb67",
+      "width": 816,
+      "height": 480
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/overlays-light.png",
+      "bytes": 35999,
+      "sha256": "f2e9500b82c84ebf4bc56e1fee5559089582deab428ee8bc037c8fb9c7655a4b",
+      "width": 816,
+      "height": 480
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/overview.html",
+      "bytes": 4584,
+      "sha256": "69e94c63673e890c1688153bdf48d1e3d48e2d687bf4f48c59dc7dfcc5629cdc"
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/pattern-dark.png",
+      "bytes": 50211,
+      "sha256": "426c07c3e9a55f1ba409fcc693aead5f52578741a8e2643b63a1b5c705566f64",
+      "width": 816,
+      "height": 533
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/pattern-light.png",
+      "bytes": 48950,
+      "sha256": "59e63d98ea2ffe19e8edcd2babb1a6148709e951ab39c69e70465209309e01da",
+      "width": 816,
+      "height": 533
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/spacing-dark.png",
+      "bytes": 24735,
+      "sha256": "7be7936c97154cd2c9a8f83d5f6d46971fe256b34e98cd44b2959efea1c8e565",
+      "width": 816,
+      "height": 402
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/spacing-light.png",
+      "bytes": 24118,
+      "sha256": "5428633df5a04ffd65686a8cc581bce5ed343bfa24511f4ef676359adbcb967d",
+      "width": 816,
+      "height": 402
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/table-dark.png",
+      "bytes": 59940,
+      "sha256": "3ac4907da97e77aba84c7ff14e86959d67eb8eb8a8d73af578aaddfc62548208",
+      "width": 816,
+      "height": 555
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/table-light.png",
+      "bytes": 58415,
+      "sha256": "3e803f1f040e0635ad609c88fe556072c343bfb78acfa0a2782c182131efadec",
+      "width": 816,
+      "height": 555
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/typography-dark.png",
+      "bytes": 32347,
+      "sha256": "b6a6e74a6148d62282c9c1f749fbb8f9e8a7ce52bb5fd913804bb94a78e38085",
+      "width": 816,
+      "height": 406
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/typography-light.png",
+      "bytes": 32488,
+      "sha256": "4bf22af7ca46fbac13ab1587f3acfd46a01cb7966d52a918fa39633a5b0d85fd",
+      "width": 816,
+      "height": 406
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system-assets/verification.json",
+      "bytes": 8699,
+      "sha256": "407427fc511f20df3964236e7e2b6a4d1f810c98082284d411d2f1ce75e001b2"
+    }
+  ],
+  "verification": "verification.json",
+  "protectedEntries": [
+    "dashboard/index.html",
+    "backend/app.py"
+  ],
+  "exclusions": [
+    "No business APIs",
+    "No real portfolio writes",
+    "No production replacement",
+    "No completed shared business component library"
+  ]
+}

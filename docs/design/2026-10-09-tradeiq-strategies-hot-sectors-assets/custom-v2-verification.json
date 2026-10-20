@@ -1,0 +1,151 @@
+{
+  "scope": "fictional-data UI layout only",
+  "resourceVersion": "20261009.6",
+  "layouts": [
+    {
+      "theme": "light",
+      "overflow": false,
+      "overlaps": [],
+      "resultTop": 556.75,
+      "rowHeight": 44,
+      "sidebar": 208,
+      "tableFont": "13px",
+      "width": 1440
+    },
+    {
+      "theme": "dark",
+      "overflow": false,
+      "overlaps": [],
+      "resultTop": 556.75,
+      "rowHeight": 44,
+      "sidebar": 208,
+      "tableFont": "13px",
+      "width": 1440
+    },
+    {
+      "theme": "light",
+      "overflow": false,
+      "overlaps": [],
+      "resultTop": 556.75,
+      "rowHeight": 44,
+      "sidebar": 208,
+      "tableFont": "13px",
+      "width": 1920
+    },
+    {
+      "theme": "dark",
+      "overflow": false,
+      "overlaps": [],
+      "resultTop": 556.75,
+      "rowHeight": 44,
+      "sidebar": 208,
+      "tableFont": "13px",
+      "width": 1920
+    },
+    {
+      "theme": "light",
+      "overflow": false,
+      "overlaps": [],
+      "resultTop": 556.75,
+      "rowHeight": 44,
+      "sidebar": 208,
+      "tableFont": "13px",
+      "width": 2560
+    },
+    {
+      "theme": "dark",
+      "overflow": false,
+      "overlaps": [],
+      "resultTop": 556.75,
+      "rowHeight": 44,
+      "sidebar": 208,
+      "tableFont": "13px",
+      "width": 2560
+    }
+  ],
+  "states": [
+    {
+      "label": "加载中",
+      "count": "—",
+      "diagnostics": false,
+      "message": "正在加载示例数据",
+      "overflow": false
+    },
+    {
+      "label": "空结果",
+      "count": "0",
+      "diagnostics": true,
+      "message": "没有符合条件的示例记录",
+      "overflow": false
+    },
+    {
+      "label": "缺失数据",
+      "count": "6",
+      "diagnostics": true,
+      "message": "部分示例记录缺失，对应指标留空。",
+      "overflow": false
+    },
+    {
+      "label": "读取失败",
+      "count": "—",
+      "diagnostics": true,
+      "message": "暂时无法读取结果",
+      "overflow": false
+    },
+    {
+      "label": "正常数据",
+      "count": "6",
+      "diagnostics": true,
+      "message": "normal",
+      "overflow": false
+    }
+  ],
+  "browserErrors": [],
+  "checks": [
+    "configuration collapse and formula visibility",
+    "template dialog and non-replacing template addition",
+    "group ALL/ANY connectors and count update",
+    "remove and undo",
+    "visual condition save and invalid period error",
+    "condition switch persisted after reload",
+    "formula editor layout",
+    "Chinese full draft and unrecognized input blocked",
+    "result search, sort and pagination",
+    "condition impact expansion and stock inspection",
+    "stock detail closes to results",
+    "multiple groups capped at 320px with internal overflow",
+    "light/dark component samples",
+    "Node syntax checks for pages, workspace and components"
+  ],
+  "protected": {
+    "dashboard/index.html": {
+      "sha256": "364dfc2d033f3d94d3cd3b8d842440b72fa85bf37aeb6a1df961b68e86ed2167",
+      "unchanged": true
+    },
+    "backend/app.py": {
+      "sha256": "b2b46044cd4c919e9a7898bed71a630a099253ae15fc3c4ae4c5f7170a0e7c9b",
+      "unchanged": true
+    },
+    "backend/dip_picks.py": {
+      "sha256": "9c6648f1f99b0a91852ca45051d1ba481d8f23756f51f8d1213534b3979d4bbb",
+      "unchanged": true
+    },
+    "backend/custom_picks.py": {
+      "sha256": "6aeee0301ce3a2dc25f0d3a8a6721370a0c9bd9beee4eea05ebbcabf91144752",
+      "unchanged": true
+    },
+    "backend/hot_sectors.py": {
+      "sha256": "9f0c53e4cf619bf722a067b6fa2a47bc4626ba28c7e772383be09997d84f36d4",
+      "unchanged": true
+    },
+    "dashboard/custom-picks.js": {
+      "sha256": "a53857a05ae6b41720ee0276d5263f56da319c4608e476f7e0ad56fcb8579c46",
+      "unchanged": true
+    }
+  },
+  "limitations": [
+    "no business API connection",
+    "no actual expression parser or screening validation",
+    "fictional counts and results only"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "resource_version": "20261009.8",
+  "design_version": "1.10",
+  "files": {
+    "docs/design/2026-10-09-tradeiq-strategies-hot-sectors-assets/hot-heat-cool-warm-1920-light.jpg": "53b53da16570c246a82293eba15bfe2be4b1488b605e6d2262d1088034b7f2a2",
+    "docs/design/2026-10-09-tradeiq-strategies-hot-sectors-assets/hot-heat-cool-warm-1920-dark.jpg": "a0df29015a117d6edcb35df606ddf17056ee97526e85ff7f8d52155cabbbdf34",
+    "docs/design/2026-10-09-tradeiq-strategies-hot-sectors-assets/hot-heat-cool-warm-verification.json": "3121148667bea84bff30034a83485176fdafd6f2bb0a743d28f90e173c4ff123",
+    "dashboard/redesign/workspace.css": "496663bd1ca693d27e3f7ac7a48a856067beaee91520b3cb3569e3886869fa99",
+    "dashboard/redesign/pages.js": "ed0ce22ea5413af914c63da2373a8390165f843f0e2e21bf03913d8745df637f",
+    "dashboard/redesign/components.js": "2d9f217d2e392788811a1ac0796e09ad8bb84de8292c0ac7d44c0a06786ddb0e",
+    "dashboard/redesign/index.html": "0c77fee2a364ac6a0de69f521f7e2f2f4036feafa8a87e49952fc0116d55f3d4",
+    "dashboard/redesign/components.html": "b4f05ea936bdc81e4f3888dbf628ec4cbd0be32cab42724a44480e2a13a5deee",
+    "docs/design/2026-10-04-tradeiq-design-system.md": "04865995eefb54b6e1d1366bbe334c1d8f5a719ca0d2fb5f79a6fde9fe92e749",
+    "docs/design/2026-10-09-tradeiq-strategies-hot-sectors.md": "cb45b25df0da533f0385a185da3bd591fd8261adcad4e9f46adee7c9b2ae0399"
+  }
+}

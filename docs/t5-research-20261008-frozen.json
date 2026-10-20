@@ -1,0 +1,4056 @@
+{
+  "holdout_read_before_freeze": false,
+  "selection": "max minimum(train, validation) mean after unknown=-30 sensitivity",
+  "target_net_mean": 10,
+  "primary": {
+    "config": {
+      "family": "fund_momentum",
+      "momentum": 20,
+      "flow": 3,
+      "window": 3,
+      "rank": "price",
+      "k": 5,
+      "gapmax": 5,
+      "board": "20pct",
+      "regime": "all",
+      "id": "5ead7c37f9c4"
+    },
+    "train": {
+      "selected": 127,
+      "n": 98,
+      "days": 27,
+      "unknown": 14,
+      "statuses": {
+        "executed": 98,
+        "gap_too_high": 14,
+        "reference_unknown": 14,
+        "open_at_limit_up": 1
+      },
+      "mean": 4.122798856856521,
+      "median": 1.9350637209884836,
+      "win": 54.08163265306123,
+      "hit10": 26.53061224489796,
+      "worst": -18.51096499555045,
+      "p10": -13.335670201070341,
+      "trimmed_top5": 2.3155556986283856,
+      "stressed_unknown_mean": -0.14255100025054393,
+      "months": [
+        {
+          "signal": "202604",
+          "count": 56,
+          "mean": 4.032622837916273,
+          "median": 0.6186926558715777
+        },
+        {
+          "signal": "202605",
+          "count": 42,
+          "mean": 4.243033548776853,
+          "median": 2.4529016734239795
+        }
+      ]
+    },
+    "validation": {
+      "selected": 79,
+      "n": 64,
+      "days": 16,
+      "unknown": 6,
+      "statuses": {
+        "executed": 64,
+        "gap_too_high": 8,
+        "reference_unknown": 6,
+        "no_open": 1
+      },
+      "mean": 3.2165537967256075,
+      "median": 0.6598593471412117,
+      "win": 53.125,
+      "hit10": 23.4375,
+      "worst": -18.48431365507772,
+      "p10": -12.736888888249926,
+      "trimmed_top5": 0.7503466015515462,
+      "stressed_unknown_mean": 0.36942061414912686,
+      "months": [
+        {
+          "signal": "202606",
+          "count": 64,
+          "mean": 3.216553796725607,
+          "median": 0.6598593471412117
+        }
+      ]
+    },
+    "eligible": true,
+    "objective": -0.14255100025054393,
+    "capital_train": {
+      "selected": 90,
+      "n": 90,
+      "days": 27,
+      "unknown": 0,
+      "statuses": {
+        "executed": 90
+      },
+      "mean": 4.125332466691842,
+      "median": 1.9350637209884614,
+      "win": 53.333333333333336,
+      "hit10": 27.77777777777778,
+      "worst": -18.510964995550438,
+      "p10": -13.543491265742317,
+      "trimmed_top5": 2.148144870620783,
+      "stressed_unknown_mean": 0.1105874706104488,
+      "months": [
+        {
+          "signal": "202604",
+          "count": 49,
+          "mean": 4.042678257298842,
+          "median": -0.36739264069527433
+        },
+        {
+          "signal": "202605",
+          "count": 41,
+          "mean": 4.2241143266981105,
+          "median": 2.7579432979574214
+        }
+      ],
+      "portfolio_return": 13.170387521448411,
+      "max_drawdown": -2.7384854719609164,
+      "average_exposure": 41.22878165932915,
+      "filled": 102,
+      "unresolved": 12,
+      "open_positions": 0,
+      "skips": {
+        "gap_too_high": 14,
+        "insufficient_cash_or_lot": 11,
+        "open_at_limit_up": 1
+      },
+      "nav_kind": "raw unadjusted price marks; unknown corporate actions disclosed"
+    },
+    "capital_validation": {
+      "selected": 57,
+      "n": 57,
+      "days": 16,
+      "unknown": 0,
+      "statuses": {
+        "executed": 57
+      },
+      "mean": 2.799821766566929,
+      "median": 0.4724429523167428,
+      "win": 52.63157894736842,
+      "hit10": 21.052631578947366,
+      "worst": -18.484313655077745,
+      "p10": -13.04053530964301,
+      "trimmed_top5": 0.6278393316984453,
+      "stressed_unknown_mean": -0.3239707826299211,
+      "months": [
+        {
+          "signal": "202606",
+          "count": 57,
+          "mean": 2.799821766566929,
+          "median": 0.4724429523167428
+        }
+      ],
+      "portfolio_return": 3.5232163980153164,
+      "max_drawdown": -4.339580039123536,
+      "average_exposure": 43.505360492184295,
+      "filled": 63,
+      "unresolved": 6,
+      "open_positions": 0,
+      "skips": {
+        "insufficient_cash_or_lot": 7,
+        "gap_too_high": 8,
+        "no_open": 1
+      },
+      "nav_kind": "raw unadjusted price marks; unknown corporate actions disclosed"
+    },
+    "capital_sufficient": true,
+    "capital_objective": -0.3239707826299211
+  },
+  "challengers": [
+    {
+      "config": {
+        "family": "ridge",
+        "short_history": true,
+        "model": {
+          "features": [
+            "day",
+            "ret3",
+            "ret5",
+            "ret10",
+            "ret20",
+            "bias5",
+            "bias20",
+            "amp20",
+            "vr",
+            "rsi2",
+            "rsi14",
+            "clv",
+            "streak",
+            "rs20",
+            "atr14",
+            "liquidity_log",
+            "reversal_squared",
+            "momentum_pullback",
+            "day_squared",
+            "industry_rs20",
+            "breadth",
+            "index_ret20",
+            "index_up_count",
+            "market_main5_pct",
+            "main1",
+            "main3",
+            "main5",
+            "super5",
+            "small5",
+            "sector_main_pct5"
+          ],
+          "low": [
+            -9.969651970863342,
+            -14.304759278297425,
+            -17.182003211975097,
+            -19.72078640937805,
+            -23.87418791770935,
+            -9.435586466789246,
+            -14.7030979681015,
+            1.204766210913658,
+            0.45076768592000005,
+            0.0,
+            14.489208245277405,
+            0.0,
+            0.0,
+            -27.343028993606566,
+            1.1501500636339188,
+            0.6985391461849213,
+            0.0,
+            -313.846184387207,
+            0.0,
+            -29.5668843460083,
+            0.12448598130841121,
+            -0.560450553894043,
+            0.0,
+            -2.876561403274536,
+            -23.79747896194458,
+            -17.062064266204835,
+            -14.641518559455871,
+            -10.363200182914733,
+            -11.003470883369445,
+            -6.040639781951904
+          ],
+          "high": [
+            13.854211707115185,
+            25.7190017414094,
+            36.23358741760259,
+            56.50739479064946,
+            89.20652996063237,
+            15.660591154098512,
+            41.18655317306534,
+            9.802445478439338,
+            4.831981258392345,
+            100.00000762939453,
+            92.92310188293462,
+            1.0,
+            1.0,
+            84.53268608093272,
+            10.854429740905768,
+            4.588138835430145,
+            204.62614479064962,
+            0.0,
+            207.21399932861482,
+            79.94519859313955,
+            0.7806298925905698,
+            7.73165225982666,
+            4.0,
+            -0.6988217830657959,
+            24.24503743171699,
+            14.569528479576164,
+            11.441185479164131,
+            10.090267663002026,
+            13.896343722343445,
+            2.6540000438690186
+          ],
+          "center": [
+            0.42965910098924054,
+            1.3146383355925784,
+            2.079964860997769,
+            5.24154810691832,
+            8.776290545528894,
+            0.7764046055614167,
+            4.275355786936084,
+            4.352964145487414,
+            1.1602902592844413,
+            53.71741353397154,
+            58.4097620269113,
+            0.5049087186857136,
+            0.016508351283590524,
+            4.876676461738299,
+            4.5801021343599055,
+            1.6450226004475015,
+            9.774373833389062,
+            -10.166483031010708,
+            12.771388419425291,
+            2.8872076767421255,
+            0.4980640352594668,
+            3.8986245756739635,
+            2.4819379215367774,
+            -1.5678759178376862,
+            -1.9750584325736593,
+            -1.6586411144461224,
+            -1.5712990104601097,
+            -0.7712104647678167,
+            1.4300134775423614,
+            -1.132811181318067
+          ],
+          "scale": [
+            3.517688947171965,
+            6.080796743085309,
+            8.011200264230503,
+            11.747443903306475,
+            17.470366374879575,
+            3.819156056319211,
+            8.871279154767102,
+            1.6507519891812565,
+            0.6205285405521505,
+            39.76011223776697,
+            15.796671039586561,
+            0.2935924583807411,
+            0.12741987922411518,
+            17.14347117343335,
+            1.828275326861325,
+            0.8237119757956652,
+            26.447268057863916,
+            36.53757519607167,
+            26.627558818827048,
+            16.146017977033367,
+            0.1832083572195156,
+            2.4582353778827746,
+            1.4936629590258987,
+            0.6368611670368659,
+            8.289856959120641,
+            5.632096445674956,
+            4.643460186573299,
+            3.013331671473185,
+            4.534468352373262,
+            1.3068707334247305
+          ],
+          "weights": [
+            0.017409036121022462,
+            0.059237830562248434,
+            -0.7195505853130562,
+            0.17843048244240556,
+            0.3712141579189182,
+            -0.11266431443854101,
+            0.5291219680841618,
+            0.2888873799005456,
+            0.11798823491167527,
+            -0.025693325735654988,
+            0.6003068102870931,
+            -0.2385302129193231,
+            0.04327242874900899,
+            0.3327489608066167,
+            -0.19916761898830734,
+            0.3310438810252005,
+            -0.054291032656488186,
+            -0.054653939379767855,
+            0.014698191501158371,
+            -0.5593581209864318,
+            0.5092835035656126,
+            0.3244620832046524,
+            -0.7065931997654689,
+            0.1830499888998929,
+            0.12268501571884173,
+            0.10874386078791073,
+            -0.10719999762173699,
+            0.012730325426595477,
+            0.20720223358410084,
+            -0.3366731254416256
+          ],
+          "intercept": 0.4647922802771202,
+          "regularization": 0.1,
+          "train_examples": 56638,
+          "latest_label_date": "20260529",
+          "target_clip_training_only": [
+            -40,
+            40
+          ]
+        },
+        "k": 5,
+        "gapmax": 3,
+        "pred_min": -100,
+        "rank": "price",
+        "board": "all",
+        "regime": "all",
+        "id": "8dfd7bd919f7"
+      },
+      "train": {
+        "selected": 125,
+        "n": 94,
+        "days": 24,
+        "unknown": 21,
+        "statuses": {
+          "executed": 94,
+          "reference_unknown": 21,
+          "gap_too_high": 10
+        },
+        "mean": 7.063400136284324,
+        "median": 5.2338484494960476,
+        "win": 62.76595744680851,
+        "hit10": 39.361702127659576,
+        "worst": -22.54142744458654,
+        "p10": -10.006447550997619,
+        "trimmed_top5": 5.105503765677114,
+        "stressed_unknown_mean": 0.29530098096283836,
+        "months": [
+          {
+            "signal": "202604",
+            "count": 54,
+            "mean": 9.576594672324498,
+            "median": 9.044479680167882
+          },
+          {
+            "signal": "202605",
+            "count": 40,
+            "mean": 3.670587512630089,
+            "median": 1.714848844192074
+          }
+        ]
+      },
+      "validation": {
+        "selected": 80,
+        "n": 66,
+        "days": 16,
+        "unknown": 5,
+        "statuses": {
+          "executed": 66,
+          "gap_too_high": 8,
+          "reference_unknown": 5,
+          "open_at_limit_up": 1
+        },
+        "mean": 2.6036553689167903,
+        "median": -0.1490165899421858,
+        "win": 50.0,
+        "hit10": 21.21212121212121,
+        "worst": -19.235037016125112,
+        "p10": -14.099370928610488,
+        "trimmed_top5": -0.05315804061465663,
+        "stressed_unknown_mean": 0.3076233006832135,
+        "months": [
+          {
+            "signal": "202606",
+            "count": 66,
+            "mean": 2.60365536891679,
+            "median": -0.1490165899421858
+          }
+        ]
+      },
+      "eligible": true,
+      "objective": 0.29530098096283836
+    },
+    {
+      "config": {
+        "family": "fund_pullback",
+        "momentum": 10,
+        "flow": 3,
+        "volmax": 0.8,
+        "rank": "liquidity",
+        "k": 5,
+        "gapmax": 5,
+        "board": "all",
+        "regime": "all",
+        "id": "6a15b8a40b14"
+      },
+      "train": {
+        "selected": 115,
+        "n": 91,
+        "days": 25,
+        "unknown": 21,
+        "statuses": {
+          "executed": 91,
+          "reference_unknown": 21,
+          "gap_too_high": 2,
+          "open_at_limit_up": 1
+        },
+        "mean": 3.981306935351299,
+        "median": 3.3835079862860162,
+        "win": 62.637362637362635,
+        "hit10": 21.978021978021978,
+        "worst": -15.138014015221257,
+        "p10": -6.098496217770388,
+        "trimmed_top5": 2.690317151049803,
+        "stressed_unknown_mean": -2.3901881150270694,
+        "months": [
+          {
+            "signal": "202604",
+            "count": 52,
+            "mean": 4.503650043021453,
+            "median": 3.4021105653776917
+          },
+          {
+            "signal": "202605",
+            "count": 39,
+            "mean": 3.284849458457761,
+            "median": 1.4042616558733068
+          }
+        ]
+      },
+      "validation": {
+        "selected": 40,
+        "n": 34,
+        "days": 13,
+        "unknown": 5,
+        "statuses": {
+          "executed": 34,
+          "reference_unknown": 5,
+          "gap_too_high": 1
+        },
+        "mean": 2.2126610720868487,
+        "median": -0.855934878363479,
+        "win": 47.05882352941176,
+        "hit10": 26.47058823529412,
+        "worst": -17.34851479315743,
+        "p10": -13.401001816867689,
+        "trimmed_top5": 0.06556139248855031,
+        "stressed_unknown_mean": -1.9171672704883884,
+        "months": [
+          {
+            "signal": "202606",
+            "count": 34,
+            "mean": 2.2126610720868487,
+            "median": -0.855934878363479
+          }
+        ]
+      },
+      "eligible": true,
+      "objective": -2.3901881150270694
+    },
+    {
+      "config": {
+        "family": "pullback",
+        "momentum": 30,
+        "volmax": 1.2,
+        "ma": 10,
+        "rank": "price",
+        "k": 3,
+        "gapmax": 3,
+        "board": "all",
+        "regime": "margin",
+        "id": "0776cb8f162f"
+      },
+      "train": {
+        "selected": 341,
+        "n": 282,
+        "days": 100,
+        "unknown": 44,
+        "statuses": {
+          "executed": 282,
+          "reference_unknown": 44,
+          "gap_too_high": 15
+        },
+        "mean": 1.0411570544133584,
+        "median": -1.329772669329049,
+        "win": 43.262411347517734,
+        "hit10": 18.79432624113475,
+        "worst": -21.56742454543148,
+        "p10": -11.86724876105237,
+        "trimmed_top5": -0.8028254704442945,
+        "stressed_unknown_mean": -3.1484469652007143,
+        "months": [
+          {
+            "signal": "202507",
+            "count": 67,
+            "mean": 3.183359890249278,
+            "median": -0.02874161020122168
+          },
+          {
+            "signal": "202508",
+            "count": 63,
+            "mean": 1.0321539561972946,
+            "median": -0.8811852124238961
+          },
+          {
+            "signal": "202509",
+            "count": 60,
+            "mean": 1.02739578319214,
+            "median": -1.654680989948476
+          },
+          {
+            "signal": "202510",
+            "count": 32,
+            "mean": -1.1944490692492562,
+            "median": -1.3632741083788869
+          },
+          {
+            "signal": "202511",
+            "count": 21,
+            "mean": -2.1785086309473356,
+            "median": -3.562252005411426
+          },
+          {
+            "signal": "202512",
+            "count": 36,
+            "mean": 0.9018517201958214,
+            "median": -0.8181972949154626
+          },
+          {
+            "signal": "202602",
+            "count": 3,
+            "mean": 1.7187066682427121,
+            "median": -2.188965866108661
+          }
+        ]
+      },
+      "validation": {
+        "selected": 108,
+        "n": 87,
+        "days": 34,
+        "unknown": 16,
+        "statuses": {
+          "executed": 87,
+          "reference_unknown": 15,
+          "gap_too_high": 5,
+          "exit_unresolved": 1
+        },
+        "mean": 1.7520301561784193,
+        "median": -1.2351951193629862,
+        "win": 47.12643678160919,
+        "hit10": 26.436781609195403,
+        "worst": -31.55764462972206,
+        "p10": -14.090779534289272,
+        "trimmed_top5": -0.09518981107915822,
+        "stressed_unknown_mean": -3.1803240428395876,
+        "months": [
+          {
+            "signal": "202604",
+            "count": 37,
+            "mean": 5.700164001926391,
+            "median": 3.6975010893846028
+          },
+          {
+            "signal": "202605",
+            "count": 35,
+            "mean": -1.6744558137666967,
+            "median": -2.6214360803094694
+          },
+          {
+            "signal": "202606",
+            "count": 15,
+            "mean": 0.008433933205358339,
+            "median": -2.86577628244713
+          }
+        ]
+      },
+      "eligible": true,
+      "objective": -3.1803240428395876
+    },
+    {
+      "config": {
+        "family": "oversold",
+        "rsi": 20,
+        "drop3": -10,
+        "rank": "price",
+        "k": 5,
+        "gapmax": 0,
+        "board": "20pct",
+        "regime": "margin",
+        "id": "8f5ac2e5d5c0",
+        "extension": "industry_strength"
+      },
+      "train": {
+        "selected": 403,
+        "n": 204,
+        "days": 86,
+        "unknown": 31,
+        "statuses": {
+          "executed": 204,
+          "gap_too_high": 168,
+          "reference_unknown": 31
+        },
+        "mean": 0.27704383468617677,
+        "median": -0.9325628053106549,
+        "win": 44.11764705882353,
+        "hit10": 10.294117647058822,
+        "worst": -25.127456303157224,
+        "p10": -9.197199604241472,
+        "trimmed_top5": -1.272552708364566,
+        "stressed_unknown_mean": -3.7169491818043405,
+        "months": [
+          {
+            "signal": "202507",
+            "count": 44,
+            "mean": 0.2468154857492195,
+            "median": -1.2199284770873176
+          },
+          {
+            "signal": "202508",
+            "count": 49,
+            "mean": -0.42382277413114344,
+            "median": -1.6799489735444206
+          },
+          {
+            "signal": "202509",
+            "count": 47,
+            "mean": 1.9381933431498306,
+            "median": 1.3566025424263328
+          },
+          {
+            "signal": "202510",
+            "count": 17,
+            "mean": 0.3244607972270273,
+            "median": 0.15843660227985445
+          },
+          {
+            "signal": "202511",
+            "count": 19,
+            "mean": -2.796374710802462,
+            "median": -3.478840202286837
+          },
+          {
+            "signal": "202512",
+            "count": 27,
+            "mean": 0.8407110567852378,
+            "median": -0.24395820497116194
+          },
+          {
+            "signal": "202602",
+            "count": 1,
+            "mean": 0.24537712658425637,
+            "median": 0.24537712658425637
+          }
+        ]
+      },
+      "validation": {
+        "selected": 123,
+        "n": 61,
+        "days": 28,
+        "unknown": 8,
+        "statuses": {
+          "executed": 61,
+          "gap_too_high": 54,
+          "reference_unknown": 8
+        },
+        "mean": 0.056154385741181145,
+        "median": -2.284718817598097,
+        "win": 40.98360655737705,
+        "hit10": 18.0327868852459,
+        "worst": -13.637251897140212,
+        "p10": -10.619230127106905,
+        "trimmed_top5": -1.8437128048178224,
+        "stressed_unknown_mean": -3.4286171372433034,
+        "months": [
+          {
+            "signal": "202604",
+            "count": 17,
+            "mean": 1.0299734261699374,
+            "median": -0.5497914849879604
+          },
+          {
+            "signal": "202605",
+            "count": 37,
+            "mean": -1.2689177674241074,
+            "median": -6.638520596894216
+          },
+          {
+            "signal": "202606",
+            "count": 7,
+            "mean": 4.695118097145013,
+            "median": -2.284718817598097
+          }
+        ]
+      },
+      "eligible": true,
+      "objective": -3.7169491818043405
+    },
+    {
+      "config": {
+        "family": "breakout",
+        "amp": 5,
+        "window": 20,
+        "volmin": 1.8,
+        "rank": "liquidity",
+        "k": 5,
+        "gapmax": 0,
+        "board": "20pct",
+        "regime": "margin",
+        "id": "2ef1da9e78b4"
+      },
+      "train": {
+        "selected": 455,
+        "n": 235,
+        "days": 92,
+        "unknown": 41,
+        "statuses": {
+          "executed": 235,
+          "gap_too_high": 175,
+          "reference_unknown": 41,
+          "no_open": 4
+        },
+        "mean": 0.4773270648152844,
+        "median": -1.4806248511947118,
+        "win": 41.702127659574465,
+        "hit10": 14.893617021276595,
+        "worst": -30.230798826120452,
+        "p10": -10.959944926942644,
+        "trimmed_top5": -1.2730406833583894,
+        "stressed_unknown_mean": -4.0501019556826385,
+        "months": [
+          {
+            "signal": "202507",
+            "count": 53,
+            "mean": 4.238826481396379,
+            "median": 1.5256171903975657
+          },
+          {
+            "signal": "202508",
+            "count": 61,
+            "mean": 1.2441884288813174,
+            "median": -1.3961415421452128
+          },
+          {
+            "signal": "202509",
+            "count": 55,
+            "mean": -0.9705301660538448,
+            "median": -3.0104334498840757
+          },
+          {
+            "signal": "202510",
+            "count": 22,
+            "mean": -3.8635999544882336,
+            "median": -6.430340527797457
+          },
+          {
+            "signal": "202511",
+            "count": 13,
+            "mean": -4.631559022685499,
+            "median": -4.421042295769273
+          },
+          {
+            "signal": "202512",
+            "count": 31,
+            "mean": 0.329264128465725,
+            "median": -1.1693838424336356
+          }
+        ]
+      },
+      "validation": {
+        "selected": 156,
+        "n": 77,
+        "days": 29,
+        "unknown": 10,
+        "statuses": {
+          "executed": 77,
+          "gap_too_high": 68,
+          "reference_unknown": 10,
+          "no_open": 1
+        },
+        "mean": 3.234469797688085,
+        "median": -0.055273734632543814,
+        "win": 49.35064935064935,
+        "hit10": 20.77922077922078,
+        "worst": -18.51096499555045,
+        "p10": -9.89625778826017,
+        "trimmed_top5": 1.3631984490625766,
+        "stressed_unknown_mean": -0.5855842020461774,
+        "months": [
+          {
+            "signal": "202604",
+            "count": 33,
+            "mean": 1.902320584444005,
+            "median": -0.8124980214602839
+          },
+          {
+            "signal": "202605",
+            "count": 31,
+            "mean": 4.770863433425424,
+            "median": 2.91877337595694
+          },
+          {
+            "signal": "202606",
+            "count": 13,
+            "mean": 2.9523714383955637,
+            "median": -0.5357612030584713
+          }
+        ]
+      },
+      "eligible": true,
+      "objective": -4.0501019556826385
+    },
+    {
+      "config": {
+        "family": "reversal",
+        "drop": -10,
+        "bounce": 3,
+        "volmin": 1,
+        "rank": "liquidity",
+        "k": 5,
+        "gapmax": 5,
+        "board": "all",
+        "regime": "margin",
+        "id": "b8cd11b76c71"
+      },
+      "train": {
+        "selected": 182,
+        "n": 152,
+        "days": 62,
+        "unknown": 29,
+        "statuses": {
+          "executed": 152,
+          "reference_unknown": 29,
+          "gap_too_high": 1
+        },
+        "mean": -0.8427800852966743,
+        "median": -1.5284209158541229,
+        "win": 41.44736842105263,
+        "hit10": 7.894736842105263,
+        "worst": -24.834405963123196,
+        "p10": -10.57080295262673,
+        "trimmed_top5": -2.1847290056436166,
+        "stressed_unknown_mean": -5.514378856160743,
+        "months": [
+          {
+            "signal": "202507",
+            "count": 9,
+            "mean": 0.3900017280226289,
+            "median": 1.9299706580625964
+          },
+          {
+            "signal": "202508",
+            "count": 20,
+            "mean": -0.4614878960754794,
+            "median": -3.2948636399794506
+          },
+          {
+            "signal": "202509",
+            "count": 61,
+            "mean": -0.909746987641663,
+            "median": -1.5341326408144118
+          },
+          {
+            "signal": "202510",
+            "count": 31,
+            "mean": -2.3130101522198836,
+            "median": -1.7395110696846738
+          },
+          {
+            "signal": "202511",
+            "count": 12,
+            "mean": -0.020988449005331367,
+            "median": -1.9859395557824788
+          },
+          {
+            "signal": "202512",
+            "count": 17,
+            "mean": 1.2428135379987864,
+            "median": 0.3924655259557541
+          },
+          {
+            "signal": "202603",
+            "count": 2,
+            "mean": -8.030459194373062,
+            "median": -8.030459194373062
+          }
+        ]
+      },
+      "validation": {
+        "selected": 108,
+        "n": 95,
+        "days": 31,
+        "unknown": 10,
+        "statuses": {
+          "executed": 95,
+          "reference_unknown": 10,
+          "gap_too_high": 3
+        },
+        "mean": -2.5606314957187886,
+        "median": -4.614641487232274,
+        "win": 30.526315789473685,
+        "hit10": 7.368421052631578,
+        "worst": -19.87447248881008,
+        "p10": -12.012134875787993,
+        "trimmed_top5": -4.158003278222768,
+        "stressed_unknown_mean": -5.173904686602713,
+        "months": [
+          {
+            "signal": "202604",
+            "count": 25,
+            "mean": 2.343712099138452,
+            "median": -0.9653365714894613
+          },
+          {
+            "signal": "202605",
+            "count": 45,
+            "mean": -5.161621802349145,
+            "median": -5.009313118189618
+          },
+          {
+            "signal": "202606",
+            "count": 25,
+            "mean": -2.7831925386413876,
+            "median": -5.490154301530481
+          }
+        ]
+      },
+      "eligible": true,
+      "objective": -5.514378856160743
+    },
+    {
+      "config": {
+        "family": "continuation",
+        "streak": 1,
+        "retmax": 40,
+        "rank": "liquidity",
+        "k": 3,
+        "gapmax": 5,
+        "board": "all",
+        "regime": "margin",
+        "id": "fae147550ff6",
+        "extension": "industry_strength"
+      },
+      "train": {
+        "selected": 353,
+        "n": 230,
+        "days": 98,
+        "unknown": 50,
+        "statuses": {
+          "executed": 230,
+          "gap_too_high": 51,
+          "reference_unknown": 50,
+          "open_at_limit_up": 20,
+          "no_open": 2
+        },
+        "mean": -0.0040652478020643664,
+        "median": -2.6670138209736627,
+        "win": 43.913043478260875,
+        "hit10": 17.82608695652174,
+        "worst": -20.608941510587243,
+        "p10": -13.001940439261642,
+        "trimmed_top5": -1.7583749156744313,
+        "stressed_unknown_mean": -5.36048216783741,
+        "months": [
+          {
+            "signal": "202507",
+            "count": 58,
+            "mean": -0.433516730914244,
+            "median": -4.128232600449788
+          },
+          {
+            "signal": "202508",
+            "count": 54,
+            "mean": 1.6680131299023944,
+            "median": -2.7833147122439006
+          },
+          {
+            "signal": "202509",
+            "count": 50,
+            "mean": -0.5204906315496893,
+            "median": -1.7782811813179145
+          },
+          {
+            "signal": "202510",
+            "count": 20,
+            "mean": 0.8008829343605214,
+            "median": 1.1854221438912016
+          },
+          {
+            "signal": "202511",
+            "count": 14,
+            "mean": 2.972873071212756,
+            "median": 0.30162539612015316
+          },
+          {
+            "signal": "202512",
+            "count": 29,
+            "mean": -4.398677311775726,
+            "median": -6.488454045794856
+          },
+          {
+            "signal": "202602",
+            "count": 3,
+            "mean": 0.37029983054372995,
+            "median": 0.2854015097709217
+          },
+          {
+            "signal": "202603",
+            "count": 2,
+            "mean": 14.486823413491189,
+            "median": 14.486823413491189
+          }
+        ]
+      },
+      "validation": {
+        "selected": 107,
+        "n": 73,
+        "days": 31,
+        "unknown": 20,
+        "statuses": {
+          "executed": 73,
+          "reference_unknown": 19,
+          "gap_too_high": 9,
+          "open_at_limit_up": 5,
+          "exit_unresolved": 1
+        },
+        "mean": 0.16180229339603194,
+        "median": -0.9025848196739794,
+        "win": 49.31506849315068,
+        "hit10": 21.91780821917808,
+        "worst": -25.836401726812184,
+        "p10": -15.139493733930234,
+        "trimmed_top5": -1.7903064063884317,
+        "stressed_unknown_mean": -6.3246068019579536,
+        "months": [
+          {
+            "signal": "202604",
+            "count": 35,
+            "mean": 4.009091018539804,
+            "median": 1.7955123156645492
+          },
+          {
+            "signal": "202605",
+            "count": 22,
+            "mean": -5.3507904377093105,
+            "median": -5.345159102543612
+          },
+          {
+            "signal": "202606",
+            "count": 16,
+            "mean": -0.6743267875861243,
+            "median": -5.211919922990427
+          }
+        ]
+      },
+      "eligible": true,
+      "objective": -6.3246068019579536
+    }
+  ],
+  "total_tried": 642,
+  "capital_checks": [
+    {
+      "config": {
+        "family": "fund_momentum",
+        "momentum": 20,
+        "flow": 3,
+        "window": 3,
+        "rank": "price",
+        "k": 5,
+        "gapmax": 0,
+        "board": "20pct",
+        "regime": "all",
+        "id": "0d82e1a303be",
+        "extension": "industry_strength"
+      },
+      "train": {
+        "selected": 130,
+        "n": 61,
+        "days": 25,
+        "unknown": 8,
+        "statuses": {
+          "executed": 61,
+          "gap_too_high": 60,
+          "reference_unknown": 8,
+          "open_at_limit_up": 1
+        },
+        "mean": 5.771412184245145,
+        "median": 2.757943297957466,
+        "win": 60.65573770491803,
+        "hit10": 31.147540983606557,
+        "worst": -18.51096499555045,
+        "p10": -10.560613727487988,
+        "trimmed_top5": 3.585177125146048,
+        "stressed_unknown_mean": 1.6240020759268672,
+        "months": [
+          {
+            "signal": "202604",
+            "count": 38,
+            "mean": 6.023554603059291,
+            "median": 2.1523251215060935
+          },
+          {
+            "signal": "202605",
+            "count": 23,
+            "mean": 5.354829057508728,
+            "median": 3.2116603684702483
+          }
+        ]
+      },
+      "validation": {
+        "selected": 77,
+        "n": 44,
+        "days": 16,
+        "unknown": 6,
+        "statuses": {
+          "executed": 44,
+          "gap_too_high": 27,
+          "reference_unknown": 6
+        },
+        "mean": 4.874255553924323,
+        "median": 3.160394127013866,
+        "win": 56.81818181818182,
+        "hit10": 27.27272727272727,
+        "worst": -15.760369913178296,
+        "p10": -11.818597624339425,
+        "trimmed_top5": 2.4291838161440453,
+        "stressed_unknown_mean": 0.6893448874534045,
+        "months": [
+          {
+            "signal": "202606",
+            "count": 44,
+            "mean": 4.874255553924324,
+            "median": 3.160394127013866
+          }
+        ]
+      },
+      "eligible": true,
+      "objective": 0.6893448874534045,
+      "capital_train": {
+        "selected": 55,
+        "n": 55,
+        "days": 25,
+        "unknown": 0,
+        "statuses": {
+          "executed": 55
+        },
+        "mean": 5.000783274631483,
+        "median": 2.3590946496701015,
+        "win": 60.0,
+        "hit10": 30.909090909090907,
+        "worst": -18.510964995550438,
+        "p10": -11.470510247452932,
+        "trimmed_top5": 3.200275798821637,
+        "stressed_unknown_mean": 0.5562393667417712,
+        "months": [
+          {
+            "signal": "202604",
+            "count": 32,
+            "mean": 4.746312868188469,
+            "median": 1.5698336237404464
+          },
+          {
+            "signal": "202605",
+            "count": 23,
+            "mean": 5.354829057508721,
+            "median": 3.2116603684702483
+          }
+        ],
+        "portfolio_return": 11.288089933508093,
+        "max_drawdown": -1.6620023579134946,
+        "average_exposure": 25.567761237549924,
+        "filled": 63,
+        "unresolved": 8,
+        "open_positions": 0,
+        "skips": {
+          "gap_too_high": 60,
+          "insufficient_cash_or_lot": 7,
+          "open_at_limit_up": 1
+        },
+        "nav_kind": "raw unadjusted price marks; unknown corporate actions disclosed"
+      },
+      "capital_validation": {
+        "selected": 39,
+        "n": 39,
+        "days": 15,
+        "unknown": 0,
+        "statuses": {
+          "executed": 39
+        },
+        "mean": 4.767531983773204,
+        "median": 2.0067896980355604,
+        "win": 56.41025641025641,
+        "hit10": 25.64102564102564,
+        "worst": -15.760369913178284,
+        "p10": -12.085682847771741,
+        "trimmed_top5": 2.7716556022247096,
+        "stressed_unknown_mean": 0.13186105260344397,
+        "months": [
+          {
+            "signal": "202606",
+            "count": 39,
+            "mean": 4.767531983773204,
+            "median": 2.0067896980355604
+          }
+        ],
+        "portfolio_return": 5.2419255090574435,
+        "max_drawdown": -3.276789973124783,
+        "average_exposure": 30.95186498464404,
+        "filled": 45,
+        "unresolved": 6,
+        "open_positions": 0,
+        "skips": {
+          "gap_too_high": 26,
+          "insufficient_cash_or_lot": 6
+        },
+        "nav_kind": "raw unadjusted price marks; unknown corporate actions disclosed"
+      },
+      "capital_sufficient": false,
+      "capital_objective": -100
+    },
+    {
+      "config": {
+        "family": "fund_momentum",
+        "momentum": 20,
+        "flow": 3,
+        "window": 3,
+        "rank": "price",
+        "k": 5,
+        "gapmax": 0,
+        "board": "20pct",
+        "regime": "all",
+        "id": "71f10d3b553c"
+      },
+      "train": {
+        "selected": 131,
+        "n": 62,
+        "days": 26,
+        "unknown": 9,
+        "statuses": {
+          "executed": 62,
+          "gap_too_high": 59,
+          "reference_unknown": 9,
+          "open_at_limit_up": 1
+        },
+        "mean": 5.455290891467985,
+        "median": 2.1523251215060935,
+        "win": 59.67741935483871,
+        "hit10": 29.03225806451613,
+        "worst": -18.51096499555045,
+        "p10": -11.925458507435387,
+        "trimmed_top5": 3.194442227948808,
+        "stressed_unknown_mean": 0.9609582432537335,
+        "months": [
+          {
+            "signal": "202604",
+            "count": 38,
+            "mean": 4.573139407151456,
+            "median": 1.232157268847256
+          },
+          {
+            "signal": "202605",
+            "count": 24,
+            "mean": 6.852030741635821,
+            "median": 3.248517521252847
+          }
+        ]
+      },
+      "validation": {
+        "selected": 79,
+        "n": 43,
+        "days": 16,
+        "unknown": 5,
+        "statuses": {
+          "executed": 43,
+          "gap_too_high": 30,
+          "reference_unknown": 5,
+          "no_open": 1
+        },
+        "mean": 4.1048418983964945,
+        "median": 4.205228846543596,
+        "win": 60.46511627906976,
+        "hit10": 25.581395348837212,
+        "worst": -15.26481826267343,
+        "p10": -11.152826637050165,
+        "trimmed_top5": 2.049108180537643,
+        "stressed_unknown_mean": 0.5522542006468599,
+        "months": [
+          {
+            "signal": "202606",
+            "count": 43,
+            "mean": 4.1048418983964945,
+            "median": 4.205228846543596
+          }
+        ]
+      },
+      "eligible": true,
+      "objective": 0.5522542006468599,
+      "capital_train": {
+        "selected": 56,
+        "n": 56,
+        "days": 26,
+        "unknown": 0,
+        "statuses": {
+          "executed": 56
+        },
+        "mean": 5.127201565818047,
+        "median": 2.1523251215060824,
+        "win": 58.92857142857143,
+        "hit10": 30.357142857142854,
+        "worst": -18.510964995550438,
+        "p10": -12.27101518607045,
+        "trimmed_top5": 3.249114567271542,
+        "stressed_unknown_mean": 0.2634351951663173,
+        "months": [
+          {
+            "signal": "202604",
+            "count": 33,
+            "mean": 4.982392367577323,
+            "median": 1.1941116541388297
+          },
+          {
+            "signal": "202605",
+            "count": 23,
+            "mean": 5.334971285032998,
+            "median": 3.2116603684702483
+          }
+        ],
+        "portfolio_return": 10.637724539483973,
+        "max_drawdown": -1.9356532255656478,
+        "average_exposure": 26.457748183802916,
+        "filled": 65,
+        "unresolved": 9,
+        "open_positions": 0,
+        "skips": {
+          "gap_too_high": 59,
+          "insufficient_cash_or_lot": 7,
+          "open_at_limit_up": 1
+        },
+        "nav_kind": "raw unadjusted price marks; unknown corporate actions disclosed"
+      },
+      "capital_validation": {
+        "selected": 38,
+        "n": 38,
+        "days": 15,
+        "unknown": 0,
+        "statuses": {
+          "executed": 38
+        },
+        "mean": 2.909745085960142,
+        "median": 2.5878679755254375,
+        "win": 57.89473684210527,
+        "hit10": 21.052631578947366,
+        "worst": -15.264818262673451,
+        "p10": -11.462751227488353,
+        "trimmed_top5": 1.296931288280932,
+        "stressed_unknown_mean": -0.9169694589189442,
+        "months": [
+          {
+            "signal": "202606",
+            "count": 38,
+            "mean": 2.909745085960142,
+            "median": 2.5878679755254375
+          }
+        ],
+        "portfolio_return": 4.287362684104212,
+        "max_drawdown": -2.9335786128369845,
+        "average_exposure": 29.813792564896076,
+        "filled": 43,
+        "unresolved": 5,
+        "open_positions": 0,
+        "skips": {
+          "gap_too_high": 29,
+          "insufficient_cash_or_lot": 6,
+          "no_open": 1
+        },
+        "nav_kind": "raw unadjusted price marks; unknown corporate actions disclosed"
+      },
+      "capital_sufficient": false,
+      "capital_objective": -100
+    },
+    {
+      "config": {
+        "family": "ridge",
+        "short_history": true,
+        "model": {
+          "features": [
+            "day",
+            "ret3",
+            "ret5",
+            "ret10",
+            "ret20",
+            "bias5",
+            "bias20",
+            "amp20",
+            "vr",
+            "rsi2",
+            "rsi14",
+            "clv",
+            "streak",
+            "rs20",
+            "atr14",
+            "liquidity_log",
+            "reversal_squared",
+            "momentum_pullback",
+            "day_squared",
+            "industry_rs20",
+            "breadth",
+            "index_ret20",
+            "index_up_count",
+            "market_main5_pct",
+            "main1",
+            "main3",
+            "main5",
+            "super5",
+            "small5",
+            "sector_main_pct5"
+          ],
+          "low": [
+            -9.969651970863342,
+            -14.304759278297425,
+            -17.182003211975097,
+            -19.72078640937805,
+            -23.87418791770935,
+            -9.435586466789246,
+            -14.7030979681015,
+            1.204766210913658,
+            0.45076768592000005,
+            0.0,
+            14.489208245277405,
+            0.0,
+            0.0,
+            -27.343028993606566,
+            1.1501500636339188,
+            0.6985391461849213,
+            0.0,
+            -313.846184387207,
+            0.0,
+            -29.5668843460083,
+            0.12448598130841121,
+            -0.560450553894043,
+            0.0,
+            -2.876561403274536,
+            -23.79747896194458,
+            -17.062064266204835,
+            -14.641518559455871,
+            -10.363200182914733,
+            -11.003470883369445,
+            -6.040639781951904
+          ],
+          "high": [
+            13.854211707115185,
+            25.7190017414094,
+            36.23358741760259,
+            56.50739479064946,
+            89.20652996063237,
+            15.660591154098512,
+            41.18655317306534,
+            9.802445478439338,
+            4.831981258392345,
+            100.00000762939453,
+            92.92310188293462,
+            1.0,
+            1.0,
+            84.53268608093272,
+            10.854429740905768,
+            4.588138835430145,
+            204.62614479064962,
+            0.0,
+            207.21399932861482,
+            79.94519859313955,
+            0.7806298925905698,
+            7.73165225982666,
+            4.0,
+            -0.6988217830657959,
+            24.24503743171699,
+            14.569528479576164,
+            11.441185479164131,
+            10.090267663002026,
+            13.896343722343445,
+            2.6540000438690186
+          ],
+          "center": [
+            0.42965910098924054,
+            1.3146383355925784,
+            2.079964860997769,
+            5.24154810691832,
+            8.776290545528894,
+            0.7764046055614167,
+            4.275355786936084,
+            4.352964145487414,
+            1.1602902592844413,
+            53.71741353397154,
+            58.4097620269113,
+            0.5049087186857136,
+            0.016508351283590524,
+            4.876676461738299,
+            4.5801021343599055,
+            1.6450226004475015,
+            9.774373833389062,
+            -10.166483031010708,
+            12.771388419425291,
+            2.8872076767421255,
+            0.4980640352594668,
+            3.8986245756739635,
+            2.4819379215367774,
+            -1.5678759178376862,
+            -1.9750584325736593,
+            -1.6586411144461224,
+            -1.5712990104601097,
+            -0.7712104647678167,
+            1.4300134775423614,
+            -1.132811181318067
+          ],
+          "scale": [
+            3.517688947171965,
+            6.080796743085309,
+            8.011200264230503,
+            11.747443903306475,
+            17.470366374879575,
+            3.819156056319211,
+            8.871279154767102,
+            1.6507519891812565,
+            0.6205285405521505,
+            39.76011223776697,
+            15.796671039586561,
+            0.2935924583807411,
+            0.12741987922411518,
+            17.14347117343335,
+            1.828275326861325,
+            0.8237119757956652,
+            26.447268057863916,
+            36.53757519607167,
+            26.627558818827048,
+            16.146017977033367,
+            0.1832083572195156,
+            2.4582353778827746,
+            1.4936629590258987,
+            0.6368611670368659,
+            8.289856959120641,
+            5.632096445674956,
+            4.643460186573299,
+            3.013331671473185,
+            4.534468352373262,
+            1.3068707334247305
+          ],
+          "weights": [
+            0.017409036121022462,
+            0.059237830562248434,
+            -0.7195505853130562,
+            0.17843048244240556,
+            0.3712141579189182,
+            -0.11266431443854101,
+            0.5291219680841618,
+            0.2888873799005456,
+            0.11798823491167527,
+            -0.025693325735654988,
+            0.6003068102870931,
+            -0.2385302129193231,
+            0.04327242874900899,
+            0.3327489608066167,
+            -0.19916761898830734,
+            0.3310438810252005,
+            -0.054291032656488186,
+            -0.054653939379767855,
+            0.014698191501158371,
+            -0.5593581209864318,
+            0.5092835035656126,
+            0.3244620832046524,
+            -0.7065931997654689,
+            0.1830499888998929,
+            0.12268501571884173,
+            0.10874386078791073,
+            -0.10719999762173699,
+            0.012730325426595477,
+            0.20720223358410084,
+            -0.3366731254416256
+          ],
+          "intercept": 0.4647922802771202,
+          "regularization": 0.1,
+          "train_examples": 56638,
+          "latest_label_date": "20260529",
+          "target_clip_training_only": [
+            -40,
+            40
+          ]
+        },
+        "k": 5,
+        "gapmax": 3,
+        "pred_min": -100,
+        "rank": "price",
+        "board": "all",
+        "regime": "all",
+        "id": "8dfd7bd919f7"
+      },
+      "train": {
+        "selected": 125,
+        "n": 94,
+        "days": 24,
+        "unknown": 21,
+        "statuses": {
+          "executed": 94,
+          "reference_unknown": 21,
+          "gap_too_high": 10
+        },
+        "mean": 7.063400136284324,
+        "median": 5.2338484494960476,
+        "win": 62.76595744680851,
+        "hit10": 39.361702127659576,
+        "worst": -22.54142744458654,
+        "p10": -10.006447550997619,
+        "trimmed_top5": 5.105503765677114,
+        "stressed_unknown_mean": 0.29530098096283836,
+        "months": [
+          {
+            "signal": "202604",
+            "count": 54,
+            "mean": 9.576594672324498,
+            "median": 9.044479680167882
+          },
+          {
+            "signal": "202605",
+            "count": 40,
+            "mean": 3.670587512630089,
+            "median": 1.714848844192074
+          }
+        ]
+      },
+      "validation": {
+        "selected": 80,
+        "n": 66,
+        "days": 16,
+        "unknown": 5,
+        "statuses": {
+          "executed": 66,
+          "gap_too_high": 8,
+          "reference_unknown": 5,
+          "open_at_limit_up": 1
+        },
+        "mean": 2.6036553689167903,
+        "median": -0.1490165899421858,
+        "win": 50.0,
+        "hit10": 21.21212121212121,
+        "worst": -19.235037016125112,
+        "p10": -14.099370928610488,
+        "trimmed_top5": -0.05315804061465663,
+        "stressed_unknown_mean": 0.3076233006832135,
+        "months": [
+          {
+            "signal": "202606",
+            "count": 66,
+            "mean": 2.60365536891679,
+            "median": -0.1490165899421858
+          }
+        ]
+      },
+      "eligible": true,
+      "objective": 0.29530098096283836,
+      "capital_train": {
+        "selected": 77,
+        "n": 77,
+        "days": 24,
+        "unknown": 0,
+        "statuses": {
+          "executed": 77
+        },
+        "mean": 6.786688079973034,
+        "median": 4.849756818718398,
+        "win": 61.038961038961034,
+        "hit10": 38.961038961038966,
+        "worst": -22.54142744458656,
+        "p10": -10.184606831950244,
+        "trimmed_top5": 4.703139762667599,
+        "stressed_unknown_mean": -1.096173651449758,
+        "months": [
+          {
+            "signal": "202604",
+            "count": 45,
+            "mean": 8.903677280159703,
+            "median": 8.47381199463646
+          },
+          {
+            "signal": "202605",
+            "count": 32,
+            "mean": 3.809672017210532,
+            "median": 0.7722018873927095
+          }
+        ],
+        "portfolio_return": 13.777562624047611,
+        "max_drawdown": -6.53322595870266,
+        "average_exposure": 42.24797471968021,
+        "filled": 98,
+        "unresolved": 21,
+        "open_positions": 0,
+        "skips": {
+          "gap_too_high": 10,
+          "insufficient_cash_or_lot": 17
+        },
+        "nav_kind": "raw unadjusted price marks; unknown corporate actions disclosed"
+      },
+      "capital_validation": {
+        "selected": 56,
+        "n": 56,
+        "days": 16,
+        "unknown": 0,
+        "statuses": {
+          "executed": 56
+        },
+        "mean": 3.102291246336673,
+        "median": -1.0811415659132129,
+        "win": 46.42857142857143,
+        "hit10": 25.0,
+        "worst": -19.235037016125123,
+        "p10": -14.099370928610501,
+        "trimmed_top5": 0.6043686488081234,
+        "stressed_unknown_mean": 0.8954718299142281,
+        "months": [
+          {
+            "signal": "202606",
+            "count": 56,
+            "mean": 3.1022912463366725,
+            "median": -1.0811415659132129
+          }
+        ],
+        "portfolio_return": 6.030880090724766,
+        "max_drawdown": -6.314511303032999,
+        "average_exposure": 43.508517441512936,
+        "filled": 60,
+        "unresolved": 4,
+        "open_positions": 0,
+        "skips": {
+          "gap_too_high": 8,
+          "insufficient_cash_or_lot": 10,
+          "open_at_limit_up": 1,
+          "no_open": 1
+        },
+        "nav_kind": "raw unadjusted price marks; unknown corporate actions disclosed"
+      },
+      "capital_sufficient": true,
+      "capital_objective": -1.096173651449758
+    },
+    {
+      "config": {
+        "family": "fund_momentum",
+        "momentum": 20,
+        "flow": 3,
+        "window": 3,
+        "rank": "flow",
+        "k": 5,
+        "gapmax": 0,
+        "board": "20pct",
+        "regime": "all",
+        "id": "ca7012f68d40",
+        "extension": "industry_strength"
+      },
+      "train": {
+        "selected": 131,
+        "n": 64,
+        "days": 25,
+        "unknown": 10,
+        "statuses": {
+          "executed": 64,
+          "gap_too_high": 56,
+          "reference_unknown": 10,
+          "open_at_limit_up": 1
+        },
+        "mean": 4.913582974740277,
+        "median": 3.0437420205700505,
+        "win": 59.375,
+        "hit10": 29.6875,
+        "worst": -18.764038670523753,
+        "p10": -11.622159667447075,
+        "trimmed_top5": 2.9247246927123522,
+        "stressed_unknown_mean": 0.1955312213969962,
+        "months": [
+          {
+            "signal": "202604",
+            "count": 40,
+            "mean": 5.972264416063491,
+            "median": 3.8098667259069185
+          },
+          {
+            "signal": "202605",
+            "count": 24,
+            "mean": 3.149113905868252,
+            "median": 2.984801833213857
+          }
+        ]
+      },
+      "validation": {
+        "selected": 77,
+        "n": 45,
+        "days": 16,
+        "unknown": 5,
+        "statuses": {
+          "executed": 45,
+          "gap_too_high": 26,
+          "reference_unknown": 5,
+          "no_open": 1
+        },
+        "mean": 4.160375677154053,
+        "median": 2.0067896980355604,
+        "win": 55.55555555555556,
+        "hit10": 26.666666666666668,
+        "worst": -15.26481826267343,
+        "p10": -12.08587148381312,
+        "trimmed_top5": 1.722528513361144,
+        "stressed_unknown_mean": 0.7443381094386479,
+        "months": [
+          {
+            "signal": "202606",
+            "count": 45,
+            "mean": 4.160375677154054,
+            "median": 2.0067896980355604
+          }
+        ]
+      },
+      "eligible": true,
+      "objective": 0.1955312213969962,
+      "capital_train": {
+        "selected": 58,
+        "n": 58,
+        "days": 25,
+        "unknown": 0,
+        "statuses": {
+          "executed": 58
+        },
+        "mean": 4.658478608401458,
+        "median": 2.3517494456497423,
+        "win": 56.896551724137936,
+        "hit10": 31.03448275862069,
+        "worst": -18.764038670523764,
+        "p10": -12.193452282614091,
+        "trimmed_top5": 2.9283007018745346,
+        "stressed_unknown_mean": -0.4383564810693452,
+        "months": [
+          {
+            "signal": "202604",
+            "count": 34,
+            "mean": 5.899270935681474,
+            "median": 2.410689633005947
+          },
+          {
+            "signal": "202605",
+            "count": 24,
+            "mean": 2.900689478088101,
+            "median": 2.3412575732961405
+          }
+        ],
+        "portfolio_return": 10.566869989744742,
+        "max_drawdown": -1.849860572475448,
+        "average_exposure": 28.18606694859428,
+        "filled": 68,
+        "unresolved": 10,
+        "open_positions": 0,
+        "skips": {
+          "gap_too_high": 56,
+          "insufficient_cash_or_lot": 7,
+          "open_at_limit_up": 1
+        },
+        "nav_kind": "raw unadjusted price marks; unknown corporate actions disclosed"
+      },
+      "capital_validation": {
+        "selected": 41,
+        "n": 41,
+        "days": 15,
+        "unknown": 0,
+        "statuses": {
+          "executed": 41
+        },
+        "mean": 4.3974671619344035,
+        "median": 2.0067896980355604,
+        "win": 56.09756097560976,
+        "hit10": 26.82926829268293,
+        "worst": -15.264818262673451,
+        "p10": -12.086060119854524,
+        "trimmed_top5": 1.7217222560143761,
+        "stressed_unknown_mean": 0.6586120356371864,
+        "months": [
+          {
+            "signal": "202606",
+            "count": 41,
+            "mean": 4.3974671619344035,
+            "median": 2.0067896980355604
+          }
+        ],
+        "portfolio_return": 5.917540186240444,
+        "max_drawdown": -2.698261176930339,
+        "average_exposure": 31.748752311592654,
+        "filled": 46,
+        "unresolved": 5,
+        "open_positions": 0,
+        "skips": {
+          "gap_too_high": 25,
+          "insufficient_cash_or_lot": 5,
+          "no_open": 1
+        },
+        "nav_kind": "raw unadjusted price marks; unknown corporate actions disclosed"
+      },
+      "capital_sufficient": false,
+      "capital_objective": -100
+    },
+    {
+      "config": {
+        "family": "fund_momentum",
+        "momentum": 20,
+        "flow": 3,
+        "window": 3,
+        "rank": "price",
+        "k": 5,
+        "gapmax": 3,
+        "board": "20pct",
+        "regime": "all",
+        "id": "b0031d0ff589"
+      },
+      "train": {
+        "selected": 128,
+        "n": 90,
+        "days": 27,
+        "unknown": 11,
+        "statuses": {
+          "executed": 90,
+          "gap_too_high": 26,
+          "reference_unknown": 11,
+          "open_at_limit_up": 1
+        },
+        "mean": 3.842565974253682,
+        "median": 1.3165521172585848,
+        "win": 54.44444444444444,
+        "hit10": 28.888888888888886,
+        "worst": -22.447845839048753,
+        "p10": -13.300616546975084,
+        "trimmed_top5": 1.8487450550980253,
+        "stressed_unknown_mean": 0.1567419572557565,
+        "months": [
+          {
+            "signal": "202604",
+            "count": 52,
+            "mean": 4.217828688005451,
+            "median": 1.232157268847256
+          },
+          {
+            "signal": "202605",
+            "count": 38,
+            "mean": 3.329048576488105,
+            "median": 1.6437365997981734
+          }
+        ]
+      },
+      "validation": {
+        "selected": 79,
+        "n": 60,
+        "days": 16,
+        "unknown": 6,
+        "statuses": {
+          "executed": 60,
+          "gap_too_high": 12,
+          "reference_unknown": 6,
+          "no_open": 1
+        },
+        "mean": 3.3587118446260558,
+        "median": 0.8638770525393413,
+        "win": 55.00000000000001,
+        "hit10": 23.333333333333332,
+        "worst": -18.48431365507772,
+        "p10": -13.021995454868147,
+        "trimmed_top5": 1.3304595420169196,
+        "stressed_unknown_mean": 0.32610167693277786,
+        "months": [
+          {
+            "signal": "202606",
+            "count": 60,
+            "mean": 3.358711844626056,
+            "median": 0.8638770525393413
+          }
+        ]
+      },
+      "eligible": true,
+      "objective": 0.1567419572557565,
+      "capital_train": {
+        "selected": 83,
+        "n": 83,
+        "days": 27,
+        "unknown": 0,
+        "statuses": {
+          "executed": 83
+        },
+        "mean": 3.8145648358961037,
+        "median": 1.3629013509614651,
+        "win": 54.21686746987952,
+        "hit10": 30.120481927710845,
+        "worst": -22.447845839048785,
+        "p10": -13.423304336308508,
+        "trimmed_top5": 1.6864206611510928,
+        "stressed_unknown_mean": 0.1785901223588883,
+        "months": [
+          {
+            "signal": "202604",
+            "count": 46,
+            "mean": 4.128369906128813,
+            "median": 0.6186926558715777
+          },
+          {
+            "signal": "202605",
+            "count": 37,
+            "mean": 3.4244288026338148,
+            "median": 1.9245718486348595
+          }
+        ],
+        "portfolio_return": 11.084169399096,
+        "max_drawdown": -2.3703680191508925,
+        "average_exposure": 37.37036167192615,
+        "filled": 93,
+        "unresolved": 10,
+        "open_positions": 0,
+        "skips": {
+          "gap_too_high": 26,
+          "insufficient_cash_or_lot": 9,
+          "open_at_limit_up": 1
+        },
+        "nav_kind": "raw unadjusted price marks; unknown corporate actions disclosed"
+      },
+      "capital_validation": {
+        "selected": 54,
+        "n": 54,
+        "days": 15,
+        "unknown": 0,
+        "statuses": {
+          "executed": 54
+        },
+        "mean": 2.789392090645786,
+        "median": 0.6598593471411895,
+        "win": 53.70370370370371,
+        "hit10": 20.37037037037037,
+        "worst": -18.484313655077734,
+        "p10": -13.059075164417873,
+        "trimmed_top5": 0.48903247278967626,
+        "stressed_unknown_mean": -0.4895471184187926,
+        "months": [
+          {
+            "signal": "202606",
+            "count": 54,
+            "mean": 2.7893920906457867,
+            "median": 0.6598593471411895
+          }
+        ],
+        "portfolio_return": 3.404433072240143,
+        "max_drawdown": -4.122645437979211,
+        "average_exposure": 41.5385846597139,
+        "filled": 60,
+        "unresolved": 6,
+        "open_positions": 0,
+        "skips": {
+          "gap_too_high": 11,
+          "insufficient_cash_or_lot": 7,
+          "no_open": 1
+        },
+        "nav_kind": "raw unadjusted price marks; unknown corporate actions disclosed"
+      },
+      "capital_sufficient": true,
+      "capital_objective": -0.4895471184187926
+    },
+    {
+      "config": {
+        "family": "fund_momentum",
+        "momentum": 20,
+        "flow": 3,
+        "window": 3,
+        "rank": "price",
+        "k": 5,
+        "gapmax": 5,
+        "board": "20pct",
+        "regime": "all",
+        "id": "5ead7c37f9c4"
+      },
+      "train": {
+        "selected": 127,
+        "n": 98,
+        "days": 27,
+        "unknown": 14,
+        "statuses": {
+          "executed": 98,
+          "gap_too_high": 14,
+          "reference_unknown": 14,
+          "open_at_limit_up": 1
+        },
+        "mean": 4.122798856856521,
+        "median": 1.9350637209884836,
+        "win": 54.08163265306123,
+        "hit10": 26.53061224489796,
+        "worst": -18.51096499555045,
+        "p10": -13.335670201070341,
+        "trimmed_top5": 2.3155556986283856,
+        "stressed_unknown_mean": -0.14255100025054393,
+        "months": [
+          {
+            "signal": "202604",
+            "count": 56,
+            "mean": 4.032622837916273,
+            "median": 0.6186926558715777
+          },
+          {
+            "signal": "202605",
+            "count": 42,
+            "mean": 4.243033548776853,
+            "median": 2.4529016734239795
+          }
+        ]
+      },
+      "validation": {
+        "selected": 79,
+        "n": 64,
+        "days": 16,
+        "unknown": 6,
+        "statuses": {
+          "executed": 64,
+          "gap_too_high": 8,
+          "reference_unknown": 6,
+          "no_open": 1
+        },
+        "mean": 3.2165537967256075,
+        "median": 0.6598593471412117,
+        "win": 53.125,
+        "hit10": 23.4375,
+        "worst": -18.48431365507772,
+        "p10": -12.736888888249926,
+        "trimmed_top5": 0.7503466015515462,
+        "stressed_unknown_mean": 0.36942061414912686,
+        "months": [
+          {
+            "signal": "202606",
+            "count": 64,
+            "mean": 3.216553796725607,
+            "median": 0.6598593471412117
+          }
+        ]
+      },
+      "eligible": true,
+      "objective": -0.14255100025054393,
+      "capital_train": {
+        "selected": 90,
+        "n": 90,
+        "days": 27,
+        "unknown": 0,
+        "statuses": {
+          "executed": 90
+        },
+        "mean": 4.125332466691842,
+        "median": 1.9350637209884614,
+        "win": 53.333333333333336,
+        "hit10": 27.77777777777778,
+        "worst": -18.510964995550438,
+        "p10": -13.543491265742317,
+        "trimmed_top5": 2.148144870620783,
+        "stressed_unknown_mean": 0.1105874706104488,
+        "months": [
+          {
+            "signal": "202604",
+            "count": 49,
+            "mean": 4.042678257298842,
+            "median": -0.36739264069527433
+          },
+          {
+            "signal": "202605",
+            "count": 41,
+            "mean": 4.2241143266981105,
+            "median": 2.7579432979574214
+          }
+        ],
+        "portfolio_return": 13.170387521448411,
+        "max_drawdown": -2.7384854719609164,
+        "average_exposure": 41.22878165932915,
+        "filled": 102,
+        "unresolved": 12,
+        "open_positions": 0,
+        "skips": {
+          "gap_too_high": 14,
+          "insufficient_cash_or_lot": 11,
+          "open_at_limit_up": 1
+        },
+        "nav_kind": "raw unadjusted price marks; unknown corporate actions disclosed"
+      },
+      "capital_validation": {
+        "selected": 57,
+        "n": 57,
+        "days": 16,
+        "unknown": 0,
+        "statuses": {
+          "executed": 57
+        },
+        "mean": 2.799821766566929,
+        "median": 0.4724429523167428,
+        "win": 52.63157894736842,
+        "hit10": 21.052631578947366,
+        "worst": -18.484313655077745,
+        "p10": -13.04053530964301,
+        "trimmed_top5": 0.6278393316984453,
+        "stressed_unknown_mean": -0.3239707826299211,
+        "months": [
+          {
+            "signal": "202606",
+            "count": 57,
+            "mean": 2.799821766566929,
+            "median": 0.4724429523167428
+          }
+        ],
+        "portfolio_return": 3.5232163980153164,
+        "max_drawdown": -4.339580039123536,
+        "average_exposure": 43.505360492184295,
+        "filled": 63,
+        "unresolved": 6,
+        "open_positions": 0,
+        "skips": {
+          "insufficient_cash_or_lot": 7,
+          "gap_too_high": 8,
+          "no_open": 1
+        },
+        "nav_kind": "raw unadjusted price marks; unknown corporate actions disclosed"
+      },
+      "capital_sufficient": true,
+      "capital_objective": -0.3239707826299211
+    },
+    {
+      "config": {
+        "family": "ridge",
+        "short_history": true,
+        "model": {
+          "features": [
+            "day",
+            "ret3",
+            "ret5",
+            "ret10",
+            "ret20",
+            "bias5",
+            "bias20",
+            "amp20",
+            "vr",
+            "rsi2",
+            "rsi14",
+            "clv",
+            "streak",
+            "rs20",
+            "atr14",
+            "liquidity_log",
+            "reversal_squared",
+            "momentum_pullback",
+            "day_squared",
+            "industry_rs20",
+            "breadth",
+            "index_ret20",
+            "index_up_count",
+            "market_main5_pct",
+            "main1",
+            "main3",
+            "main5",
+            "super5",
+            "small5",
+            "sector_main_pct5"
+          ],
+          "low": [
+            -9.969651970863342,
+            -14.304759278297425,
+            -17.182003211975097,
+            -19.72078640937805,
+            -23.87418791770935,
+            -9.435586466789246,
+            -14.7030979681015,
+            1.204766210913658,
+            0.45076768592000005,
+            0.0,
+            14.489208245277405,
+            0.0,
+            0.0,
+            -27.343028993606566,
+            1.1501500636339188,
+            0.6985391461849213,
+            0.0,
+            -313.846184387207,
+            0.0,
+            -29.5668843460083,
+            0.12448598130841121,
+            -0.560450553894043,
+            0.0,
+            -2.876561403274536,
+            -23.79747896194458,
+            -17.062064266204835,
+            -14.641518559455871,
+            -10.363200182914733,
+            -11.003470883369445,
+            -6.040639781951904
+          ],
+          "high": [
+            13.854211707115185,
+            25.7190017414094,
+            36.23358741760259,
+            56.50739479064946,
+            89.20652996063237,
+            15.660591154098512,
+            41.18655317306534,
+            9.802445478439338,
+            4.831981258392345,
+            100.00000762939453,
+            92.92310188293462,
+            1.0,
+            1.0,
+            84.53268608093272,
+            10.854429740905768,
+            4.588138835430145,
+            204.62614479064962,
+            0.0,
+            207.21399932861482,
+            79.94519859313955,
+            0.7806298925905698,
+            7.73165225982666,
+            4.0,
+            -0.6988217830657959,
+            24.24503743171699,
+            14.569528479576164,
+            11.441185479164131,
+            10.090267663002026,
+            13.896343722343445,
+            2.6540000438690186
+          ],
+          "center": [
+            0.42965910098924054,
+            1.3146383355925784,
+            2.079964860997769,
+            5.24154810691832,
+            8.776290545528894,
+            0.7764046055614167,
+            4.275355786936084,
+            4.352964145487414,
+            1.1602902592844413,
+            53.71741353397154,
+            58.4097620269113,
+            0.5049087186857136,
+            0.016508351283590524,
+            4.876676461738299,
+            4.5801021343599055,
+            1.6450226004475015,
+            9.774373833389062,
+            -10.166483031010708,
+            12.771388419425291,
+            2.8872076767421255,
+            0.4980640352594668,
+            3.8986245756739635,
+            2.4819379215367774,
+            -1.5678759178376862,
+            -1.9750584325736593,
+            -1.6586411144461224,
+            -1.5712990104601097,
+            -0.7712104647678167,
+            1.4300134775423614,
+            -1.132811181318067
+          ],
+          "scale": [
+            3.517688947171965,
+            6.080796743085309,
+            8.011200264230503,
+            11.747443903306475,
+            17.470366374879575,
+            3.819156056319211,
+            8.871279154767102,
+            1.6507519891812565,
+            0.6205285405521505,
+            39.76011223776697,
+            15.796671039586561,
+            0.2935924583807411,
+            0.12741987922411518,
+            17.14347117343335,
+            1.828275326861325,
+            0.8237119757956652,
+            26.447268057863916,
+            36.53757519607167,
+            26.627558818827048,
+            16.146017977033367,
+            0.1832083572195156,
+            2.4582353778827746,
+            1.4936629590258987,
+            0.6368611670368659,
+            8.289856959120641,
+            5.632096445674956,
+            4.643460186573299,
+            3.013331671473185,
+            4.534468352373262,
+            1.3068707334247305
+          ],
+          "weights": [
+            0.025818387026822088,
+            0.17846881562593095,
+            -1.2188605044344485,
+            -0.18045998616522652,
+            0.40416539336142426,
+            -0.22691438204196646,
+            1.764513425408036,
+            0.9541130454482488,
+            0.13672440232160762,
+            -0.05307579862392365,
+            0.4857861396630364,
+            -0.31101709013824785,
+            0.05207297701285848,
+            0.3752398554390631,
+            -0.9307412561029335,
+            0.3534374753922977,
+            -0.03859304583652278,
+            -0.04862679648879996,
+            0.0059300058954293204,
+            -1.0111148318057266,
+            0.6897549597786975,
+            0.34631603145464607,
+            -0.8854074233025973,
+            0.19038731596978442,
+            0.15264940347732786,
+            0.07652524963267353,
+            -0.07931302007804174,
+            0.0680070908655779,
+            0.222529182614947,
+            -0.7246637500384039
+          ],
+          "intercept": 0.4647922802771202,
+          "regularization": 0.01,
+          "train_examples": 56638,
+          "latest_label_date": "20260529",
+          "target_clip_training_only": [
+            -40,
+            40
+          ]
+        },
+        "k": 5,
+        "gapmax": 3,
+        "pred_min": -100,
+        "rank": "price",
+        "board": "all",
+        "regime": "all",
+        "id": "9eed26061f4d"
+      },
+      "train": {
+        "selected": 125,
+        "n": 89,
+        "days": 25,
+        "unknown": 24,
+        "statuses": {
+          "executed": 89,
+          "reference_unknown": 24,
+          "gap_too_high": 12
+        },
+        "mean": 6.563159404744325,
+        "median": 2.375470534220425,
+        "win": 61.79775280898876,
+        "hit10": 35.95505617977528,
+        "worst": -22.54142744458654,
+        "p10": -9.031496838204946,
+        "trimmed_top5": 4.2385119344062625,
+        "stressed_unknown_mean": -1.202467371484558,
+        "months": [
+          {
+            "signal": "202604",
+            "count": 52,
+            "mean": 8.895116039331988,
+            "median": 8.789557836853978
+          },
+          {
+            "signal": "202605",
+            "count": 37,
+            "mean": 3.2858149453238275,
+            "median": 0.1884908840734001
+          }
+        ]
+      },
+      "validation": {
+        "selected": 80,
+        "n": 64,
+        "days": 16,
+        "unknown": 5,
+        "statuses": {
+          "executed": 64,
+          "gap_too_high": 10,
+          "reference_unknown": 5,
+          "open_at_limit_up": 1
+        },
+        "mean": 2.6026563327684515,
+        "median": 0.1915530854918579,
+        "win": 51.5625,
+        "hit10": 20.3125,
+        "worst": -19.235037016125112,
+        "p10": -13.11160307956258,
+        "trimmed_top5": -0.00996082232188904,
+        "stressed_unknown_mean": 0.24014500430696956,
+        "months": [
+          {
+            "signal": "202606",
+            "count": 64,
+            "mean": 2.6026563327684515,
+            "median": 0.1915530854918579
+          }
+        ]
+      },
+      "eligible": true,
+      "objective": -1.202467371484558,
+      "capital_train": {
+        "selected": 72,
+        "n": 72,
+        "days": 23,
+        "unknown": 0,
+        "statuses": {
+          "executed": 72
+        },
+        "mean": 7.653558328474974,
+        "median": 6.788587427064641,
+        "win": 66.66666666666666,
+        "hit10": 41.66666666666667,
+        "worst": -22.541427444586525,
+        "p10": -9.061696370356358,
+        "trimmed_top5": 5.321558908262891,
+        "stressed_unknown_mean": -0.8488580682774398,
+        "months": [
+          {
+            "signal": "202604",
+            "count": 41,
+            "mean": 10.429276367269138,
+            "median": 9.928347334220522
+          },
+          {
+            "signal": "202605",
+            "count": 31,
+            "mean": 3.9824473739407567,
+            "median": 1.1893466505852324
+          }
+        ],
+        "portfolio_return": 18.71368797016899,
+        "max_drawdown": -3.8719209609234806,
+        "average_exposure": 40.05766347714585,
+        "filled": 93,
+        "unresolved": 21,
+        "open_positions": 0,
+        "skips": {
+          "gap_too_high": 11,
+          "insufficient_cash_or_lot": 21
+        },
+        "nav_kind": "raw unadjusted price marks; unknown corporate actions disclosed"
+      },
+      "capital_validation": {
+        "selected": 58,
+        "n": 58,
+        "days": 16,
+        "unknown": 0,
+        "statuses": {
+          "executed": 58
+        },
+        "mean": 3.0733323398459462,
+        "median": 0.1915530854918468,
+        "win": 51.724137931034484,
+        "hit10": 22.413793103448278,
+        "worst": -19.235037016125112,
+        "p10": -11.534746712198675,
+        "trimmed_top5": 0.664663714600759,
+        "stressed_unknown_mean": 0.9395689630816915,
+        "months": [
+          {
+            "signal": "202606",
+            "count": 58,
+            "mean": 3.0733323398459462,
+            "median": 0.1915530854918468
+          }
+        ],
+        "portfolio_return": 7.625807436710819,
+        "max_drawdown": -5.991365246220559,
+        "average_exposure": 43.487756488793366,
+        "filled": 62,
+        "unresolved": 4,
+        "open_positions": 0,
+        "skips": {
+          "gap_too_high": 10,
+          "insufficient_cash_or_lot": 7,
+          "open_at_limit_up": 1
+        },
+        "nav_kind": "raw unadjusted price marks; unknown corporate actions disclosed"
+      },
+      "capital_sufficient": true,
+      "capital_objective": -0.8488580682774398
+    },
+    {
+      "config": {
+        "family": "fund_momentum",
+        "momentum": 20,
+        "flow": 3,
+        "window": 3,
+        "rank": "price",
+        "k": 5,
+        "gapmax": 3,
+        "board": "all",
+        "regime": "all",
+        "id": "a78d50973118"
+      },
+      "train": {
+        "selected": 135,
+        "n": 83,
+        "days": 27,
+        "unknown": 12,
+        "statuses": {
+          "executed": 83,
+          "gap_too_high": 40,
+          "reference_unknown": 12
+        },
+        "mean": 3.924088495624667,
+        "median": 2.375470725851203,
+        "win": 54.21686746987952,
+        "hit10": 32.53012048192771,
+        "worst": -23.599242790836318,
+        "p10": -14.667449374786957,
+        "trimmed_top5": 1.6634019281145647,
+        "stressed_unknown_mean": -0.36105952487529114,
+        "months": [
+          {
+            "signal": "202604",
+            "count": 53,
+            "mean": 4.143884286106367,
+            "median": 1.0657326306239945
+          },
+          {
+            "signal": "202605",
+            "count": 30,
+            "mean": 3.5357825991069944,
+            "median": 2.984801833213857
+          }
+        ]
+      },
+      "validation": {
+        "selected": 80,
+        "n": 49,
+        "days": 16,
+        "unknown": 4,
+        "statuses": {
+          "executed": 49,
+          "gap_too_high": 24,
+          "reference_unknown": 4,
+          "open_at_limit_up": 3
+        },
+        "mean": 0.6648504581200474,
+        "median": -2.7267752201760143,
+        "win": 42.857142857142854,
+        "hit10": 24.489795918367346,
+        "worst": -24.852048733914145,
+        "p10": -16.29671660249591,
+        "trimmed_top5": -1.7359539239397959,
+        "stressed_unknown_mean": -1.649477878341843,
+        "months": [
+          {
+            "signal": "202606",
+            "count": 49,
+            "mean": 0.6648504581200471,
+            "median": -2.7267752201760143
+          }
+        ]
+      },
+      "eligible": true,
+      "objective": -1.649477878341843,
+      "capital_train": {
+        "selected": 79,
+        "n": 79,
+        "days": 27,
+        "unknown": 0,
+        "statuses": {
+          "executed": 79
+        },
+        "mean": 3.9004647466191478,
+        "median": 2.375470725851203,
+        "win": 53.16455696202531,
+        "hit10": 34.177215189873415,
+        "worst": -23.59924279083633,
+        "p10": -14.77858807562285,
+        "trimmed_top5": 1.9722658958468866,
+        "stressed_unknown_mean": -0.5699262089789828,
+        "months": [
+          {
+            "signal": "202604",
+            "count": 49,
+            "mean": 3.943887020957235,
+            "median": -0.07971525848291527
+          },
+          {
+            "signal": "202605",
+            "count": 30,
+            "mean": 3.8295416985336024,
+            "median": 2.984801833213835
+          }
+        ],
+        "portfolio_return": 13.708458612684392,
+        "max_drawdown": -4.447713449763491,
+        "average_exposure": 38.65361673340939,
+        "filled": 91,
+        "unresolved": 12,
+        "open_positions": 0,
+        "skips": {
+          "gap_too_high": 39,
+          "insufficient_cash_or_lot": 5
+        },
+        "nav_kind": "raw unadjusted price marks; unknown corporate actions disclosed"
+      },
+      "capital_validation": {
+        "selected": 46,
+        "n": 46,
+        "days": 15,
+        "unknown": 0,
+        "statuses": {
+          "executed": 46
+        },
+        "mean": 0.7111776582328698,
+        "median": -2.8815813866755136,
+        "win": 43.47826086956522,
+        "hit10": 26.08695652173913,
+        "worst": -24.852048733914156,
+        "p10": -16.60894465541109,
+        "trimmed_top5": -1.853892573730254,
+        "stressed_unknown_mean": -1.7457165544257598,
+        "months": [
+          {
+            "signal": "202606",
+            "count": 46,
+            "mean": 0.7111776582328698,
+            "median": -2.8815813866755136
+          }
+        ],
+        "portfolio_return": -1.6645034703536843,
+        "max_drawdown": -9.384247619478813,
+        "average_exposure": 35.751094245448215,
+        "filled": 50,
+        "unresolved": 4,
+        "open_positions": 0,
+        "skips": {
+          "gap_too_high": 24,
+          "insufficient_cash_or_lot": 3,
+          "open_at_limit_up": 3
+        },
+        "nav_kind": "raw unadjusted price marks; unknown corporate actions disclosed"
+      },
+      "capital_sufficient": true,
+      "capital_objective": -1.7457165544257598
+    },
+    {
+      "config": {
+        "family": "fund_momentum",
+        "momentum": 20,
+        "flow": 3,
+        "window": 3,
+        "rank": "price",
+        "k": 5,
+        "gapmax": 3,
+        "board": "all",
+        "regime": "hot",
+        "id": "34c1862b09b6"
+      },
+      "train": {
+        "selected": 118,
+        "n": 66,
+        "days": 22,
+        "unknown": 14,
+        "statuses": {
+          "executed": 66,
+          "gap_too_high": 32,
+          "reference_unknown": 14,
+          "open_at_limit_up": 6
+        },
+        "mean": 4.295211367078857,
+        "median": 3.6656248337112673,
+        "win": 63.63636363636363,
+        "hit10": 30.303030303030305,
+        "worst": -23.40551589990103,
+        "p10": -15.306105821609183,
+        "trimmed_top5": 2.429855356947988,
+        "stressed_unknown_mean": -1.706450622159943,
+        "months": [
+          {
+            "signal": "202604",
+            "count": 44,
+            "mean": 4.3822557282962284,
+            "median": 4.459332075932787
+          },
+          {
+            "signal": "202605",
+            "count": 22,
+            "mean": 4.121122644644114,
+            "median": 2.9233591652230273
+          }
+        ]
+      },
+      "validation": {
+        "selected": 80,
+        "n": 47,
+        "days": 16,
+        "unknown": 3,
+        "statuses": {
+          "executed": 47,
+          "gap_too_high": 26,
+          "reference_unknown": 3,
+          "open_at_limit_up": 3,
+          "no_open": 1
+        },
+        "mean": 1.0614980811579413,
+        "median": -0.5301508323536264,
+        "win": 48.93617021276596,
+        "hit10": 27.659574468085108,
+        "worst": -24.852048733914145,
+        "p10": -19.511568799843488,
+        "trimmed_top5": -1.1833684622373815,
+        "stressed_unknown_mean": -0.8021918037115351,
+        "months": [
+          {
+            "signal": "202606",
+            "count": 47,
+            "mean": 1.0614980811579415,
+            "median": -0.5301508323536264
+          }
+        ]
+      },
+      "eligible": true,
+      "objective": -1.706450622159943,
+      "capital_train": {
+        "selected": 65,
+        "n": 65,
+        "days": 22,
+        "unknown": 0,
+        "statuses": {
+          "executed": 65
+        },
+        "mean": 4.248598535789549,
+        "median": 3.2116603684702483,
+        "win": 63.07692307692307,
+        "hit10": 30.76923076923077,
+        "worst": -23.40551589990104,
+        "p10": -15.306868889978848,
+        "trimmed_top5": 2.349606339834287,
+        "stressed_unknown_mean": -1.8207733566288522,
+        "months": [
+          {
+            "signal": "202604",
+            "count": 43,
+            "mean": 4.313818759166288,
+            "median": 4.119589298952264
+          },
+          {
+            "signal": "202605",
+            "count": 22,
+            "mean": 4.121122644644104,
+            "median": 2.9233591652230273
+          }
+        ],
+        "portfolio_return": 9.51212132478354,
+        "max_drawdown": -2.2990083751063484,
+        "average_exposure": 33.67021586481454,
+        "filled": 79,
+        "unresolved": 14,
+        "open_positions": 0,
+        "skips": {
+          "gap_too_high": 32,
+          "insufficient_cash_or_lot": 1,
+          "open_at_limit_up": 6
+        },
+        "nav_kind": "raw unadjusted price marks; unknown corporate actions disclosed"
+      },
+      "capital_validation": {
+        "selected": 45,
+        "n": 45,
+        "days": 15,
+        "unknown": 0,
+        "statuses": {
+          "executed": 45
+        },
+        "mean": 1.0614899279279506,
+        "median": -0.5301508323536264,
+        "win": 48.888888888888886,
+        "hit10": 28.888888888888886,
+        "worst": -24.852048733914156,
+        "p10": -19.643526467356192,
+        "trimmed_top5": -1.2902756046692923,
+        "stressed_unknown_mean": -0.8798531925675461,
+        "months": [
+          {
+            "signal": "202606",
+            "count": 45,
+            "mean": 1.0614899279279508,
+            "median": -0.5301508323536264
+          }
+        ],
+        "portfolio_return": 0.06305222489058071,
+        "max_drawdown": -8.943367597194673,
+        "average_exposure": 34.703545453159165,
+        "filled": 48,
+        "unresolved": 3,
+        "open_positions": 0,
+        "skips": {
+          "gap_too_high": 25,
+          "insufficient_cash_or_lot": 3,
+          "open_at_limit_up": 3,
+          "no_open": 1
+        },
+        "nav_kind": "raw unadjusted price marks; unknown corporate actions disclosed"
+      },
+      "capital_sufficient": true,
+      "capital_objective": -1.8207733566288522
+    },
+    {
+      "config": {
+        "family": "fund_momentum",
+        "momentum": 20,
+        "flow": 3,
+        "window": 3,
+        "rank": "price",
+        "k": 5,
+        "gapmax": 5,
+        "board": "all",
+        "regime": "all",
+        "id": "c397b398ed9d"
+      },
+      "train": {
+        "selected": 135,
+        "n": 99,
+        "days": 27,
+        "unknown": 18,
+        "statuses": {
+          "executed": 99,
+          "gap_too_high": 18,
+          "reference_unknown": 18
+        },
+        "mean": 3.158796127115109,
+        "median": 1.988706381614569,
+        "win": 53.535353535353536,
+        "hit10": 28.28282828282828,
+        "worst": -24.246255685421005,
+        "p10": -14.778588075622848,
+        "trimmed_top5": 1.2422002323455796,
+        "stressed_unknown_mean": -1.9425571232102925,
+        "months": [
+          {
+            "signal": "202604",
+            "count": 63,
+            "mean": 3.673589150263938,
+            "median": 1.0657326306239945
+          },
+          {
+            "signal": "202605",
+            "count": 36,
+            "mean": 2.257908336604657,
+            "median": 2.3733248397860174
+          }
+        ]
+      },
+      "validation": {
+        "selected": 80,
+        "n": 57,
+        "days": 16,
+        "unknown": 4,
+        "statuses": {
+          "executed": 57,
+          "gap_too_high": 16,
+          "reference_unknown": 4,
+          "open_at_limit_up": 3
+        },
+        "mean": -0.19131573492340714,
+        "median": -3.6853641699611805,
+        "win": 40.35087719298245,
+        "hit10": 24.561403508771928,
+        "worst": -27.88494146897369,
+        "p10": -17.97665623208907,
+        "trimmed_top5": -2.284010182217539,
+        "stressed_unknown_mean": -2.1459835555841673,
+        "months": [
+          {
+            "signal": "202606",
+            "count": 57,
+            "mean": -0.1913157349234069,
+            "median": -3.6853641699611805
+          }
+        ]
+      },
+      "eligible": true,
+      "objective": -2.1459835555841673,
+      "capital_train": {
+        "selected": 93,
+        "n": 93,
+        "days": 27,
+        "unknown": 0,
+        "statuses": {
+          "executed": 93
+        },
+        "mean": 3.2366364380387727,
+        "median": 1.9887063816145467,
+        "win": 52.68817204301075,
+        "hit10": 30.107526881720432,
+        "worst": -24.246255685421005,
+        "p10": -15.051631543830553,
+        "trimmed_top5": 1.193786295382893,
+        "stressed_unknown_mean": -2.1530883897512996,
+        "months": [
+          {
+            "signal": "202604",
+            "count": 57,
+            "mean": 3.8547805021024284,
+            "median": -0.030384330789012814
+          },
+          {
+            "signal": "202605",
+            "count": 36,
+            "mean": 2.2579083366046486,
+            "median": 2.373324839785984
+          }
+        ],
+        "portfolio_return": 13.513899300800736,
+        "max_drawdown": -4.883655204569104,
+        "average_exposure": 47.31836148016553,
+        "filled": 111,
+        "unresolved": 18,
+        "open_positions": 0,
+        "skips": {
+          "gap_too_high": 18,
+          "insufficient_cash_or_lot": 6
+        },
+        "nav_kind": "raw unadjusted price marks; unknown corporate actions disclosed"
+      },
+      "capital_validation": {
+        "selected": 54,
+        "n": 54,
+        "days": 16,
+        "unknown": 0,
+        "statuses": {
+          "executed": 54
+        },
+        "mean": -0.19941661221860382,
+        "median": -3.848344449041152,
+        "win": 40.74074074074074,
+        "hit10": 25.925925925925924,
+        "worst": -27.8849414689737,
+        "p10": -18.61215484845358,
+        "trimmed_top5": -2.415687255076814,
+        "stressed_unknown_mean": -2.2546292596518036,
+        "months": [
+          {
+            "signal": "202606",
+            "count": 54,
+            "mean": -0.19941661221860382,
+            "median": -3.848344449041152
+          }
+        ],
+        "portfolio_return": -3.67516236979869,
+        "max_drawdown": -11.035866374309455,
+        "average_exposure": 41.139278079872824,
+        "filled": 58,
+        "unresolved": 4,
+        "open_positions": 0,
+        "skips": {
+          "gap_too_high": 16,
+          "insufficient_cash_or_lot": 3,
+          "open_at_limit_up": 3
+        },
+        "nav_kind": "raw unadjusted price marks; unknown corporate actions disclosed"
+      },
+      "capital_sufficient": true,
+      "capital_objective": -2.2546292596518036
+    },
+    {
+      "config": {
+        "family": "ridge",
+        "short_history": true,
+        "model": {
+          "features": [
+            "day",
+            "ret3",
+            "ret5",
+            "ret10",
+            "ret20",
+            "bias5",
+            "bias20",
+            "amp20",
+            "vr",
+            "rsi2",
+            "rsi14",
+            "clv",
+            "streak",
+            "rs20",
+            "atr14",
+            "liquidity_log",
+            "reversal_squared",
+            "momentum_pullback",
+            "day_squared",
+            "industry_rs20",
+            "breadth",
+            "index_ret20",
+            "index_up_count",
+            "market_main5_pct",
+            "main1",
+            "main3",
+            "main5",
+            "super5",
+            "small5",
+            "sector_main_pct5"
+          ],
+          "low": [
+            -9.969651970863342,
+            -14.304759278297425,
+            -17.182003211975097,
+            -19.72078640937805,
+            -23.87418791770935,
+            -9.435586466789246,
+            -14.7030979681015,
+            1.204766210913658,
+            0.45076768592000005,
+            0.0,
+            14.489208245277405,
+            0.0,
+            0.0,
+            -27.343028993606566,
+            1.1501500636339188,
+            0.6985391461849213,
+            0.0,
+            -313.846184387207,
+            0.0,
+            -29.5668843460083,
+            0.12448598130841121,
+            -0.560450553894043,
+            0.0,
+            -2.876561403274536,
+            -23.79747896194458,
+            -17.062064266204835,
+            -14.641518559455871,
+            -10.363200182914733,
+            -11.003470883369445,
+            -6.040639781951904
+          ],
+          "high": [
+            13.854211707115185,
+            25.7190017414094,
+            36.23358741760259,
+            56.50739479064946,
+            89.20652996063237,
+            15.660591154098512,
+            41.18655317306534,
+            9.802445478439338,
+            4.831981258392345,
+            100.00000762939453,
+            92.92310188293462,
+            1.0,
+            1.0,
+            84.53268608093272,
+            10.854429740905768,
+            4.588138835430145,
+            204.62614479064962,
+            0.0,
+            207.21399932861482,
+            79.94519859313955,
+            0.7806298925905698,
+            7.73165225982666,
+            4.0,
+            -0.6988217830657959,
+            24.24503743171699,
+            14.569528479576164,
+            11.441185479164131,
+            10.090267663002026,
+            13.896343722343445,
+            2.6540000438690186
+          ],
+          "center": [
+            0.42965910098924054,
+            1.3146383355925784,
+            2.079964860997769,
+            5.24154810691832,
+            8.776290545528894,
+            0.7764046055614167,
+            4.275355786936084,
+            4.352964145487414,
+            1.1602902592844413,
+            53.71741353397154,
+            58.4097620269113,
+            0.5049087186857136,
+            0.016508351283590524,
+            4.876676461738299,
+            4.5801021343599055,
+            1.6450226004475015,
+            9.774373833389062,
+            -10.166483031010708,
+            12.771388419425291,
+            2.8872076767421255,
+            0.4980640352594668,
+            3.8986245756739635,
+            2.4819379215367774,
+            -1.5678759178376862,
+            -1.9750584325736593,
+            -1.6586411144461224,
+            -1.5712990104601097,
+            -0.7712104647678167,
+            1.4300134775423614,
+            -1.132811181318067
+          ],
+          "scale": [
+            3.517688947171965,
+            6.080796743085309,
+            8.011200264230503,
+            11.747443903306475,
+            17.470366374879575,
+            3.819156056319211,
+            8.871279154767102,
+            1.6507519891812565,
+            0.6205285405521505,
+            39.76011223776697,
+            15.796671039586561,
+            0.2935924583807411,
+            0.12741987922411518,
+            17.14347117343335,
+            1.828275326861325,
+            0.8237119757956652,
+            26.447268057863916,
+            36.53757519607167,
+            26.627558818827048,
+            16.146017977033367,
+            0.1832083572195156,
+            2.4582353778827746,
+            1.4936629590258987,
+            0.6368611670368659,
+            8.289856959120641,
+            5.632096445674956,
+            4.643460186573299,
+            3.013331671473185,
+            4.534468352373262,
+            1.3068707334247305
+          ],
+          "weights": [
+            -0.009257529272227578,
+            0.0005073004052035657,
+            -0.15775305063179404,
+            0.13540876097137067,
+            0.19104126241400698,
+            -0.0377931455851965,
+            0.17006689163569147,
+            0.07377198410728694,
+            0.04312462561276382,
+            0.005570441004514472,
+            0.296022330228309,
+            -0.08386595010934719,
+            0.015944502195587792,
+            0.16758675242633944,
+            0.04122932518023817,
+            0.19426834823741418,
+            -0.006748003925688214,
+            -0.07977038871534685,
+            0.016811040387813676,
+            -0.04053307849019912,
+            0.1292440931743034,
+            0.19017441559564702,
+            -0.26193313344437824,
+            0.07019488678549302,
+            0.04274813709756199,
+            0.025776852347632873,
+            -0.057502089029185334,
+            -0.029443610969212164,
+            0.1006307251914317,
+            -0.05390095825625388
+          ],
+          "intercept": 0.4647922802771202,
+          "regularization": 1.0,
+          "train_examples": 56638,
+          "latest_label_date": "20260529",
+          "target_clip_training_only": [
+            -40,
+            40
+          ]
+        },
+        "k": 5,
+        "gapmax": 3,
+        "pred_min": -100,
+        "rank": "price",
+        "board": "all",
+        "regime": "all",
+        "id": "35d3c9339354"
+      },
+      "train": {
+        "selected": 125,
+        "n": 89,
+        "days": 23,
+        "unknown": 22,
+        "statuses": {
+          "executed": 89,
+          "reference_unknown": 22,
+          "gap_too_high": 14
+        },
+        "mean": 4.675760037656574,
+        "median": 2.5407056251197657,
+        "win": 57.30337078651685,
+        "hit10": 32.58426966292135,
+        "worst": -25.20207763861322,
+        "p10": -11.542959843392827,
+        "trimmed_top5": 2.5260302702115367,
+        "stressed_unknown_mean": -2.1969131229600443,
+        "months": [
+          {
+            "signal": "202604",
+            "count": 51,
+            "mean": 6.164061648483501,
+            "median": 3.6975010893846028
+          },
+          {
+            "signal": "202605",
+            "count": 38,
+            "mean": 2.6783026125993836,
+            "median": 1.5995592497332067
+          }
+        ]
+      },
+      "validation": {
+        "selected": 80,
+        "n": 67,
+        "days": 16,
+        "unknown": 5,
+        "statuses": {
+          "executed": 67,
+          "gap_too_high": 7,
+          "reference_unknown": 5,
+          "no_open": 1
+        },
+        "mean": 4.586270688068158,
+        "median": 0.7720227596052398,
+        "win": 56.71641791044776,
+        "hit10": 37.3134328358209,
+        "worst": -29.171628916673576,
+        "p10": -13.868038969107698,
+        "trimmed_top5": 2.485186094902557,
+        "stressed_unknown_mean": 2.184446334730091,
+        "months": [
+          {
+            "signal": "202606",
+            "count": 67,
+            "mean": 4.586270688068157,
+            "median": 0.7720227596052398
+          }
+        ]
+      },
+      "eligible": true,
+      "objective": -2.1969131229600443,
+      "capital_train": {
+        "selected": 81,
+        "n": 81,
+        "days": 23,
+        "unknown": 0,
+        "statuses": {
+          "executed": 81
+        },
+        "mean": 5.153059987011868,
+        "median": 3.6975010893845806,
+        "win": 59.25925925925925,
+        "hit10": 34.5679012345679,
+        "worst": -25.20207763861322,
+        "p10": -12.032486224204453,
+        "trimmed_top5": 2.8084441880828335,
+        "stressed_unknown_mean": -1.807941990614245,
+        "months": [
+          {
+            "signal": "202604",
+            "count": 47,
+            "mean": 7.05239807527242,
+            "median": 3.9812568414497207
+          },
+          {
+            "signal": "202605",
+            "count": 34,
+            "mean": 2.5275043944163986,
+            "median": -0.0318402776600224
+          }
+        ],
+        "portfolio_return": 11.422621953599798,
+        "max_drawdown": -6.8126839547068,
+        "average_exposure": 42.10874331375222,
+        "filled": 101,
+        "unresolved": 20,
+        "open_positions": 0,
+        "skips": {
+          "gap_too_high": 15,
+          "insufficient_cash_or_lot": 9
+        },
+        "nav_kind": "raw unadjusted price marks; unknown corporate actions disclosed"
+      },
+      "capital_validation": {
+        "selected": 46,
+        "n": 46,
+        "days": 16,
+        "unknown": 0,
+        "statuses": {
+          "executed": 46
+        },
+        "mean": 2.593895328860776,
+        "median": 0.664926855513559,
+        "win": 54.347826086956516,
+        "hit10": 32.608695652173914,
+        "worst": -29.171628916673576,
+        "p10": -15.87345436512803,
+        "trimmed_top5": 0.2910871021299724,
+        "stressed_unknown_mean": -0.013616297448086243,
+        "months": [
+          {
+            "signal": "202606",
+            "count": 46,
+            "mean": 2.593895328860776,
+            "median": 0.664926855513559
+          }
+        ],
+        "portfolio_return": 4.097841257413837,
+        "max_drawdown": -6.707660868130272,
+        "average_exposure": 34.39755978181193,
+        "filled": 50,
+        "unresolved": 4,
+        "open_positions": 0,
+        "skips": {
+          "insufficient_cash_or_lot": 20,
+          "gap_too_high": 9,
+          "no_open": 1
+        },
+        "nav_kind": "raw unadjusted price marks; unknown corporate actions disclosed"
+      },
+      "capital_sufficient": true,
+      "capital_objective": -1.807941990614245
+    },
+    {
+      "config": {
+        "family": "fund_momentum",
+        "momentum": 10,
+        "flow": 5,
+        "window": 5,
+        "rank": "price",
+        "k": 5,
+        "gapmax": 5,
+        "board": "all",
+        "regime": "all",
+        "id": "ed0d14c51912"
+      },
+      "train": {
+        "selected": 125,
+        "n": 94,
+        "days": 25,
+        "unknown": 18,
+        "statuses": {
+          "executed": 94,
+          "reference_unknown": 18,
+          "gap_too_high": 11,
+          "open_at_limit_up": 2
+        },
+        "mean": 3.047886356464199,
+        "median": 0.6415930462392805,
+        "win": 50.0,
+        "hit10": 29.78723404255319,
+        "worst": -23.599242790836318,
+        "p10": -14.252327376401732,
+        "trimmed_top5": 1.046643913735424,
+        "stressed_unknown_mean": -2.263381093681833,
+        "months": [
+          {
+            "signal": "202604",
+            "count": 53,
+            "mean": 4.34174402543061,
+            "median": 2.375470725851203
+          },
+          {
+            "signal": "202605",
+            "count": 41,
+            "mean": 1.3753386380442056,
+            "median": -1.7241341220322282
+          }
+        ]
+      },
+      "validation": {
+        "selected": 80,
+        "n": 60,
+        "days": 16,
+        "unknown": 2,
+        "statuses": {
+          "executed": 60,
+          "gap_too_high": 15,
+          "open_at_limit_up": 3,
+          "reference_unknown": 2
+        },
+        "mean": 0.4170967698157728,
+        "median": -3.070258250079483,
+        "win": 46.666666666666664,
+        "hit10": 25.0,
+        "worst": -27.499306522779854,
+        "p10": -19.5585938831987,
+        "trimmed_top5": -1.715058940010234,
+        "stressed_unknown_mean": -0.5640999001782844,
+        "months": [
+          {
+            "signal": "202606",
+            "count": 60,
+            "mean": 0.41709676981577243,
+            "median": -3.070258250079483
+          }
+        ]
+      },
+      "eligible": true,
+      "objective": -2.263381093681833,
+      "capital_train": {
+        "selected": 86,
+        "n": 86,
+        "days": 25,
+        "unknown": 0,
+        "statuses": {
+          "executed": 86
+        },
+        "mean": 2.6245088988147027,
+        "median": -1.5567827624344222,
+        "win": 45.348837209302324,
+        "hit10": 27.906976744186046,
+        "worst": -23.59924279083633,
+        "p10": -14.642564209657767,
+        "trimmed_top5": 0.39947847052941166,
+        "stressed_unknown_mean": -2.760118783513938,
+        "months": [
+          {
+            "signal": "202604",
+            "count": 49,
+            "mean": 4.475503511000918,
+            "median": -0.07971525848291527
+          },
+          {
+            "signal": "202605",
+            "count": 37,
+            "mean": 0.17319170970322642,
+            "median": -5.031065174028426
+          }
+        ],
+        "portfolio_return": 8.373791310353141,
+        "max_drawdown": -5.517038005608999,
+        "average_exposure": 44.553146557986466,
+        "filled": 103,
+        "unresolved": 17,
+        "open_positions": 0,
+        "skips": {
+          "gap_too_high": 11,
+          "insufficient_cash_or_lot": 8,
+          "open_at_limit_up": 3
+        },
+        "nav_kind": "raw unadjusted price marks; unknown corporate actions disclosed"
+      },
+      "capital_validation": {
+        "selected": 55,
+        "n": 55,
+        "days": 16,
+        "unknown": 0,
+        "statuses": {
+          "executed": 55
+        },
+        "mean": 0.03874499291099455,
+        "median": -3.3653629740422852,
+        "win": 45.45454545454545,
+        "hit10": 23.636363636363637,
+        "worst": -27.499306522779886,
+        "p10": -19.423024445737877,
+        "trimmed_top5": -2.3202536761427863,
+        "stressed_unknown_mean": -1.0152460594718473,
+        "months": [
+          {
+            "signal": "202606",
+            "count": 55,
+            "mean": 0.03874499291099494,
+            "median": -3.3653629740422852
+          }
+        ],
+        "portfolio_return": -2.61378220625873,
+        "max_drawdown": -7.215044480153477,
+        "average_exposure": 41.67379246932785,
+        "filled": 57,
+        "unresolved": 2,
+        "open_positions": 0,
+        "skips": {
+          "gap_too_high": 13,
+          "insufficient_cash_or_lot": 7,
+          "open_at_limit_up": 3
+        },
+        "nav_kind": "raw unadjusted price marks; unknown corporate actions disclosed"
+      },
+      "capital_sufficient": true,
+      "capital_objective": -2.760118783513938
+    }
+  ],
+  "metadata": {
+    "daily_rows": 2008858,
+    "first": "20250401",
+    "last": "20261008",
+    "stocks": 5614,
+    "days": 368,
+    "query_only": 1,
+    "fund_sources": [
+      {
+        "source": "eastmoney-daykline",
+        "rows": 272419,
+        "first": "20260409",
+        "last": "20260930"
+      },
+      {
+        "source": "eastmoney-push2",
+        "rows": 397440,
+        "first": "20260616",
+        "last": "20261008"
+      }
+    ],
+    "missing_name_bars": 259821,
+    "raw_reference_mismatch_bars": 10493,
+    "enhancement": {
+      "input": "/tmp/tradeiq-t5-20261008-features.pkl",
+      "output": "/tmp/tradeiq-t5-20261008-enhanced-features.pkl",
+      "original_sha256": "1ef828ed7258f8ff73e3eee4d9fba172a178bfdc812867ba570c2ef63c696185",
+      "query_only": 1,
+      "holds_original_features": true,
+      "outcomes_accessed": false,
+      "coverage_report_cutoff": "20260630",
+      "market_fflow": {
+        "excluded": {
+          "invalid_amount": 3
+        },
+        "source_note": "Historical close snapshots are daily-only; amount may be inferred from rounded provider main-net percentages.",
+        "date_note": "Only exact stored trading dates present in the cache are used; no forward/backward date substitution."
+      },
+      "four_indices": {
+        "names": [
+          "上证指数",
+          "深证成指",
+          "创业板指",
+          "科创50"
+        ],
+        "duplicate_rows_excluded": 0,
+        "return_reference_tolerance_pp": 0.15,
+        "rule": "All four same-date records and complete historical windows are required."
+      },
+      "industry": {
+        "method": "Point-in-time L1 membership; daily equal-weight peer returns excluding the candidate; compounded over complete 5/20-session windows.",
+        "inclusion": "in_date <= day < out_date; empty out_date means active. At least 10 valid members and >=80% coverage of all dated members, including members absent from cached stocks.",
+        "official_daily_table": "Empty, so these are reconstructed peer benchmarks rather than official SW index returns.",
+        "excluded_intervals": {
+          "invalid_interval": 15
+        },
+        "ambiguous_membership_observations_preholdout": 0,
+        "groups": [
+          {
+            "group": "801020.SI",
+            "usable_days_preholdout": 0,
+            "mean_members_preholdout": 0.0
+          },
+          {
+            "group": "801030.SI",
+            "usable_days_preholdout": 301,
+            "mean_members_preholdout": 399.9933774834437
+          },
+          {
+            "group": "801040.SI",
+            "usable_days_preholdout": 301,
+            "mean_members_preholdout": 43.629139072847686
+          },
+          {
+            "group": "801050.SI",
+            "usable_days_preholdout": 301,
+            "mean_members_preholdout": 136.1523178807947
+          },
+          {
+            "group": "801710.SI",
+            "usable_days_preholdout": 301,
+            "mean_members_preholdout": 70.60596026490066
+          },
+          {
+            "group": "801720.SI",
+            "usable_days_preholdout": 301,
+            "mean_members_preholdout": 154.0794701986755
+          },
+          {
+            "group": "801730.SI",
+            "usable_days_preholdout": 301,
+            "mean_members_preholdout": 358.2748344370861
+          },
+          {
+            "group": "801890.SI",
+            "usable_days_preholdout": 301,
+            "mean_members_preholdout": 524.7086092715232
+          },
+          {
+            "group": "801740.SI",
+            "usable_days_preholdout": 301,
+            "mean_members_preholdout": 136.88079470198676
+          },
+          {
+            "group": "801880.SI",
+            "usable_days_preholdout": 301,
+            "mean_members_preholdout": 275.67218543046357
+          },
+          {
+            "group": "801110.SI",
+            "usable_days_preholdout": 301,
+            "mean_members_preholdout": 93.28807947019868
+          },
+          {
+            "group": "801130.SI",
+            "usable_days_preholdout": 301,
+            "mean_members_preholdout": 103.54304635761589
+          },
+          {
+            "group": "801140.SI",
+            "usable_days_preholdout": 301,
+            "mean_members_preholdout": 155.02649006622516
+          },
+          {
+            "group": "801200.SI",
+            "usable_days_preholdout": 301,
+            "mean_members_preholdout": 96.87417218543047
+          },
+          {
+            "group": "801010.SI",
+            "usable_days_preholdout": 301,
+            "mean_members_preholdout": 102.91059602649007
+          },
+          {
+            "group": "801120.SI",
+            "usable_days_preholdout": 301,
+            "mean_members_preholdout": 121.99668874172185
+          },
+          {
+            "group": "801210.SI",
+            "usable_days_preholdout": 301,
+            "mean_members_preholdout": 77.98344370860927
+          },
+          {
+            "group": "801150.SI",
+            "usable_days_preholdout": 301,
+            "mean_members_preholdout": 471.3841059602649
+          },
+          {
+            "group": "801160.SI",
+            "usable_days_preholdout": 301,
+            "mean_members_preholdout": 129.5662251655629
+          },
+          {
+            "group": "801170.SI",
+            "usable_days_preholdout": 301,
+            "mean_members_preholdout": 124.29139072847683
+          },
+          {
+            "group": "801180.SI",
+            "usable_days_preholdout": 301,
+            "mean_members_preholdout": 99.60264900662251
+          },
+          {
+            "group": "801080.SI",
+            "usable_days_preholdout": 301,
+            "mean_members_preholdout": 464.2682119205298
+          },
+          {
+            "group": "801750.SI",
+            "usable_days_preholdout": 301,
+            "mean_members_preholdout": 330.8675496688742
+          },
+          {
+            "group": "801760.SI",
+            "usable_days_preholdout": 301,
+            "mean_members_preholdout": 127.99337748344371
+          },
+          {
+            "group": "801770.SI",
+            "usable_days_preholdout": 301,
+            "mean_members_preholdout": 122.66225165562913
+          },
+          {
+            "group": "801780.SI",
+            "usable_days_preholdout": 301,
+            "mean_members_preholdout": 41.54304635761589
+          },
+          {
+            "group": "801790.SI",
+            "usable_days_preholdout": 301,
+            "mean_members_preholdout": 80.89403973509934
+          },
+          {
+            "group": "801230.SI",
+            "usable_days_preholdout": 301,
+            "mean_members_preholdout": 15.841059602649006
+          }
+        ]
+      },
+      "dated_sector_link": {
+        "link": "Only exact trimmed theme names observed for the stock on/before the signal and no more than 20 sessions old; requires a unique same-date sector entity. No current constituents or fuzzy aliases.",
+        "source": "Existing sector_fund_flow with compatible Eastmoney source tags.",
+        "flow5_definition": "Mean of five consecutive daily main_net_pct observations, not cumulative main-money share.",
+        "duplicate_rows_excluded": 0,
+        "ambiguous_name_links_preholdout": 0,
+        "matched_theme_counts_preholdout": {
+          "国产芯片": 1530,
+          "电力": 1863,
+          "商业航天": 1392,
+          "机器人": 4248,
+          "锂电池": 283,
+          "PCB": 1980,
+          "铝": 84,
+          "消费电子": 198,
+          "AI应用": 1184,
+          "半导体": 2330,
+          "有机硅": 76,
+          "玻璃基板": 485,
+          "固态电池": 63,
+          "稀土": 128,
+          "钨": 87,
+          "体育产业": 84,
+          "汽车零部件": 126,
+          "绿色电力": 105,
+          "可控核聚变": 161,
+          "黄金": 114,
+          "减肥药": 42,
+          "稀土永磁": 42,
+          "数据中心": 210,
+          "存储芯片": 202,
+          "人工智能": 273,
+          "军工": 101,
+          "光刻机": 84,
+          "被动元件": 1044,
+          "煤炭": 456,
+          "小金属": 260,
+          "房地产": 102,
+          "无人驾驶": 567,
+          "AIPC": 293,
+          "低空经济": 149,
+          "航运": 77,
+          "有色金属": 87,
+          "磷化工": 49,
+          "培育钻石": 56,
+          "数字货币": 2
+        }
+      },
+      "aliases": {
+        "industry_rs20": "rs_industry20",
+        "sector_main_pct5": "sector_main5_mean",
+        "market_main5_pct": "fflow_main5",
+        "index_up_count": "index_up4"
+      },
+      "new_features": {
+        "industry_ret5": {
+          "finite_observations": 1461304,
+          "finite_days": 297,
+          "first": "20250409",
+          "last": "20260630"
+        },
+        "industry_ret20": {
+          "finite_observations": 1387949,
+          "finite_days": 282,
+          "first": "20250430",
+          "last": "20260630"
+        },
+        "industry_breadth": {
+          "finite_observations": 1480846,
+          "finite_days": 301,
+          "first": "20250402",
+          "last": "20260630"
+        },
+        "rs_industry20": {
+          "finite_observations": 1251776,
+          "finite_days": 282,
+          "first": "20250430",
+          "last": "20260630"
+        },
+        "industry_other_count": {
+          "finite_observations": 1480846,
+          "finite_days": 301,
+          "first": "20250402",
+          "last": "20260630"
+        },
+        "sector_main1_max": {
+          "finite_observations": 19817,
+          "finite_days": 55,
+          "first": "20260409",
+          "last": "20260630"
+        },
+        "sector_main1_mean": {
+          "finite_observations": 19817,
+          "finite_days": 55,
+          "first": "20260409",
+          "last": "20260630"
+        },
+        "sector_main5_max": {
+          "finite_observations": 19129,
+          "finite_days": 51,
+          "first": "20260415",
+          "last": "20260630"
+        },
+        "sector_main5_mean": {
+          "finite_observations": 19129,
+          "finite_days": 51,
+          "first": "20260415",
+          "last": "20260630"
+        },
+        "sector_ret5_max": {
+          "finite_observations": 18945,
+          "finite_days": 50,
+          "first": "20260416",
+          "last": "20260630"
+        },
+        "sector_match_count": {
+          "finite_observations": 19817,
+          "finite_days": 55,
+          "first": "20260409",
+          "last": "20260630"
+        },
+        "sector_positive_fraction": {
+          "finite_observations": 19817,
+          "finite_days": 55,
+          "first": "20260409",
+          "last": "20260630"
+        },
+        "industry_rs20": {
+          "finite_observations": 1251776,
+          "finite_days": 282,
+          "first": "20250430",
+          "last": "20260630"
+        },
+        "sector_main_pct5": {
+          "finite_observations": 19129,
+          "finite_days": 51,
+          "first": "20260415",
+          "last": "20260630"
+        }
+      },
+      "new_market_features": {
+        "fflow_main1": {
+          "finite_observations": 69,
+          "finite_days": 69,
+          "first": "20260319",
+          "last": "20260630"
+        },
+        "fflow_main5": {
+          "finite_observations": 65,
+          "finite_days": 65,
+          "first": "20260325",
+          "last": "20260630"
+        },
+        "fflow_super1": {
+          "finite_observations": 69,
+          "finite_days": 69,
+          "first": "20260319",
+          "last": "20260630"
+        },
+        "fflow_super5": {
+          "finite_observations": 65,
+          "finite_days": 65,
+          "first": "20260325",
+          "last": "20260630"
+        },
+        "fflow_small1": {
+          "finite_observations": 69,
+          "finite_days": 69,
+          "first": "20260319",
+          "last": "20260630"
+        },
+        "fflow_small5": {
+          "finite_observations": 65,
+          "finite_days": 65,
+          "first": "20260325",
+          "last": "20260630"
+        },
+        "index_up4": {
+          "finite_observations": 301,
+          "finite_days": 301,
+          "first": "20250402",
+          "last": "20260630"
+        },
+        "index_trend20_up4": {
+          "finite_observations": 282,
+          "finite_days": 282,
+          "first": "20250430",
+          "last": "20260630"
+        },
+        "growth_relative5": {
+          "finite_observations": 297,
+          "finite_days": 297,
+          "first": "20250409",
+          "last": "20260630"
+        },
+        "index_mean5": {
+          "finite_observations": 297,
+          "finite_days": 297,
+          "first": "20250409",
+          "last": "20260630"
+        },
+        "market_main5_pct": {
+          "finite_observations": 65,
+          "finite_days": 65,
+          "first": "20260325",
+          "last": "20260630"
+        },
+        "index_up_count": {
+          "finite_observations": 301,
+          "finite_days": 301,
+          "first": "20250402",
+          "last": "20260630"
+        }
+      },
+      "original_cache_unchanged": true
+    }
+  },
+  "source_sha256": "83f44a6ac8efbaadedbf7bd93bd30d91faa3ed586c61a86996ae5478065e4830"
+}

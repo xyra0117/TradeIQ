@@ -1,0 +1,278 @@
+{
+  "version": "20261009.4",
+  "images": {
+    "chase-dark.jpg": {
+      "sha256": "1752e5ced9cbea9f83af23fa2c2eceee5c5e78a829cb3b88b6ead3583f6d4ddf",
+      "bytes": 91435,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "chase-light.jpg": {
+      "sha256": "cb052106075174bdf4f5b21092f5a2e07d23621bab57b786bbe1bcf0d4cc5ecd",
+      "bytes": 101513,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "chase-results-dark.jpg": {
+      "sha256": "4d31e5b755cdecf0658c50415082336b53887c53a7422d203812af11eee393ad",
+      "bytes": 89543,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "chase-results-light.jpg": {
+      "sha256": "5f7912d9735cd023b6b359b7a1b54c5c55126b4199f0e3ca14812dd1460dfb94",
+      "bytes": 93080,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "components-comparison.jpg": {
+      "sha256": "239841104cf57993e5abab804135d6519c3f9c557aace5068cea65f77b3813fd",
+      "bytes": 464660,
+      "dimensions": [
+        1905,
+        3797
+      ]
+    },
+    "custom-dark.jpg": {
+      "sha256": "c82d42486344601796f2c7884e8c37e772f65b09d7e82d0cefece0c5be9dedae",
+      "bytes": 79648,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "custom-editor-blocked-light.jpg": {
+      "sha256": "6e7e0f4417152d6054dba11ae1201a89f0c5e5faedf78bcce50427c17bb12109",
+      "bytes": 139379,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "custom-editor-chinese-dark.jpg": {
+      "sha256": "b4de1c4222ba018aa68b3511c546aa34d1202c81f7d9f24f575f9c5039db927d",
+      "bytes": 132773,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "custom-editor-chinese-light.jpg": {
+      "sha256": "da07a8e4c440c7ad84257ceef5f0464772c7a439571b77dfcd0dc50c51a6423e",
+      "bytes": 143543,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "custom-editor-formula-light.jpg": {
+      "sha256": "21cd8639588c7cb5cd0749dc56c373fc42985f9c33ffaf47e8f5d35356a53a03",
+      "bytes": 143430,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "custom-editor-visual-light.jpg": {
+      "sha256": "634e4624a81336f74c9d32358274c8b1c33b0d223c92d674b71325792cf0da91",
+      "bytes": 147164,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "custom-inspection-dark.jpg": {
+      "sha256": "60e93ec99241a5cb9b779b46710e7712586ffa58e1b10932b6da67aa99892562",
+      "bytes": 124231,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "custom-light.jpg": {
+      "sha256": "77f4e636814be870693d321f0f17ed70a0bd735c30edc6f4c483509d67143415",
+      "bytes": 88223,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "diagnostic-preview-light.jpg": {
+      "sha256": "56ec736b78224519d184b320e947ed9436bb23733918cfdbe1dcd56e69fd4479",
+      "bytes": 118126,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "dip-dark.jpg": {
+      "sha256": "936d0fcbbb0087b8133870c8a28bee58f9ede4470beba25eb47f81df366c935e",
+      "bytes": 98472,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "dip-light.jpg": {
+      "sha256": "695dca6d62f91907091c615f3909bb5db0c20504b61b766d80e758f114d4d77f",
+      "bytes": 107498,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "dip-results-dark.jpg": {
+      "sha256": "b9d6ecb721a84de979a90913fddbf4f4cdc7cee9a33cca35f8a051ce64c25e38",
+      "bytes": 89276,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "dip-results-light.jpg": {
+      "sha256": "07ea76f74ac278d384fa865e67e05f8ac296b70b5f267b1da82d3a3e5347210e",
+      "bytes": 92737,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "hot-detail-dark.jpg": {
+      "sha256": "6d12ee8d6b209eb7dfc7f6c77f79972f4ac9cad0730d3be0e31b1708422a4bc2",
+      "bytes": 102009,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "hot-detail-light.jpg": {
+      "sha256": "269afa864fc83dc21f4d7b79c8d2b5b99f4cfffc21b29a58b28853d9fe1ad2af",
+      "bytes": 110198,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "hot-leader-basis-light.jpg": {
+      "sha256": "38aa373d1eac0796b2885b08c0261568a718a643633640e30dc64e7a137aadf8",
+      "bytes": 135063,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "hot-leaders-dark.jpg": {
+      "sha256": "f12d22b6d0b646208e49cdc851078dab468821191c4c680a7bbed546dff99e20",
+      "bytes": 141336,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "hot-leaders-light.jpg": {
+      "sha256": "1ac0e82107caa5abd5400d21dde8a664575007c5168c6b1f25cde4de2000d5a9",
+      "bytes": 154379,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "hot-sectors-dark.jpg": {
+      "sha256": "c3a392d7a3a313fd5e3a5f9f626a0aec74fa282ebf3da5fcd9cd9eaf9bddada9",
+      "bytes": 84677,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "hot-sectors-light.jpg": {
+      "sha256": "ea0124b7f54cc1424fa25b685a19debb1caab860d3d4c0dd174ac9d5bc227825",
+      "bytes": 92219,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "stock-detail-expanded-light.jpg": {
+      "sha256": "e84174928bfc513e60d50901abe75b522deb7d245897757df1300899bb5b9ec8",
+      "bytes": 106701,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    },
+    "stock-detail-overlay-light.jpg": {
+      "sha256": "2349e5be30de35d6c5f2435940090eef1ead5573b9debd11a64d2e84cf844c3c",
+      "bytes": 120677,
+      "dimensions": [
+        1440,
+        1100
+      ]
+    },
+    "strategy-coverage-light.jpg": {
+      "sha256": "fe01c8144fde635ebacc75ca9b008045f0c76a131ef297deb365621b5dc525ee",
+      "bytes": 165243,
+      "dimensions": [
+        1920,
+        1200
+      ]
+    }
+  },
+  "verificationSha256": "ae4ecc7c7e8e6d7c19668fd055218bb32cd1ec478c0a98df02a7769fe8f941c0",
+  "sources": {
+    "dashboard/redesign/index.html": "b2699e691e6b6757370f0b5828c988a6c400f49ef052d3a7a0f89f7eb97bd599",
+    "dashboard/redesign/workspace.js": "fe7cb29913bd91d7858082b0b0e09100e132913cf37aaf9496052ef174a37a1a",
+    "dashboard/redesign/workspace.css": "8c37ea5c4e5914295bac63f44f1cca3e8c45b4c12d6cc6933f2f9d4df454cf70",
+    "dashboard/redesign/pages.js": "f2e135edc35083938ed275c859f6be86178e369ab07cef92fc169e37e5b0cf69",
+    "dashboard/redesign/pages.css": "eec9cb54e95e6818f28ac8ebd48fec4b03a34d70d6d1659c37c53b51c6fe436c",
+    "dashboard/redesign/components.html": "15e747b0f657ca7559fa41599fbc578c087469e1c0e25dea0b18515abfcaf37b",
+    "dashboard/redesign/components.js": "1c2e55a0f2552fee60d653d6cd437c6e3218100451d367a5ec6a415cda649499",
+    "dashboard/redesign/components.css": "2a7d0f4f12dffdbb88a4ebb510a8ad45715aa0db03cd81663fd1a3e6db558d4c",
+    "dashboard/redesign/preview-charts.js": "f5c9aaa1e16f56b40e16feb2676b785e83f0b2e1d6a59679025e978c8074a8ad",
+    "dashboard/redesign/icons.svg": "1c804cce4a3dfee1a5ea89e1b2e13948df5c200d0b91685164b25505a1f3446e",
+    "docs/design/2026-10-04-tradeiq-design-system.md": "ac381324bda7f3249917031b6ed16a4b371892c0cd38e933a1c25d390a8828a3",
+    "docs/design/2026-10-09-tradeiq-strategies-hot-sectors.md": "890cffbff3e9fdfabf6db5cf6d8a6c0712718338be31632ada09953ac2b4ed41",
+    "AGENTS.md": "e4a78c329c189bd38c76b7908d2e8a8a577e05a79563a14e1310febb383b2500"
+  },
+  "protectedFiles": {
+    "dashboard/index.html": {
+      "baseline": "364dfc2d033f3d94d3cd3b8d842440b72fa85bf37aeb6a1df961b68e86ed2167",
+      "current": "364dfc2d033f3d94d3cd3b8d842440b72fa85bf37aeb6a1df961b68e86ed2167",
+      "unchanged": true
+    },
+    "backend/app.py": {
+      "baseline": "b2b46044cd4c919e9a7898bed71a630a099253ae15fc3c4ae4c5f7170a0e7c9b",
+      "current": "b2b46044cd4c919e9a7898bed71a630a099253ae15fc3c4ae4c5f7170a0e7c9b",
+      "unchanged": true
+    },
+    "backend/dip_picks.py": {
+      "baseline": "9c6648f1f99b0a91852ca45051d1ba481d8f23756f51f8d1213534b3979d4bbb",
+      "current": "9c6648f1f99b0a91852ca45051d1ba481d8f23756f51f8d1213534b3979d4bbb",
+      "unchanged": true
+    },
+    "backend/custom_picks.py": {
+      "baseline": "6aeee0301ce3a2dc25f0d3a8a6721370a0c9bd9beee4eea05ebbcabf91144752",
+      "current": "6aeee0301ce3a2dc25f0d3a8a6721370a0c9bd9beee4eea05ebbcabf91144752",
+      "unchanged": true
+    },
+    "backend/hot_sectors.py": {
+      "baseline": "9f0c53e4cf619bf722a067b6fa2a47bc4626ba28c7e772383be09997d84f36d4",
+      "current": "9f0c53e4cf619bf722a067b6fa2a47bc4626ba28c7e772383be09997d84f36d4",
+      "unchanged": true
+    },
+    "dashboard/custom-picks.js": {
+      "baseline": "a53857a05ae6b41720ee0276d5263f56da319c4608e476f7e0ad56fcb8579c46",
+      "current": "a53857a05ae6b41720ee0276d5263f56da319c4608e476f7e0ad56fcb8579c46",
+      "unchanged": true
+    }
+  },
+  "cleanup": "Keep until review; ask user before deleting files."
+}

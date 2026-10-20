@@ -168,7 +168,7 @@ class PageImagePreviewTests(unittest.TestCase):
             backend.PAGE_PREVIEW_DIR = tmp
             try:
                 with patch.object(backend, '_render_dashboard_panel_to_png') as render:
-                    async def fake_render(url, path, threshold_yi=3, volume_ratio_pct=80):
+                    async def fake_render(url, path, threshold_yi=3, volume_ratio_pct=80, require_ma5=False):
                         os.makedirs(os.path.dirname(path), exist_ok=True)
                         # 写一个最小有效 PNG (1x1 红像素)
                         from PIL import Image
@@ -231,7 +231,7 @@ class PageImagePreviewTests(unittest.TestCase):
         with patch.object(backend, '_conditional_new_daily_ready', return_value=(True, 'ready')):
             with patch.object(backend, '_resolve_conditional_new_date', return_value='20260109'):
                 with patch.object(backend, '_render_dashboard_panel_to_png') as render:
-                    async def fake(url, path, threshold_yi=3, volume_ratio_pct=80):
+                    async def fake(url, path, threshold_yi=3, volume_ratio_pct=80, require_ma5=False):
                         os.makedirs(os.path.dirname(path), exist_ok=True)
                         open(path, 'wb').close()
                     render.side_effect = fake
@@ -247,6 +247,18 @@ class PageImagePreviewTests(unittest.TestCase):
                             # 文件名应含 3亿 (默认) 和 缩量80% (默认)
                             self.assertIn('3亿', data['url'])
                             self.assertIn('缩量80%', data['url'])
+                            # 未传 require_ma5 → 默认关
+                            self.assertIn('原条件', data['url'])
+                            self.assertFalse(render.call_args[1]['require_ma5'])
+                            # 开关打开时文件名要能区分, 并透传给渲染层
+                            resp = backend.app.test_client().post(
+                                '/api/conditional-picks/preferred/preview-page-image',
+                                json={'date': '20260109', 'threshold_yi': 3,
+                                      'volume_ratio_pct': 80, 'require_ma5': 1},
+                            )
+                            self.assertEqual(resp.status_code, 200)
+                            self.assertIn('站上5日线', resp.get_json()['url'])
+                            self.assertTrue(render.call_args[1]['require_ma5'])
                         finally:
                             backend.PAGE_PREVIEW_DIR = old_dir if False else backend.PAGE_PREVIEW_DIR
 

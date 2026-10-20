@@ -1,4 +1,4 @@
-/* TradeIQ mobile: same-origin GET only; no data persisted in browser storage. */
+/* TradeIQ mobile: same-origin GET only. No market data is persisted in browser storage; the sole stored value is an anonymous random device id used by the online-device counter. */
 'use strict';
 const Mobile = (() => {
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -23,17 +23,35 @@ const Mobile = (() => {
       rows.slice(i-days+1,i+1).reduce((sum,r)=>sum+Number(r.close),0)/days);
   }
   function candle(r) { return ['open','close','low','high'].every(k=>finite(r[k])) ? [r.open,r.close,r.low,r.high] : [null,null,null,null]; }
-  return {esc,finite,fmt,pct,tone,cash,dateText,filterRows,movingAverage,candle};
+  function hotStage(item){
+    const heat=item.heat || {key:'missing',label:'数据不足',reason:'近期热度数据不足'};
+    const key=['active','cooling','new','sudden','ordinary','quiet','missing'].includes(heat.key)?heat.key:'missing';
+    return `<span class="mobile-hot-stage mobile-hot-stage-${key}" title="${esc(heat.reason)}">${esc(heat.label)}</span>`;
+  }
+  function hotOverview(summary){
+    return `<div class="mobile-hot-overview">${[
+      ['active','近期持续活跃'],['new','近两日新热点'],['cooling','近期热门，已经降温']
+    ].map(([key,title])=>`<section class="mobile-hot-overview-box ${key}"><small>${title}</small><strong>${summary.recent5_complete ? (summary.heat_groups?.[key]?.length ? summary.heat_groups[key].map(esc).join('、') : '暂无符合板块') : '数据不足，暂不判断'}</strong></section>`).join('')}</div>`;
+  }
+  function hotHeatBoard(data, filter='all', query=''){
+    const complete=data.summary?.recent5_complete;
+    let rows=filterRows(data.items || [],query,'default').filter(row=>row.heat?.in_board);
+    if(complete && filter!=='all')rows=rows.filter(row=>filter==='cooling'?row.heat.key==='cooling':row.heat.key!=='cooling');
+    if(!rows.length)return '<div class="empty">没有匹配的近期热门或今日异动板块；其他板块仍可在下方查看。</div>';
+    const dates=rows[0].timeline || [];
+    return `<div class="mobile-hot-heat-wrap"><table class="mobile-hot-heat-table"><thead><tr><th>板块</th><th>近5日累计</th><th>活跃天数</th>${dates.map(r=>`<th>${dateText(r.date).slice(5)}</th>`).join('')}<th>目前状态</th></tr></thead><tbody>${rows.map(item=>`<tr><td><button class="stock-link" data-sector="${esc(item.sector)}">${esc(item.sector)}<small>#${item.heat.rank || '—'}</small></button></td><td><strong>${finite(item.recent5_count)?item.recent5_count:'数据不足'}</strong>${finite(item.recent5_count)?'次':''}</td><td>${finite(item.appearance5)?item.appearance5+'/5天':'数据不足'}</td>${item.timeline.map(r=>{const n=r.count,level=!finite(n)?'missing':n===0?'0':n<=2?'1':n<=5?'2':n<=9?'3':'4';return `<td><span class="mobile-hot-cell mobile-hot-cell-${level}" title="${esc(dateText(r.date)+' · '+item.sector)}">${finite(n)?n:'缺数据'}</span></td>`;}).join('')}<td>${hotStage(item)}</td></tr>`).join('')}</tbody></table></div>`;
+  }
+  return {esc,finite,fmt,pct,tone,cash,dateText,filterRows,movingAverage,candle,hotStage,hotOverview,hotHeatBoard};
 })();
 if (typeof module !== 'undefined') module.exports = Mobile;
 if (typeof document !== 'undefined') boot();
 
 function boot() {
-  const {esc,finite,fmt,pct,tone,cash,dateText,filterRows,movingAverage,candle} = Mobile;
+  const {esc,finite,fmt,pct,tone,cash,dateText,filterRows,movingAverage,candle,hotStage,hotOverview,hotHeatBoard} = Mobile;
   const $ = id => document.getElementById(id);
-  const names = {index:'核心指数',leaderboard:'阶段涨幅榜单',limitup:'涨停拆解明细',lz:'涨停合集',flow:'主力净流入','flow-sector':'板块资金流向',picks:'选股推荐',sectors:'板块合集',barometer:'盘面晴雨表'};
+  const names = {index:'核心指数',leaderboard:'阶段涨幅榜单',limitup:'涨停拆解明细',lz:'涨停合集',flow:'主力净流入','flow-sector':'板块资金流向',picks:'选股推荐',sectors:'热门板块',barometer:'盘面晴雨表'};
   const groups = {market:['index','leaderboard','flow'],picks:['picks'],more:['limitup','lz','sectors'],barometer:['barometer']};
-  const state = {group:'market',module:'index',kind:'system',source:'eastmoney-push2',period:'5日',flowPeriod:'today',flowView:'stock',threshold:'3',date:'',allDates:false,availableDates:[],data:null,seq:0,limit:100,freqRange:'1个月'};
+  const state = {group:'market',module:'index',kind:'system',source:'eastmoney-push2',period:'5日',flowPeriod:'today',flowView:'stock',threshold:'3',date:'',allDates:false,availableDates:[],data:null,seq:0,limit:100,freqRange:'1个月',hotFilter:'all'};
   // 板块资金流向并入「主力净流入」tab, 作为 flowView=sector 子页; 后端仍走 flow-sector 模块
   const activeModule = () => state.module==='flow'&&state.flowView==='sector' ? 'flow-sector' : state.module;
   let requestController, modalController, modalSeq=0, modalChart, modalFlowChart, modalHistChart, flowChart, chartData, flowChartData, returnSector, lastFocus;
@@ -69,6 +87,7 @@ function boot() {
     if(mod==='flow-sector'&&!['industry','concept'].includes(state.source))state.source='industry';
     if(mod==='flow'&&!['eastmoney-push2','ths','all'].includes(state.source))state.source='eastmoney-push2';
     $('title').textContent=names[state.module];
+    $('search').placeholder=state.module==='sectors'?'搜索板块名称':'搜索股票名称或代码';
     $('eyebrow').textContent={market:'MARKET OVERVIEW',picks:'STOCK SELECTION',more:'MARKET EXPLORER',barometer:'MARKET BAROMETER'}[state.group];
     document.querySelectorAll('[data-nav]').forEach(b=>{b.classList.toggle('active',b.dataset.nav===state.group);b.setAttribute('aria-current',b.dataset.nav===state.group?'page':'false');});
     // 晴雨 tab 显示近 60 天历史, 不需要单日选择, 隐藏顶部日期工具栏
@@ -93,6 +112,7 @@ function boot() {
     updateDateNav();
   }
   async function load(dates=false){
+    if($('detail').open)closeModal();
     const seq=++state.seq;
     if(requestController)requestController.abort();
     requestController=new AbortController();
@@ -188,10 +208,7 @@ function boot() {
       if(d.overview_history?.length)renderOverviewHistory(d.overview_history);
       return;
     }
-    if(state.module==='sectors'){
-      const items=filterRows(d.items,$('search').value,$('sort').value,'hot_count');
-      $('content').innerHTML=items.map(r=>`<button class="sector-card" data-sector="${esc(r.sector)}"><em>${fmt(r.hot_count,0)} 次</em><strong>${esc(r.sector)}</strong><small>${fmt(r.stock_count,0)} 只股票 · 最近涨停 ${esc(dateText(r.latest_date))}</small></button>`).join('')+(!items.length?'<div class="empty">没有符合条件的板块数据。</div>':'');return;
-    }
+    if(state.module==='sectors'){renderHotSectors(d);return;}
     const cols=columns();
     const mod=activeModule();
     const key={leaderboard:'change',limitup:'change_pct',lz:'change_pct',flow:state.flowPeriod!=='today'?(state.source==='ths'?'sum_net':'sum_main_net'):(state.source==='ths'?'net':'main_net_inflow'),'flow-sector':'main_net_inflow',picks:state.kind==='conditional-new'?'sum_main_5d':state.kind==='conditional-preferred'?'preferred_strength5':state.kind==='system'||state.kind==='ths'?'score':'change_pct'}[mod];
@@ -542,12 +559,41 @@ function boot() {
     modalChart.setOption({animation:false,color:['#ffd078','#73b7ff','#cc9dff','#68dac0'],textStyle:{color:'#8a9bb0'},legend:{data:['MA5','MA10','MA20','MA30'],top:12,textStyle:{color:'#8a9bb0',fontSize:10}},tooltip:{trigger:'axis',renderMode:'richText',confine:true,axisPointer:{type:'cross'}},axisPointer:{link:[{xAxisIndex:'all'}]},grid:[{left:52,right:15,top:48,height:'45%'},{left:52,right:15,top:'70%',height:'13%'}],xAxis:[{type:'category',data:rows.map(r=>dateText(r.trade_date)),axisLabel:{show:false}},{type:'category',gridIndex:1,data:rows.map(r=>dateText(r.trade_date)),axisLabel:{fontSize:9,formatter:v=>v.slice(5)}}],yAxis:[{scale:true,splitLine:{lineStyle:{color:'#233044'}},axisLabel:{fontSize:9}},{gridIndex:1,scale:true,name:'亿元',splitNumber:2,splitLine:{show:false},axisLabel:{fontSize:9}}],dataZoom:[{type:'slider',xAxisIndex:[0,1],height:18,bottom:12,borderColor:'#233044',textStyle:{color:'#8a9bb0'},start:0,end:100}],series:[{name:chartData.name,type:'candlestick',data:rows.map(candle),itemStyle:{color:'#ff6471',color0:'#40d5a0',borderColor:'#ff6471',borderColor0:'#40d5a0'}},...ma,{name:'成交额',type:'bar',xAxisIndex:1,yAxisIndex:1,data:rows.map(r=>({value:r.volume,itemStyle:{color:finite(r.change)&&r.change>=0?'#ff6471':'#40d5a0'}}))}]},true);
     drawStockFlow(start, end);
   }
-  // Sector views retain their context when opening and returning from a stock chart.
+  function hotStock(row){return row?.ts_code?`<button class="stock-link" data-stock="${esc(row.ts_code)}" data-name="${esc(row.name)}">${esc(row.name)}<span class="code">${esc(row.ts_code)}</span></button>`:'—';}
+  function hotLeaders(item){
+    const rows=[1,2,3].map(rank=>{
+      const row=item.leaders?.find(r=>r.rank===rank);
+      return `<div class="mobile-hot-leader"><span class="pill">龙${['','一','二','三'][rank]}</span><div>${row?`${hotStock(row)}<small>自动判断${item.ranking_provisional?' · 暂定':''}</small><details><summary>${row.consecutive}连板 · ${esc(row.rank_change)}</summary><p>${esc(row.reason)}</p></details>`:`<span class="neutral">${item.pending_count?'待确认（排序数据不足）':'暂无符合股票'}</span>`}</div></div>`;
+    }).join('');
+    const old=item.yesterday_leader;
+    return rows+`<div class="mobile-hot-tracker">昨日龙一${old?.previous_rank_provisional?'（暂定）':''}：${old?`${hotStock(old)}<span class="${tone(old.change_pct)}">${esc(old.status_label)} · ${pct(old.change_pct)}</span>`:item.previous_ready?'昨日无可排名股票':'数据不足，暂无法确认'}</div>`;
+  }
+  function renderHotSectors(d){
+    if(d.status!=='ready'){$('content').innerHTML=`<div class="empty">${esc(d.message||'数据不足')}<br>所选日期 ${dateText(d.date)}</div>`;return;}
+    const items=filterRows(d.items,$('search').value,$('sort').value,'recent5_count');
+    const o=d.market?.overview,summary=d.summary||{};
+    let html='<p class="data-note">先看近5日热门方向，再看今天是否仍在活跃。</p>'+hotOverview(summary);
+    html+=`<div class="section-label">近5日热门榜</div><div class="freq-tabs">${[['all','全部'],['active','仍在活跃'],['cooling','已经降温']].map(([key,label])=>`<button class="freq-tab ${state.hotFilter===key?'active':''}" data-hot-filter="${key}" aria-pressed="${state.hotFilter===key}" ${summary.recent5_complete?'':'disabled'}>${label}</button>`).join('')}</div><p class="data-note">默认按近5日累计排序 · 色块越亮，涨停数量越多<br>左右滑动查看10日走势，缺记录显示“缺数据”。</p>`+hotHeatBoard(d,state.hotFilter,$('search').value);
+    html+=`<p class="data-note">${dateText(d.date)} · 拆解收录 ${summary.stock_count}只 · 其他及公告不参与排名${summary.recent5_complete?'':' · 近5交易日数据不足'}<br>累计次数按每天收录股票数相加，同股跨日期重复计次。</p><details class="mobile-hot-rules"><summary>这些状态怎么判断？</summary><p>${esc(summary.heat_rules)}</p></details>`;
+    html+=o?`<details class="mobile-hot-rules"><summary>所选日市场背景</summary><div class="metrics">${metric('上涨',fmt(o.upCount,0),'up')}${metric('下跌',fmt(o.downCount,0),'down')}${metric('平盘',fmt(o.flatCount,0))}</div></details>`:'';
+    html+='<div class="section-label">板块里的龙一、龙二、龙三</div><p class="data-note">保留近5日出现过的全部板块，默认按近期热度排序。</p><details class="mobile-hot-rules"><summary>龙头怎么排？</summary><p>收盘涨停核验后，依次比较连板数、近5日同板块涨停次数、涨停时间、当日成交额。数据不足待确认，不硬凑三只。</p></details>';
+    html+=items.map(item=>`<article class="mobile-hot-card"><button class="sector-card" data-sector="${esc(item.sector)}"><em>${item.today_count}只涨停</em><strong>${esc(item.sector)}</strong><small>近5日累计 ${finite(item.recent5_count)?item.recent5_count+'次':'数据不足'} · 出现 ${finite(item.appearance5)?item.appearance5+'/5日':'数据不足'} · ${finite(item.unique5)?item.unique5+'只股票':'数据不足'}</small></button>${hotStage(item)}${hotLeaders(item)}${item.pending_count?`<p class="data-note">另 ${item.pending_count}只待确认</p>`:''}</article>`).join('');
+    $('content').innerHTML=html+(!items.length?'<div class="empty">没有匹配的板块。</div>':'');
+  }
+  // Hot sector views retain their date and sector when opening a stock chart.
   async function showSector(name){
-    returnSector=null;openModal(name,'板块合集 · 历史成员');const seq=modalSeq;
+    const day=state.data?.date;returnSector=null;openModal(name,'热门板块 · '+dateText(day));const seq=modalSeq;
     modalController=new AbortController();const controller=modalController;const timer=setTimeout(()=>controller.abort(),20000);
-    try{const result=await api('sectors/detail',{name,date:state.data?.date},controller.signal);if(seq!==modalSeq)return;$('detail-body').innerHTML=table(result.items,[col('date','最近上榜','date'),col('streak','连板'),col('close','所选日收盘价','num'),col('change_pct','涨幅','pct')],result.items.length);returnSector={type:'sector',name};}
-    catch(e){if(seq===modalSeq)$('detail-body').innerHTML='<div class="empty">读取失败，请检查电脑连接。</div>';}
+    try{
+      const result=await api('hot-sectors/detail',{sector:name,date:day},controller.signal);
+      if(seq!==modalSeq||state.data?.date!==day)return;
+      if(result.date!==day||!result.detail)throw new Error(result.message||'板块详情数据不足');
+      const item=result.detail;
+      $('detail-body').innerHTML=hotLeaders(item)+`<div class="section-label">近10交易日涨停家数</div><div class="chart flow-chart" id="hot-sector-chart"></div><div class="section-label">当日涨停记录</div>`+table(item.stocks,[col('consecutive','核验连板','int'),col('streak','原标签'),col('change_pct','收盘涨幅','pct'),col('reason','判断依据')],item.stocks.length)+`<div class="section-label">近10交易日拆解明细</div>`+table(item.history,[col('date','日期','date'),col('streak','原标签'),col('time','涨停时间'),col('keyword','关键词')],item.history.length);
+      modalChart=echarts.init($('hot-sector-chart'));
+      modalChart.setOption({animation:false,tooltip:{trigger:'axis',renderMode:'richText',confine:true},grid:{left:34,right:15,top:24,bottom:28},xAxis:{type:'category',data:item.timeline.map(r=>dateText(r.date).slice(5)),axisLabel:{fontSize:9,color:'#8a9bb0'}},yAxis:{type:'value',minInterval:1,splitLine:{lineStyle:{color:'#233044'}},axisLabel:{color:'#8a9bb0'}},series:[{type:'line',name:'涨停家数',data:item.timeline.map(r=>r.count),connectNulls:false,lineStyle:{color:'#ff6471'},itemStyle:{color:'#ff6471'}}]});
+      returnSector={type:'sector',name};
+    }catch(e){if(seq===modalSeq)$('detail-body').innerHTML='<div class="empty">'+esc(e.message||'读取失败，请检查电脑连接。')+'</div>';}
     finally{clearTimeout(timer);}
   }
   // 条件优选历史涨幅分布 (跟桌面 /api/conditional-picks/preferred/historical-distribution 同口径)
@@ -605,6 +651,7 @@ function boot() {
     else if(b.dataset.index){returnSector=null;showChart(b.dataset.index,b.dataset.name,'index');}
     else if(b.dataset.stock){if(!$('detail').contains(b))returnSector=null;showChart(b.dataset.stock,b.dataset.name,'stock');}
     else if(b.dataset.sector)showSector(b.dataset.sector);
+    else if(b.dataset.hotFilter && state.module==='sectors' && !b.disabled){state.hotFilter=b.dataset.hotFilter;render();}
     else if(b.dataset.range)setChartRange(b.dataset.range);
     else if(b.dataset.sim){simFields.has(b.dataset.sim)?simFields.delete(b.dataset.sim):simFields.add(b.dataset.sim);rerenderHistory();}
     else if(b.dataset.freqRange){state.freqRange=b.dataset.freqRange;if(state.data?.frequency)renderFreq(state.data.frequency);}
@@ -652,7 +699,49 @@ function boot() {
   window.addEventListener('resize',()=>{modalChart?.resize();modalHistChart?.resize();flowChart?.resize();});
   window.addEventListener('offline',()=>{connection('网络已断开 · 当前屏幕内容不会继续更新。',true);});
   window.addEventListener('online',()=>load(true));
-  document.addEventListener('visibilitychange',()=>{if(!document.hidden)load(true);});
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden){load(true);loadOnline();}});
   if('serviceWorker' in navigator && window.isSecureContext) navigator.serviceWorker.register('/sw.js').catch(()=>{});
-  controls();load(true);
+
+  // ---- 在线设备 (含远程设备) ----
+  // 每 30 秒调一次 /api/online, 这次调用顺带就是心跳; 超过 3 分钟没收到就算离线。
+  // localStorage 里只放一个匿名随机 ID (不含任何行情数据), 作用是让同一台手机
+  // 换了网络/IP 之后仍被认成同一台; 取不到时后端退回用 IP+浏览器 统计。
+  const onlineDeviceId=(()=>{
+    try{
+      let id=localStorage.getItem('tiq_device_id');
+      if(!id){
+        id=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now())+Math.random().toString(16).slice(2);
+        localStorage.setItem('tiq_device_id',id);
+      }
+      return id;
+    }catch(e){return '';}
+  })();
+  async function loadOnline(){
+    const pill=$('online-pill');if(!pill)return;
+    try{
+      const d=await fetch('/api/online',{method:'GET',cache:'no-store',credentials:'same-origin',headers:{'X-Device-Id':onlineDeviceId}}).then(r=>r.json());
+      if(!d||!d.ok)throw new Error('bad payload');
+      pill.textContent=`在线 ${d.online} · 今日 ${d.today}`;
+      pill.classList.toggle('off',d.online===0);
+      const dlg=$('online-dialog'),body=$('online-body');
+      if(dlg?.open&&body)renderOnline(body,d);
+    }catch(e){
+      pill.textContent='在线 --';pill.classList.add('off');
+    }
+  }
+  function renderOnline(body,d){
+    const rows=(d.devices||[]).map(x=>`<li class="online-row ${x.online?'':'off'}"><span class="online-name">${esc(x.label)}</span><span class="online-tag ${x.remote?'remote':'local'}">${x.remote?'远程':'本机'}</span><span class="online-meta">${esc(x.ip)}<br>${esc(x.ago)}</span></li>`).join('');
+    body.innerHTML=`<div class="online-sum"><div><strong>${d.online}</strong><small>正在浏览</small></div><div><strong>${d.today}</strong><small>今日来过</small></div><div><strong>${d.total}</strong><small>记录总数</small></div></div><ul class="online-list">${rows||'<li class="online-note">还没有记录</li>'}</ul><p class="online-note">超过 ${Math.round((d.window_sec||180)/60)} 分钟没打开页面就算离线 · 手机等远程设备同样计入</p>`;
+  }
+  $('online-pill').addEventListener('click',()=>{
+    const dlg=$('online-dialog');if(!dlg)return;
+    $('online-body').innerHTML='<div class="empty">正在读取…</div>';
+    if(!dlg.open)dlg.showModal();
+    loadOnline();
+  });
+  $('online-close').addEventListener('click',()=>$('online-dialog').close());
+  $('online-dialog').addEventListener('cancel',e=>{e.preventDefault();$('online-dialog').close();});
+
+  controls();load(true);loadOnline();
+  setInterval(loadOnline,30000);
 }

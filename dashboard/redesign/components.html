@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>TradeIQ · UI视觉组件</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%23151515'/%3E%3Cpath d='M9 11h22v5H23v15h-6V16H9z' fill='white'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="workspace.css?v=20261010.1">
+  <link rel="stylesheet" href="pages.css?v=20261010.1">
+  <link rel="stylesheet" href="components.css?v=20261010.1">
+  <script src="preview-charts.js?v=20261010.1" defer></script>
+  <script src="pages.js?v=20261010.1" defer></script>
+  <script src="components.js?v=20261010.1" defer></script>
+</head>
+<body class="kit-page">
+  <header class="kit-topbar">
+    <a class="kit-brand" href="components.html"><span class="brand-mark">T<span>Q</span></span><strong>TradeIQ</strong><span class="kit-version">UI KIT / 02</span></a>
+    <div class="kit-top-actions"><a class="kit-return" href="index.html">工作台预览<svg class="icon small" aria-hidden="true"><use href="icons.svg#i-arrow"/></svg></a><div class="kit-theme-controls" role="group" aria-label="组件展示主题"><button data-kit-theme="light" aria-pressed="false"><svg class="icon small" aria-hidden="true"><use href="icons.svg#i-sun"/></svg>浅色</button><button data-kit-theme="dark" aria-pressed="false"><svg class="icon small" aria-hidden="true"><use href="icons.svg#i-moon"/></svg>深色</button><button data-kit-theme="comparison" aria-pressed="true" class="active"><svg class="icon small" aria-hidden="true"><use href="icons.svg#i-columns"/></svg>并排对照</button></div></div>
+  </header>
+  <div class="kit-layout">
+    <aside class="kit-rail" aria-label="组件目录"><div><div class="kit-rail-label">DESIGN SYSTEM</div><button class="kit-all active" data-kit-section="all">全部展示<span id="familyCount">14</span></button><div id="kitNav"></div></div><div class="kit-rail-foot"><span>TradeIQ / 桌面工作台</span><p>灰阶建立层次<br>让数据清晰可读</p><span>仅包含虚构组件样例</span></div></aside>
+    <main class="kit-main" id="kitMain">
+      <section class="kit-hero"><div><div class="kit-eyebrow">TRADEIQ / VISUAL COMPONENT SYSTEM</div><h1>黑白工作台<span>组件体系</span></h1><p>把视觉规则呈现为可查看、可操作的界面组件。</p></div><div class="kit-hero-index"><b>01</b><span>版本 1.11 · 2026.10.10</span><div><span>双主题</span><span>Remix Icon</span><span>桌面界面</span></div></div></section>
+      <div class="kit-toolbar"><div class="kit-categories" role="group" aria-label="组件类别"><button class="active" data-kit-category="all">全部</button><button data-kit-category="foundation">视觉基础</button><button data-kit-category="component">界面组件</button><button data-kit-category="pattern">组合样例</button></div><label class="search-field kit-search"><svg class="icon small" aria-hidden="true"><use href="icons.svg#i-search"/></svg><input id="kitSearch" type="search" placeholder="搜索组件，例如：表格" aria-label="搜索组件"></label><span class="kit-visible-count" id="visibleFamilyCount"></span></div>
+      <div class="kit-comparison-label" id="comparisonLabel"><span>LIGHT / 浅色</span><span>DARK / 深色</span></div>
+      <div id="kitSections"></div>
+      <div id="kitNoResults" class="kit-no-results" hidden><svg class="icon" aria-hidden="true"><use href="icons.svg#i-search"/></svg><strong>没有匹配的组件</strong><p>试试“按钮”“字体”或“弹窗”。</p><button class="button" data-kit-reset>恢复全部组件</button></div>
+      <footer class="kit-footer"><span>复用当前工作台样式与主题变量 · 所有数据及交互内容为虚构样例</span><span>组件展示页 / 业务页面组件化仍待实施</span></footer>
+    </main>
+  </div>
+  <dialog id="kitDialog" class="design-dialog" aria-labelledby="kitDialogTitle"><div class="dialog-heading"><div><span class="eyebrow">TRADEIQ / COMPONENT PREVIEW</span><h2 id="kitDialogTitle"></h2></div><button class="icon-button" data-kit-close="dialog" aria-label="关闭弹窗"><svg class="icon" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div><div class="dialog-body" id="kitDialogBody"></div></dialog>
+  <dialog id="kitDrawer" class="kit-drawer" aria-labelledby="kitDrawerTitle"><div class="detail-toolbar"><span>个股详情 / 组件样例</span><div class="detail-toolbar-actions"><button class="icon-button" data-kit-shift="-1" aria-label="上一只示例股票"><svg class="icon small" aria-hidden="true"><use href="icons.svg#i-left"/></svg></button><button class="icon-button" data-kit-shift="1" aria-label="下一只示例股票"><svg class="icon small" aria-hidden="true"><use href="icons.svg#i-right"/></svg></button><button class="icon-button" data-kit-expand aria-label="放大详情" aria-expanded="false"><svg class="icon" aria-hidden="true"><use href="icons.svg#i-expand"/></svg></button><button class="icon-button" data-kit-close="drawer" aria-label="关闭详情"><svg class="icon" aria-hidden="true"><use href="icons.svg#i-close"/></svg></button></div></div><div id="kitDrawerBody" class="detail-content"></div></dialog>
+  <div class="toast" id="kitToast" role="status" hidden></div>
+</body>
+</html>

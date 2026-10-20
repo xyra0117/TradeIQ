@@ -1,0 +1,857 @@
+{
+  "date": "2026-10-03",
+  "phase": "Desktop UI design 02, fictional examples only",
+  "viewCount": 33,
+  "pageImages": 66,
+  "modalImages": 18,
+  "icons": 40,
+  "views": [
+    {
+      "page": "index",
+      "view": "overview",
+      "label": "市场总览",
+      "slug": "index-overview",
+      "params": {
+        "page": "index",
+        "view": "overview"
+      }
+    },
+    {
+      "page": "index",
+      "view": "history",
+      "label": "指数与盘面历史",
+      "slug": "index-history",
+      "params": {
+        "page": "index",
+        "view": "history"
+      }
+    },
+    {
+      "page": "index",
+      "view": "barometer",
+      "label": "盘面晴雨表",
+      "slug": "index-barometer",
+      "params": {
+        "page": "index",
+        "view": "barometer"
+      }
+    },
+    {
+      "page": "leaderboard",
+      "view": "ranking",
+      "label": "阶段涨幅榜",
+      "slug": "leaderboard-ranking",
+      "params": {
+        "page": "leaderboard",
+        "view": "ranking"
+      }
+    },
+    {
+      "page": "leaderboard",
+      "view": "frequency",
+      "label": "上榜频次",
+      "slug": "leaderboard-frequency",
+      "params": {
+        "page": "leaderboard",
+        "view": "frequency"
+      }
+    },
+    {
+      "page": "leaderboard",
+      "view": "top1",
+      "label": "TOP1历史",
+      "slug": "leaderboard-top1",
+      "params": {
+        "page": "leaderboard",
+        "view": "top1"
+      }
+    },
+    {
+      "page": "limitup",
+      "view": null,
+      "label": "涨停拆解",
+      "slug": "limitup",
+      "params": {
+        "page": "limitup"
+      }
+    },
+    {
+      "page": "collection",
+      "view": "sealed",
+      "label": "封板中",
+      "slug": "collection-sealed",
+      "params": {
+        "page": "collection",
+        "view": "sealed"
+      }
+    },
+    {
+      "page": "collection",
+      "view": "broken",
+      "label": "炸板",
+      "slug": "collection-broken",
+      "params": {
+        "page": "collection",
+        "view": "broken"
+      }
+    },
+    {
+      "page": "flow",
+      "view": "em",
+      "label": "东方财富资金",
+      "slug": "flow-em",
+      "params": {
+        "page": "flow",
+        "view": "em"
+      }
+    },
+    {
+      "page": "flow",
+      "view": "ths",
+      "label": "同花顺资金",
+      "slug": "flow-ths",
+      "params": {
+        "page": "flow",
+        "view": "ths"
+      }
+    },
+    {
+      "page": "flow",
+      "view": "sector",
+      "label": "行业资金",
+      "slug": "flow-sector-industry",
+      "params": {
+        "page": "flow",
+        "view": "sector",
+        "category": "industry"
+      }
+    },
+    {
+      "page": "flow",
+      "view": "sector",
+      "label": "概念资金",
+      "slug": "flow-sector-concept",
+      "params": {
+        "page": "flow",
+        "view": "sector",
+        "category": "concept"
+      }
+    },
+    {
+      "page": "positions",
+      "view": "open",
+      "label": "现持仓",
+      "slug": "positions-open",
+      "params": {
+        "page": "positions",
+        "view": "open"
+      }
+    },
+    {
+      "page": "positions",
+      "view": "buy",
+      "label": "买入记录",
+      "slug": "positions-buy",
+      "params": {
+        "page": "positions",
+        "view": "buy"
+      }
+    },
+    {
+      "page": "positions",
+      "view": "sell",
+      "label": "卖出记录",
+      "slug": "positions-sell",
+      "params": {
+        "page": "positions",
+        "view": "sell"
+      }
+    },
+    {
+      "page": "positions",
+      "view": "reconcile",
+      "label": "对账日志",
+      "slug": "positions-reconcile",
+      "params": {
+        "page": "positions",
+        "view": "reconcile"
+      }
+    },
+    {
+      "page": "positions",
+      "view": "delivery",
+      "label": "交割分析",
+      "slug": "positions-delivery",
+      "params": {
+        "page": "positions",
+        "view": "delivery"
+      }
+    },
+    {
+      "page": "picks",
+      "view": null,
+      "label": "东方财富 · 系统推荐",
+      "slug": "picks-em-system",
+      "params": {
+        "page": "picks",
+        "source": "em",
+        "strategy": "system"
+      }
+    },
+    {
+      "page": "picks",
+      "view": null,
+      "label": "东方财富 · 条件选股",
+      "slug": "picks-em-conditional",
+      "params": {
+        "page": "picks",
+        "source": "em",
+        "strategy": "conditional"
+      }
+    },
+    {
+      "page": "picks",
+      "view": null,
+      "label": "东方财富 · 条件选股新",
+      "slug": "picks-em-new",
+      "params": {
+        "page": "picks",
+        "source": "em",
+        "strategy": "new"
+      }
+    },
+    {
+      "page": "picks",
+      "view": null,
+      "label": "东方财富 · 条件优选",
+      "slug": "picks-em-preferred",
+      "params": {
+        "page": "picks",
+        "source": "em",
+        "strategy": "preferred"
+      }
+    },
+    {
+      "page": "picks",
+      "view": null,
+      "label": "东方财富 · 低吸选股",
+      "slug": "picks-em-dip",
+      "params": {
+        "page": "picks",
+        "source": "em",
+        "strategy": "dip"
+      }
+    },
+    {
+      "page": "picks",
+      "view": null,
+      "label": "东方财富 · 低吸选股2.0",
+      "slug": "picks-em-dip2",
+      "params": {
+        "page": "picks",
+        "source": "em",
+        "strategy": "dip2"
+      }
+    },
+    {
+      "page": "picks",
+      "view": null,
+      "label": "东方财富 · 冲高观察",
+      "slug": "picks-em-surge",
+      "params": {
+        "page": "picks",
+        "source": "em",
+        "strategy": "surge"
+      }
+    },
+    {
+      "page": "picks",
+      "view": null,
+      "label": "东方财富 · 组合选股",
+      "slug": "picks-em-combined",
+      "params": {
+        "page": "picks",
+        "source": "em",
+        "strategy": "combined"
+      }
+    },
+    {
+      "page": "picks",
+      "view": null,
+      "label": "同花顺 · 系统推荐",
+      "slug": "picks-ths-system",
+      "params": {
+        "page": "picks",
+        "source": "ths",
+        "strategy": "system"
+      }
+    },
+    {
+      "page": "picks",
+      "view": null,
+      "label": "同花顺 · 条件选股",
+      "slug": "picks-ths-conditional",
+      "params": {
+        "page": "picks",
+        "source": "ths",
+        "strategy": "conditional"
+      }
+    },
+    {
+      "page": "picks",
+      "view": null,
+      "label": "同花顺 · 组合选股",
+      "slug": "picks-ths-combined",
+      "params": {
+        "page": "picks",
+        "source": "ths",
+        "strategy": "combined"
+      }
+    },
+    {
+      "page": "picks",
+      "view": null,
+      "label": "我的选股",
+      "slug": "picks-user-user",
+      "params": {
+        "page": "picks",
+        "source": "user",
+        "strategy": "user"
+      }
+    },
+    {
+      "page": "sectors",
+      "view": "all",
+      "label": "全市场板块",
+      "slug": "sectors-all",
+      "params": {
+        "page": "sectors",
+        "view": "all"
+      }
+    },
+    {
+      "page": "sectors",
+      "view": "user",
+      "label": "自选板块",
+      "slug": "sectors-user",
+      "params": {
+        "page": "sectors",
+        "view": "user"
+      }
+    },
+    {
+      "page": "sectors",
+      "view": "all",
+      "label": "板块详情",
+      "slug": "sectors-all-detail",
+      "params": {
+        "page": "sectors",
+        "view": "all",
+        "sector": "计算机"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "path": "AGENTS.md",
+      "bytes": 10948,
+      "sha256": "aac1dc0e3a5b0912ec3078d8e9957b3f4e2eeb3697ee494be96322226fe49fe8"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace.md",
+      "bytes": 6366,
+      "sha256": "c3a8d98f22b1726c4edd6af450824259e6b6b3f66d0fbbde5d6bd2f1fd89d197"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-pages.md",
+      "bytes": 6266,
+      "sha256": "ed357524b7fb7484149379d0bcb931eaf22ddd60169cbbc31253c85b147e80b3"
+    },
+    {
+      "path": "dashboard/redesign/REMIXICON-LICENSE.txt",
+      "bytes": 7198,
+      "sha256": "6f2f21c5f8db34635d31848e9ff831d5dc421bb83ffc9d37f82651364047ae58"
+    },
+    {
+      "path": "dashboard/redesign/icons.svg",
+      "bytes": 18071,
+      "sha256": "1c804cce4a3dfee1a5ea89e1b2e13948df5c200d0b91685164b25505a1f3446e"
+    },
+    {
+      "path": "dashboard/redesign/index.html",
+      "bytes": 13161,
+      "sha256": "6f82cfb6600a596ebe5cd004894d1cfe2aacdcc6642c31610fad950f0ea75483"
+    },
+    {
+      "path": "dashboard/redesign/pages.css",
+      "bytes": 19860,
+      "sha256": "145da91e792d1e97ed91578d02051e6018de7384956df941d06ab663d62d874b"
+    },
+    {
+      "path": "dashboard/redesign/pages.js",
+      "bytes": 65435,
+      "sha256": "006d73707445459455e8ab3def41d5c1adfe425d7d346d134275902d2322f47a"
+    },
+    {
+      "path": "dashboard/redesign/remixicon-manifest.json",
+      "bytes": 8874,
+      "sha256": "e39269ad45bbfdf873178e800b520c03b2b1ecb02e96dd0e0406cc8c1d6408fc"
+    },
+    {
+      "path": "dashboard/redesign/workspace.css",
+      "bytes": 29152,
+      "sha256": "d70a863d95a4e132fe136cda2735d0c111a3406414539fa6b988d69949447e2d"
+    },
+    {
+      "path": "dashboard/redesign/workspace.js",
+      "bytes": 33583,
+      "sha256": "65c1392473266564a809be4758ba54cbdd16fa384ea2d0e531d5a82384fc0e6c"
+    }
+  ],
+  "assets": [
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/all-pages-gallery.html",
+      "bytes": 33037,
+      "sha256": "08466756ab51c09c59ca88fdfba9be22e172cf8cfd31f4ddbc910eba0656b1e6"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/all-pages-overview.html",
+      "bytes": 2460,
+      "sha256": "41e2cf0650c94b779131a1b0e3e5793c08f4b7001e987bd1f2f4432e6a7e2e34"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/all-pages-overview.png",
+      "bytes": 832809,
+      "sha256": "ce69ba40b69786a08bf684e2abcdf6e2302ff029142fc43e62b69a6aa2f29f7d"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/all-pages-verification.json",
+      "bytes": 43415,
+      "sha256": "f962e9f7d1ec2603b61bdc9e7a79cc904c9923ba2b5e3f1d2a57224858f68853"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/modal-calculator-dark.png",
+      "bytes": 215077,
+      "sha256": "772e15a65d4caef728036773565fe64ff7b9a56e7ae8f473a44d30bd9cae806d"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/modal-calculator-light.png",
+      "bytes": 215014,
+      "sha256": "74f8318bb6f17b78313453b8eb313bf38ecc3db2ad12475c131233d7ecf1bae7"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/modal-data-center-dark.png",
+      "bytes": 263052,
+      "sha256": "c401232e66a419bac8cc41827091a9175c311451a7b9389cc8a438018d8ed0a1"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/modal-data-center-light.png",
+      "bytes": 264338,
+      "sha256": "16298d1f357026d3475dda027c984bf3a623b03bad9f508d51cb1fab8036dc2e"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/modal-import-mapping-dark.png",
+      "bytes": 205528,
+      "sha256": "bde2d396bddd769855f5eb6b7b0349c08b7ca0a6fc1bbe2160de2a757dd454ad"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/modal-import-mapping-light.png",
+      "bytes": 205447,
+      "sha256": "65822b6c59a376c2fc13262ddfb02263d7fd24f31b98930fc63d33fef7b855fd"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/modal-import-preview-dark.png",
+      "bytes": 213858,
+      "sha256": "f0103eeb42e21e915360a9c9e39222ca4d51582ae6ad153ffacd52f8fddb5314"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/modal-import-preview-light.png",
+      "bytes": 214176,
+      "sha256": "3e221c1168d0de450ce24113aaffb2f9f479b4b8cb7056f6b02e4f377c94ea71"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/modal-index-dark.png",
+      "bytes": 155609,
+      "sha256": "db8251193babd6423e4ab42707812bfddfa780b5e1351f819091a17be99bb6cf"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/modal-index-light.png",
+      "bytes": 157071,
+      "sha256": "bf1238dcd433168c97ee3278b26de0e506c1c1a28d2de27d917e73834c92ca56"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/modal-limitup-image-dark.png",
+      "bytes": 224222,
+      "sha256": "0d3e56cf3dfc2ac1aa2af364f0c1d8862b1a91545d81a5662dd59da7e847b618"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/modal-limitup-image-light.png",
+      "bytes": 225525,
+      "sha256": "171de39ce4e81dd34e0be9ed2891caa9bc7a8fa48335f59c1e41c0b49278db17"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/modal-picks-preview-dark.png",
+      "bytes": 218845,
+      "sha256": "f3efb06328877da120c98992c2eff7aadc5db2901541f000a90da8db6796484e"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/modal-picks-preview-light.png",
+      "bytes": 220283,
+      "sha256": "940d161ca59477582c153f11f7447e59c9524874ab488ac3923020b65df9d9a3"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/modal-preferred-history-dark.png",
+      "bytes": 230720,
+      "sha256": "c66bb9c9479c1f94cdaaa92a7d8536b339a9fe8279deba5ea13e49592772179b"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/modal-preferred-history-light.png",
+      "bytes": 231957,
+      "sha256": "675b6a52f59124aa3e3f02d69d9b75b2e493dc75bcba8c6afc88f9a24de83b38"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/modal-stock-detail-dark.png",
+      "bytes": 286226,
+      "sha256": "e4c054d2fa5be12de26864be435825ab1a23ec6c6ddd96f5cf63c4c7e63068c7"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/modal-stock-detail-light.png",
+      "bytes": 286376,
+      "sha256": "97e8614697cab24f195afa33d118ae46e5d4c027e91d97779efe5dd0588a4632"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-collection-broken-dark.png",
+      "bytes": 168819,
+      "sha256": "3505dfc243cb610f2c8aa663ec26910e297368e59dda15e1900485f0d1ac922e"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-collection-broken-light.png",
+      "bytes": 168287,
+      "sha256": "bc795ed11d188116b1333d992fe05a56a4a11349887d4ccce58325e75ab60878"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-collection-sealed-dark.png",
+      "bytes": 144515,
+      "sha256": "fea6290f17a6c4f9b6d814263c5bdb48950e0ad794567433c350a6cb37ba44f3"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-collection-sealed-light.png",
+      "bytes": 143927,
+      "sha256": "22df74d939e272cd6a06d3dca0149bb117fd51ea5e452fea78a51d7553541f68"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-flow-em-dark.png",
+      "bytes": 176918,
+      "sha256": "0280edb2b013c2c5e8c9c117b381731a677d922f5b2d5998003d5b567e97e2f9"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-flow-em-light.png",
+      "bytes": 177079,
+      "sha256": "834448f9667b50817431c53ee96fcd1111e8b2aa334f75bc09615f46ed326e52"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-flow-sector-concept-dark.png",
+      "bytes": 159282,
+      "sha256": "270781a170b0116f3fb21f7d095c33496e02469e1927fe87ea4e91792b14fca9"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-flow-sector-concept-light.png",
+      "bytes": 159262,
+      "sha256": "19e799ed8f7d836582bc6f9664d10288aa5c88fc8388a7331239ab8b83ca6d0d"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-flow-sector-industry-dark.png",
+      "bytes": 158310,
+      "sha256": "54f10790e43a014e6e7ee723b0d7ea67c75ecc7bb3f961bdab8104449a22304c"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-flow-sector-industry-light.png",
+      "bytes": 158289,
+      "sha256": "eaaee4bf46fcaed95e3329e93db59fd19b44840c3d23fab6bda61ceee7eb9914"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-flow-ths-dark.png",
+      "bytes": 179098,
+      "sha256": "6d68204f4f9abb5310303e072771f3e669cf16ba9c8a98723f395f633394c104"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-flow-ths-light.png",
+      "bytes": 178726,
+      "sha256": "410abba3267212468d9ff1f75e2d0225edcc2091cecb7d378566088a1823ff40"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-index-barometer-dark.png",
+      "bytes": 160357,
+      "sha256": "16f0307188506d1d514134c7f81b18bfe2350c5f5442ddf823494055c7dbb927"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-index-barometer-light.png",
+      "bytes": 158952,
+      "sha256": "f5eea4a8f76d0802fea2171cbca37d9d3c9c5d78b15ececeeb01c20b39de8796"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-index-history-dark.png",
+      "bytes": 168259,
+      "sha256": "3b30b2223cd5d8187bef04b5a9464bf6f63dcabadda8a98db799a6692bf87b89"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-index-history-light.png",
+      "bytes": 166489,
+      "sha256": "8ffd44ab045a9cec9e607d3fd172cd46075af2bf1d6110ab889d919ca3a163d2"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-index-overview-dark.png",
+      "bytes": 186006,
+      "sha256": "1151b182327a9a5fc8856fef89af5490a7f4b16354ab204020aff0fc9c2a2555"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-index-overview-light.png",
+      "bytes": 185774,
+      "sha256": "4ad764c52308036759f6b7f9e71c0768a8538323d87d454990b547e4613fb25b"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-leaderboard-frequency-dark.png",
+      "bytes": 174993,
+      "sha256": "66f60d9b3bf520be5893ef99196b31fbf1480afe77902932bfc1f27ad8253a34"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-leaderboard-frequency-light.png",
+      "bytes": 174414,
+      "sha256": "85999771c7a20def0cf2ac78305ce04fc19f46a14ba7588be4babb0a3d197c77"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-leaderboard-ranking-dark.png",
+      "bytes": 145089,
+      "sha256": "39ca2d2cbb9d177b2e41d46d2782dae709d8aae946c5fb4861ee58534d260c25"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-leaderboard-ranking-light.png",
+      "bytes": 145484,
+      "sha256": "19a4607a9be6958d9422d499516cb5503cca508ed35407e64fea5c5ae6fa6f37"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-leaderboard-top1-dark.png",
+      "bytes": 150751,
+      "sha256": "f527347d64e59b4305d7b227faf02420eb9ba2316df180db77798564ff403c4d"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-leaderboard-top1-light.png",
+      "bytes": 150294,
+      "sha256": "0e86569192f56594b816c5e040fd07dc6fac52ef8556ab20fe25217ea9460897"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-limitup-dark.png",
+      "bytes": 213744,
+      "sha256": "92162f6e7b63559871f3ddfe4f9c737908477aedb6d2f95db5bc67f230f32b15"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-limitup-light.png",
+      "bytes": 212917,
+      "sha256": "84fa7540110cdf2bcb0e42b6cec5cf632bfdb2780f9e3a94f48c242f191c7df3"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-picks-em-combined-dark.png",
+      "bytes": 225287,
+      "sha256": "0bd6836690365ef19ef5010df5185b3fc726061e6c23b2575fa088a5fb0c9e78"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-picks-em-combined-light.png",
+      "bytes": 226190,
+      "sha256": "38aeca68347b8b07cca7887a83daf13bae578cf4ce9e8e50b34c9c4cfa783750"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-picks-em-conditional-dark.png",
+      "bytes": 252078,
+      "sha256": "00c54bfff1293ef9242aa8dde39b6e95775bcfceb447087b695d3d00b28cd4de"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-picks-em-conditional-light.png",
+      "bytes": 253926,
+      "sha256": "b62ffd8fd83201991ce55f18849549a015d707d90a16cbf8e563f3e0ef84fd65"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-picks-em-dip-dark.png",
+      "bytes": 247558,
+      "sha256": "5d61c8e5e0b103e7f84b00b4916eb759f3df00ae521974a6ecb73767491ba757"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-picks-em-dip-light.png",
+      "bytes": 249894,
+      "sha256": "ade061c3ee73ad9cc68c409e7c1c9e7a7861737b34bbdf789f372b759d1a59a6"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-picks-em-dip2-dark.png",
+      "bytes": 186102,
+      "sha256": "14ae536861967fbe3c74f6b2e079950e4a58d7587ead870b8e55eae4754a2400"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-picks-em-dip2-light.png",
+      "bytes": 185947,
+      "sha256": "c68fe55544f87037957e53b243354ffed0e40d5c105c7226d2c2eb761f45be5d"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-picks-em-new-dark.png",
+      "bytes": 235961,
+      "sha256": "adc27321e3ecac301a59e4bb62963a9e7765d60179b6aeb27db1dc728201702f"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-picks-em-new-light.png",
+      "bytes": 236754,
+      "sha256": "fd46f15c4ed2113c3b94e5acbff87af2c8faa464fa0b7a83569e17fbdc7c92d2"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-picks-em-preferred-dark.png",
+      "bytes": 263429,
+      "sha256": "6fc69b603d6808dda9c214ecccbd10759017a738ec78e88676a55eaa9d222801"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-picks-em-preferred-light.png",
+      "bytes": 265447,
+      "sha256": "0002bdceca7d453ae0a9417eea69d3848a242c8a670317ce335cded1f81b761c"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-picks-em-surge-dark.png",
+      "bytes": 194248,
+      "sha256": "c44f5f0d41e310c2b5b21a8e75ea759893d413ea1a5cc9d97a2de5762fa8b231"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-picks-em-surge-light.png",
+      "bytes": 193015,
+      "sha256": "913b2bab6c31d6868e14a2068d7bd2c2ac86a531111e5c6263168ac52d34d28b"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-picks-em-system-dark.png",
+      "bytes": 253623,
+      "sha256": "afe205239cbd32e905770ef2b61b94c4c4c86745e0d958d79a4e1bc41d4202eb"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-picks-em-system-light.png",
+      "bytes": 254990,
+      "sha256": "e9ecede1774a5593aa98f79cea5541f1ef6356809fe4c0bf6ad50b2458aed6c4"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-picks-ths-combined-dark.png",
+      "bytes": 228088,
+      "sha256": "2e7bcfdb86330d53ebafd583c7f82b811fcfcb5a7da39ee211705c940b014cc8"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-picks-ths-combined-light.png",
+      "bytes": 229669,
+      "sha256": "de0488ddd29b8d4a0fcc2cb4af00faeb385601ce653bf96835b3490c6318246e"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-picks-ths-conditional-dark.png",
+      "bytes": 233047,
+      "sha256": "6e9059b516dba5d21aa78f0d180e1d07f0de69cf19ab132fa1e41b04bc36ba69"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-picks-ths-conditional-light.png",
+      "bytes": 234783,
+      "sha256": "7aba6d821a25e3abb7a520973ee77aa4b058a55866049ae115d107f0762404f1"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-picks-ths-system-dark.png",
+      "bytes": 258440,
+      "sha256": "7efb12416c83b66a4cf4588da19abb916665693f211ee599deff5e527fcd1a6d"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-picks-ths-system-light.png",
+      "bytes": 260581,
+      "sha256": "2b177f5f6d67fad0ebfd2b88bd86d426ab1b3a1868028183055ba5e640a4d28e"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-picks-user-user-dark.png",
+      "bytes": 160016,
+      "sha256": "4a23b9e02c889a939b6179d77b9c49f0abe5a58dc88166c06d3056187186f9f3"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-picks-user-user-light.png",
+      "bytes": 159483,
+      "sha256": "fa374e73b8ad9ac50849ee9a8892a0f2890a4bea44c361bb4de6e897b16779ea"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-positions-buy-dark.png",
+      "bytes": 178226,
+      "sha256": "1257915c48c28d15411d0cd143f091719e2bfaf528f088c126fd715c79d8233a"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-positions-buy-light.png",
+      "bytes": 177346,
+      "sha256": "fd455dd488487b7000246a474707d648929b992eb9c443064d5bac0058944ca8"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-positions-delivery-dark.png",
+      "bytes": 155206,
+      "sha256": "c619dfb3016690eb1199daf6cb5b9c0686b225744efebec05d41bd18fe17e805"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-positions-delivery-light.png",
+      "bytes": 155144,
+      "sha256": "c296a02086a041cc5ef92f66eb59b527f590b9a1840dc3c3cafdd504bf63d7ae"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-positions-open-dark.png",
+      "bytes": 208898,
+      "sha256": "6178ef6372a236403545e7b1363d7f5f4fe2355562432189fd02fee4edcb46ff"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-positions-open-light.png",
+      "bytes": 208851,
+      "sha256": "58ec8c01af247c876c1b8f75508be03f96ab18f4790690c5cb810062c0211c1b"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-positions-reconcile-dark.png",
+      "bytes": 146901,
+      "sha256": "d93ca556d64b3a188f0ab7edc621dc3741461413a5e2c25eb904dd3c3f3df2b7"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-positions-reconcile-light.png",
+      "bytes": 146429,
+      "sha256": "c0e19b0f13d34c50256c2942fb840a4631fc59492866d0622a4ab2716eaf9f88"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-positions-sell-dark.png",
+      "bytes": 185480,
+      "sha256": "788a2a4015278381f4161438a91bc1a8a10e92163681dea2a00f041fd50d3f02"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-positions-sell-light.png",
+      "bytes": 184468,
+      "sha256": "b1d43c56bc8ba4e5431c93405ea30e2c82eb27493e118afa08db8101b068d969"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-sectors-all-dark.png",
+      "bytes": 179920,
+      "sha256": "f1c2eca553b109feef76695a355f04dbca7a7dbc2e3193dbe61a8772ef032f24"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-sectors-all-detail-dark.png",
+      "bytes": 158030,
+      "sha256": "defcb075e10204a98fd62e6072037f38b9b9a5fb0d3edd431d48c2324ab46c81"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-sectors-all-detail-light.png",
+      "bytes": 157568,
+      "sha256": "ecdd52f9c8e296fc9c8f86c0ade1edc3713ad772f7fb3b749d8e5dc081556d2f"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-sectors-all-light.png",
+      "bytes": 181004,
+      "sha256": "7a04fb4018a635b5fa4b5a9e1ef2558f6e9a386e2c8c73c40125304e50f6a614"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-sectors-user-dark.png",
+      "bytes": 102899,
+      "sha256": "2f0634c378fdd68dc132092603387207aa0491ba76e60ad605cd8d159ae6d7f2"
+    },
+    {
+      "path": "docs/design/2026-10-03-tradeiq-workspace-assets/page-sectors-user-light.png",
+      "bytes": 102917,
+      "sha256": "f12adb7e82819f61392e7ca2ac5d017611a37416dc269e001be5feba31f0168c"
+    }
+  ],
+  "oldFiles": {
+    "dashboard/index.html": "01afcff8d28c14ce35aca5c51294cd35a95b09bf8ccba485dac8bb9eaed3df64",
+    "backend/app.py": "5e6b9503cdb5b90ac88132c5451aec5aee26efe3689f87ed4c312fa2a703460c"
+  }
+}

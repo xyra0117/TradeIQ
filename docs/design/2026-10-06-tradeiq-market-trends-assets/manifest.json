@@ -1,0 +1,193 @@
+{
+  "date": "2026-10-06",
+  "scope": "Two simple-mode market trend UI groups",
+  "screenshots": 15,
+  "artifacts": [
+    {
+      "path": "docs/design/2026-10-06-tradeiq-market-trends-assets/market-overview-dark.png",
+      "bytes": 181059,
+      "sha256": "a333fb4b96f5b50da7935526d6c3f2d609dfad97e264ce2a8cc3e6d2f2b0c688",
+      "width": 1920,
+      "height": 1080,
+      "format": "PNG"
+    },
+    {
+      "path": "docs/design/2026-10-06-tradeiq-market-trends-assets/market-overview-light.png",
+      "bytes": 181915,
+      "sha256": "5fb0b7bf6629b6aa566a081200e9b987a5c45a662f517c7b2bb3fce696803014",
+      "width": 1920,
+      "height": 1080,
+      "format": "PNG"
+    },
+    {
+      "path": "docs/design/2026-10-06-tradeiq-market-trends-assets/market-trends-dark.png",
+      "bytes": 89792,
+      "sha256": "ecc8212e9c999365af7aaaeb47853493a9d8f148b6b40d50c6ba084a9a625f3b",
+      "width": 1664,
+      "height": 567,
+      "format": "PNG"
+    },
+    {
+      "path": "docs/design/2026-10-06-tradeiq-market-trends-assets/market-trends-light.png",
+      "bytes": 90639,
+      "sha256": "86e3d45bc363652a1c6743b5546ca3e3006155acafe58e15004c8b5cd35a229c",
+      "width": 1664,
+      "height": 567,
+      "format": "PNG"
+    },
+    {
+      "path": "docs/design/2026-10-06-tradeiq-market-trends-assets/trend-components-dark.png",
+      "bytes": 105349,
+      "sha256": "cc469e418bf44a7dc3ab21da37cf9a5c4af69feeb8deb5e9e53b5a20c220711d",
+      "width": 732,
+      "height": 1160,
+      "format": "PNG"
+    },
+    {
+      "path": "docs/design/2026-10-06-tradeiq-market-trends-assets/trend-components-light.png",
+      "bytes": 100965,
+      "sha256": "868ee1c948c3511446961ce0c52b80fda55bcae298f52e2feeb0ce30cad62535",
+      "width": 732,
+      "height": 1160,
+      "format": "PNG"
+    },
+    {
+      "path": "docs/design/2026-10-06-tradeiq-market-trends-assets/verification.json",
+      "bytes": 29131,
+      "sha256": "81d006f3c131346408e22b04c0df260d7ca4a6da3d5e160f3c6ae65d255e3673"
+    },
+    {
+      "path": "docs/design/2026-10-06-tradeiq-market-trends-assets/compact-timeline-light.png",
+      "width": 1920,
+      "height": 1080,
+      "bytes": 96117,
+      "sha256": "fefbc20b7e44e062991abcf91e88b28c6daf42c501e74310860ea2cf1e4ef3fc",
+      "format": "JPEG"
+    },
+    {
+      "path": "docs/design/2026-10-06-tradeiq-market-trends-assets/compact-timeline-dark.png",
+      "width": 1920,
+      "height": 1080,
+      "bytes": 88651,
+      "sha256": "63bf1149cde1823bc5029e95d918b504e9ff742d9c09a615f904bfd44a97cf01",
+      "format": "JPEG"
+    },
+    {
+      "path": "docs/design/2026-10-06-tradeiq-market-trends-assets/range-timeline-light.png",
+      "width": 1920,
+      "height": 1080,
+      "bytes": 94843,
+      "sha256": "790fbfc9cc029004bc802282a7bb8a51310edab1e189e3500b3c5e922a83fb55",
+      "format": "JPEG"
+    },
+    {
+      "path": "docs/design/2026-10-06-tradeiq-market-trends-assets/range-timeline-dark.png",
+      "width": 1920,
+      "height": 1080,
+      "bytes": 87265,
+      "sha256": "057fa0de020b246c4d0132a3e9c716eca36505eb2bddf87e4c0a1a5f2f5a74c6",
+      "format": "JPEG"
+    },
+    {
+      "path": "docs/design/2026-10-06-tradeiq-market-trends-assets/aligned-controls-light.png",
+      "width": 1920,
+      "height": 1080,
+      "bytes": 93092,
+      "sha256": "7cd6fededed5c674b0a3d25e4793f9516ac571d167b9fad342faab554bd89118",
+      "format": "JPEG"
+    },
+    {
+      "path": "docs/design/2026-10-06-tradeiq-market-trends-assets/aligned-controls-dark.png",
+      "width": 1920,
+      "height": 1080,
+      "bytes": 85281,
+      "sha256": "9b484066217a4817d25990e2981d5eafde9f1fbb5530fb1c11c20db5c6837bc7",
+      "format": "JPEG"
+    },
+    {
+      "path": "docs/design/2026-10-06-tradeiq-market-trends-assets/simple-tabs-light.png",
+      "bytes": 93798,
+      "sha256": "3e1481404bb1c47a6b9fbbb91eca5fdbfc8ff03068bd42cc50f43a40f1485a15",
+      "width": 1920,
+      "height": 1080,
+      "format": "JPEG"
+    },
+    {
+      "path": "docs/design/2026-10-06-tradeiq-market-trends-assets/simple-tabs-dark.png",
+      "bytes": 86604,
+      "sha256": "dba9f0e77e5aa42a1a2b39c20341e6bf326935cf203d584df0e98918f8763077",
+      "width": 1920,
+      "height": 1080,
+      "format": "JPEG"
+    },
+    {
+      "path": "docs/design/2026-10-06-tradeiq-market-trends-assets/simple-tabs-components-comparison.png",
+      "bytes": 94435,
+      "sha256": "333af51a514fd07b32eace898f1ef05052cf94fea2d242bcfb4cd1aef4d3f1f1",
+      "width": 1265,
+      "height": 917,
+      "format": "JPEG"
+    }
+  ],
+  "sources": [
+    {
+      "path": "AGENTS.md",
+      "bytes": 13139,
+      "sha256": "49adb2e5dd1314a2a300c568443d39373c77bc56613537694fcce6c0e08b4e53"
+    },
+    {
+      "path": "dashboard/redesign/index.html",
+      "bytes": 14637,
+      "sha256": "2d9111e95b27ab9095902c38a6f802b89d499dee50a6b94bb9849f4edc86f918"
+    },
+    {
+      "path": "dashboard/redesign/workspace.js",
+      "bytes": 33193,
+      "sha256": "0f5fd7ec6273d447a7ec19d16841185ff997b1bc6b61657b418589a9f0e1cbe0"
+    },
+    {
+      "path": "dashboard/redesign/pages.js",
+      "bytes": 100790,
+      "sha256": "38ca4929dd8ba4488ba181eab63292322d0e47abe877bb58df5b2614b730d7fe"
+    },
+    {
+      "path": "dashboard/redesign/pages.css",
+      "bytes": 30547,
+      "sha256": "915d5bec6622fc73a3577ec97677ba8664bafcceff18747f17b7838add7b9705"
+    },
+    {
+      "path": "dashboard/redesign/preview-charts.js",
+      "bytes": 25194,
+      "sha256": "f5c9aaa1e16f56b40e16feb2676b785e83f0b2e1d6a59679025e978c8074a8ad"
+    },
+    {
+      "path": "dashboard/redesign/components.js",
+      "bytes": 55107,
+      "sha256": "6e7ee30b81d8972eeffeac0b84f466a64c57c1803cca68c81688b093aea40d0e"
+    },
+    {
+      "path": "dashboard/redesign/components.html",
+      "bytes": 5405,
+      "sha256": "96196b1053b6b79a870e23a6f0e1815a6b17e3d7d90c30d285093e5117571329"
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system.md",
+      "bytes": 24704,
+      "sha256": "a16235ce9ad2bb63f493042f1ba558a345651e395816e205537b52d0d0e8bd76"
+    },
+    {
+      "path": "docs/design/2026-10-06-tradeiq-market-trends.md",
+      "bytes": 7491,
+      "sha256": "e86e9f8120c5a72447e9b928b143e619f81cbea4e3fd95846d85b154d77fb1b9"
+    },
+    {
+      "path": "dashboard/redesign/workspace.css",
+      "bytes": 29352,
+      "sha256": "8c37ea5c4e5914295bac63f44f1cca3e8c45b4c12d6cc6933f2f9d4df454cf70"
+    }
+  ],
+  "retained_sources": {
+    "dashboard/index.html": "fbb38c42678faff976c430c4cf7d62112cd7122ba90e49d2ea87e5a0732d95dd",
+    "backend/app.py": "24260f285a7b2ef04921bdc83f2a3370f744cc2fcc0c9c146edbbd303fda0b8f"
+  }
+}

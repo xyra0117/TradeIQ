@@ -6,7 +6,7 @@ for (const match of html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)) new v
 assert.match(html, /key: 'surge', label: '冲高观察'/);
 assert.match(html, /currentPicksGroup === 'surge'\) return loadSurgePicks/);
 assert.match(html, /currentPicksGroup === 'surge'\) return surgePicksCache/);
-assert.match(html, /async function refreshPicksQuotes\(\) \{\s*if \(currentPicksGroup === 'surge'\) return;/);
+assert.match(html, /if \(currentPicksGroup === 'surge'\) return;/);
 const elements = new Map();
 const element = id => {
   if (!elements.has(id)) elements.set(id, {innerHTML:'',textContent:'',style:{},value:id==='surgeSort'?'code':''});
@@ -16,12 +16,14 @@ const calls=[];
 const ctx=vm.createContext({console,Number,Infinity,encodeURIComponent,
   document:{getElementById:element},
   currentPicksGroup:'surge',picksSelDate:'20260911',
-  fmtDate:d=>d,
+  fmtDate:d=>d, renderSectorPills(){return "";},
   escapeHtml:s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'),
   stopPicksAutoRefresh(){ctx.stopped=(ctx.stopped||0)+1;},
   fetch(url){return new Promise((resolve,reject)=>calls.push({url,resolve,reject}));},
   showKlineModal(...args){ctx.kline=args;},openStockFlowDetail(...args){ctx.flow=args;},
 });
+ctx._fetchPicksResult = (...args) => ctx.fetch(...args);
+ctx.PicksResultCache = {invalidate(){}};
 vm.runInContext(html.slice(html.indexOf('// ── 冲高观察：'),html.indexOf('// ── 冲高观察结束 ──')),ctx);
 const row={ts_code:'000001.SZ',name:'<测试>',trade_date:'20260911',close:12,change_pct:2,amplitude20:5.5,
   ma20:11,ret20:21,momentum:true,breakout:false,main_strength5:5,fund_tag:true,

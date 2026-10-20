@@ -1,0 +1,307 @@
+{
+  "date": "2026-10-04",
+  "name": "tradeiq-ui-parity",
+  "scope": "UI design review with fictional examples",
+  "screenshot_count": 29,
+  "artifacts": [
+    {
+      "path": "docs/design/2026-10-04-tradeiq-ui-parity-assets/barometer-dark.png",
+      "bytes": 196540,
+      "sha256": "20f580fb57fdaf572be9433406f3970fc6b46b8c0cc544b7834a52733522e8a2",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-ui-parity-assets/barometer-light.png",
+      "bytes": 196149,
+      "sha256": "4c02886bde26408f26d9a4a654d386b7471ad97f4c40482d63f946522b446941",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-ui-parity-assets/business-components-comparison.png",
+      "bytes": 333630,
+      "sha256": "af4fc6dd4cd84c2b67d47141c0dea494bc887e2b668225922cb592f50eb137b7",
+      "width": 1648,
+      "height": 1534
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-ui-parity-assets/date-modes-dark.png",
+      "bytes": 286699,
+      "sha256": "15293f2ec83070a2646d009e927a17ea4e6809d7c718d37ce560da8d151e5576",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-ui-parity-assets/date-modes-light.png",
+      "bytes": 290497,
+      "sha256": "c0e958d5188c40435f25ce6b22919f98a7dc89fe8735a358c65ea1fdf9dc929a",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-ui-parity-assets/delivery-analysis-dark.png",
+      "bytes": 262612,
+      "sha256": "a98a966a25c5b9e940e22855b50c85e359e106d806d35967d5582e5a67522934",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-ui-parity-assets/delivery-analysis-light.png",
+      "bytes": 261287,
+      "sha256": "20d1a9cad63bac0cd9c50d67df541edb40be9a8031bdc754f11be725fe2c8e5c",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-ui-parity-assets/gallery.html",
+      "bytes": 11373,
+      "sha256": "60a45e63a78339692f6e1c52f3c9148abf84e686ad448325f57c6b0384194600"
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-ui-parity-assets/history-samples-dark.png",
+      "bytes": 288964,
+      "sha256": "d30617e831c1704530dba2fa630a89bb4c5eae2d32cb1c7d699956a743fef566",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-ui-parity-assets/history-samples-light.png",
+      "bytes": 290152,
+      "sha256": "bc08aa13f297df755b66f4f7d8923e2011c8fa737cc8a870a9dfab1450e0099d",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-ui-parity-assets/image-preview-dark.png",
+      "bytes": 248223,
+      "sha256": "471d022bb1a7347515287885f81005177e5391fa750ef66b48be1cfe1c801cd4",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-ui-parity-assets/image-preview-light.png",
+      "bytes": 249523,
+      "sha256": "d727b4a94aaa2eb13874bdb92583df5779e07e6f9a7cbb649918f3e58719f88a",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-ui-parity-assets/market-funds-history-dark.png",
+      "bytes": 259708,
+      "sha256": "fa37f4214a50840fc0c38f291297807688bd97e56d9e750fc123a200d50c9c36",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-ui-parity-assets/market-funds-history-light.png",
+      "bytes": 260371,
+      "sha256": "d4b605df7ed9f84aaea9041ee1ff6d10a4d319b6862e30b1579cd8da587f85a6",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-ui-parity-assets/position-calculator-dark.png",
+      "bytes": 223282,
+      "sha256": "fe60d4ad817b36906172c3f79a28200835d9d7fa6350f9eccfa3e78bbea22491",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-ui-parity-assets/position-calculator-light.png",
+      "bytes": 222688,
+      "sha256": "fedd91b392fc4db7d5dce570e4ec317505d73270acccdecf60da3ad533e6b771",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-ui-parity-assets/position-plans-dark.png",
+      "bytes": 232747,
+      "sha256": "620befc171db792d906ab41db296dc60027ff6f5232fce963f37d25d3fe4bda8",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-ui-parity-assets/position-plans-light.png",
+      "bytes": 230936,
+      "sha256": "fcf2fdd814d8dc03c011541d6ce701dcc58281f33c3423fe8a755b9c74270fba",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-ui-parity-assets/sector-roles-dark.png",
+      "bytes": 157180,
+      "sha256": "35df2a33788327643e38ddd397bf2600518da039b3ff6216d910b48cf5181384",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-ui-parity-assets/sector-roles-light.png",
+      "bytes": 156233,
+      "sha256": "0134e666a020a75d409391752f7c797f7a2711d62aae1cfa1ae146b19fbaf050",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-ui-parity-assets/stock-detail-dark.png",
+      "bytes": 342322,
+      "sha256": "ff755915de767af86eb46f92b59fbe24c80cb5b6e514efc6019386bdff36afdd",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-ui-parity-assets/stock-detail-light.png",
+      "bytes": 339611,
+      "sha256": "edf5af21d83ef635702a92f882270f5d9c51f1bedc50e836298b505a45ee78b4",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-ui-parity-assets/stock-funds-search-dark.png",
+      "bytes": 258160,
+      "sha256": "1c8d352486d744656508ec9ffe29a475f461d6663b20dec8239ae4f3ef6e1021",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-ui-parity-assets/stock-funds-search-light.png",
+      "bytes": 261180,
+      "sha256": "49b23b5863d71dca6907fe85bdaed7b8c63b5e3a647714fd9c5166edf0e5ccb1",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-ui-parity-assets/trade-history-dark.png",
+      "bytes": 232771,
+      "sha256": "4003c992876da45a834c86ce0de4f1efb805bdd96663667e78a34ad7559e5c27",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-ui-parity-assets/trade-history-light.png",
+      "bytes": 233142,
+      "sha256": "97646e92ad176533b497c910ce4b4bc50af025a82d69c9231d1eed57a6465aaf",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-ui-parity-assets/trades-import-dark.png",
+      "bytes": 250004,
+      "sha256": "d9a3695dd243deac28ad5a4c85f3cbbaa609b1474f036755d4d51751254bca05",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-ui-parity-assets/trades-import-light.png",
+      "bytes": 250730,
+      "sha256": "09e400ff73107f8d425cc674efe6f5ffec264c5daf77ffda5cb20dce01b16d7d",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-ui-parity-assets/verification.json",
+      "bytes": 57589,
+      "sha256": "342ccd429434ca0ad4a9209d7b866e7144716d6745d8f119df84a4e411b659dd"
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-ui-parity-assets/workspace-dark.png",
+      "bytes": 276262,
+      "sha256": "5af97c3f31c1b03b83ad5bcb9ef737de7c0ea29601373f1601553c664b534ac6",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-ui-parity-assets/workspace-light.png",
+      "bytes": 277862,
+      "sha256": "b986dc2d4c54c009d5f1f96e615cbca14b82aa54f1aca31d99ffc149ea9cdf33",
+      "width": 1920,
+      "height": 1080
+    }
+  ],
+  "sources": [
+    {
+      "path": "AGENTS.md",
+      "bytes": 12489,
+      "sha256": "c956b6fce8ab0832b2cae76fc0e5d0eff63ccbb73c66a5fceda60f732d63c527"
+    },
+    {
+      "path": "dashboard/redesign/index.html",
+      "bytes": 14438,
+      "sha256": "ada7cf7c69230a6584f71b0bcb4144b9a7040624a5a2a08e8a1d0a12778d26b8"
+    },
+    {
+      "path": "dashboard/redesign/workspace.css",
+      "bytes": 29152,
+      "sha256": "d70a863d95a4e132fe136cda2735d0c111a3406414539fa6b988d69949447e2d"
+    },
+    {
+      "path": "dashboard/redesign/workspace.js",
+      "bytes": 32451,
+      "sha256": "b0a3067cad9792e9a4d4e53310c6d2c484f733405aa3375f5c1aea9a7189d1eb"
+    },
+    {
+      "path": "dashboard/redesign/pages.css",
+      "bytes": 27077,
+      "sha256": "5a8690d636ce70711495d14d467ee868886f0b352a016926024aee751ed1fb63"
+    },
+    {
+      "path": "dashboard/redesign/pages.js",
+      "bytes": 100487,
+      "sha256": "0945621b4abc24dd3cf91c228d5c7b8bfb12443c2e06dc72983cfd05138fec4a"
+    },
+    {
+      "path": "dashboard/redesign/preview-charts.js",
+      "bytes": 11832,
+      "sha256": "12be5eabbecb1f461d52536e6c69354e59d57f60e5f56a7a02665b1be55b854a"
+    },
+    {
+      "path": "dashboard/redesign/components.html",
+      "bytes": 5340,
+      "sha256": "ae77de64d9fd7b60032a8062c4bf24b0bf6a189ce6bce95deafdc53c93ca1f74"
+    },
+    {
+      "path": "dashboard/redesign/components.css",
+      "bytes": 21188,
+      "sha256": "2a7d0f4f12dffdbb88a4ebb510a8ad45715aa0db03cd81663fd1a3e6db558d4c"
+    },
+    {
+      "path": "dashboard/redesign/components.js",
+      "bytes": 53847,
+      "sha256": "1485390abf69e37dc82b72426be80e9288e5715f70a7efeebcf0a40f67a2fd7e"
+    },
+    {
+      "path": "dashboard/redesign/icons.svg",
+      "bytes": 18071,
+      "sha256": "1c804cce4a3dfee1a5ea89e1b2e13948df5c200d0b91685164b25505a1f3446e"
+    },
+    {
+      "path": "dashboard/redesign/remixicon-manifest.json",
+      "bytes": 8874,
+      "sha256": "e39269ad45bbfdf873178e800b520c03b2b1ecb02e96dd0e0406cc8c1d6408fc"
+    },
+    {
+      "path": "dashboard/redesign/REMIXICON-LICENSE.txt",
+      "bytes": 7198,
+      "sha256": "6f2f21c5f8db34635d31848e9ff831d5dc421bb83ffc9d37f82651364047ae58"
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-design-system.md",
+      "bytes": 21236,
+      "sha256": "c864976065209effaa235d9bbd871e693eb56c9c5c166d231287aa79a7b548cd"
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-feature-parity-audit.md",
+      "bytes": 14834,
+      "sha256": "928ad93f061fc12d048504dfd83d446df2e2641b8165516592e120419f2de9ce"
+    },
+    {
+      "path": "docs/design/2026-10-04-tradeiq-ui-parity.md",
+      "bytes": 8113,
+      "sha256": "5c0eb6bad18e81daa9ec5393573b2ff615f6f4f357a37a830677eebfe5702ab7"
+    }
+  ],
+  "retained_sources": {
+    "dashboard/index.html": "01afcff8d28c14ce35aca5c51294cd35a95b09bf8ccba485dac8bb9eaed3df64",
+    "backend/app.py": "5e6b9503cdb5b90ac88132c5451aec5aee26efe3689f87ed4c312fa2a703460c"
+  }
+}

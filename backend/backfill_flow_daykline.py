@@ -286,6 +286,7 @@ async def worker(wid, page, ctx, codes, cfg, names, conn, cur, state, recon, dry
     """
     req = ctx.request
     n = len(codes)
+    fail_streak = 0          # 连续失败计数, 触发自动歇
     for i, ts_code in enumerate(codes, 1):
         secid = to_secid(ts_code)
         code_only = secid.split('.')[1]
@@ -305,7 +306,17 @@ async def worker(wid, page, ctx, codes, cfg, names, conn, cur, state, recon, dry
             if not dry:
                 cur.execute(PROGRESS_UPSERT, (ts_code, st, 0, None, err, tries))
                 conn.commit()
+
+            # 监控: 连续 10 只失败 → 歇 10 分钟 (东财盯上后让秒级 QPS 完全归零)
+            fail_streak += 1
+            if fail_streak >= 10:
+                log(f'  [{wid}] ⚠️ 连续失败 {fail_streak} 只, 歇 10 分钟')
+                await asyncio.sleep(600)
+                fail_streak = 0          # 歇完重新计数
             continue
+
+        # 成功: 重置连续失败状态
+        fail_streak = 0
 
         name = names.get(ts_code, '')
         gap_rows = parse_klines(klines, cfg.start, cfg.end, name)

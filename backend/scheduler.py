@@ -241,18 +241,20 @@ def register_bk_flow_after_close():
     """盘后抓东方财富板块资金流 (行业 + 概念) → 落 sector_fund_flow 表.
     15:35 行业主跑 + 15:36 概念主跑 + 16:30/16:31 兜底.
     行业先跑 1 分钟错开 (避免 push2 同时段被双调用限流).
-    行业 ~5 页 5s, 概念 ~5 页 5s, 总共 ~10s 跑完.
-    幂等: _bk_sync_market_bg(force=False) 自带 skip_if_exists, 已有数据直接跳过."""
+    抓取本身跑在独立 launchd agent (浏览器要 GUI session), 这里只 HTTP 触发
+    本机 Flask 的 /api/flow/sector/sync, 由它转 agent —— 不 import app, 免得
+    在调度线程里重复加载整个模块."""
     from datetime import datetime
 
     def _job(sector_type, tag):
-        from app import _bk_sync_market_bg, _BKSYNC_STATE
+        import urllib.request as _ur
         today = datetime.now().strftime('%Y%m%d')
-        if _BKSYNC_STATE.get('running'):
-            print(f'[bk fflow] {sector_type} {today} [{tag}] 上一次还在跑, 跳过', flush=True)
-            return
         try:
-            _bk_sync_market_bg(sector_type=sector_type, force=False)
+            req = _ur.Request(
+                f'http://127.0.0.1:5555/api/flow/sector/sync?type={sector_type}',
+                data=b'{}', headers={'Content-Type': 'application/json'}, method='POST')
+            with _ur.urlopen(req, timeout=5) as r:
+                print(f'[bk fflow] {sector_type} {today} [{tag}] 触发: {r.read()[:120]}', flush=True)
         except Exception as e:
             print(f'[bk fflow] {sector_type} {today} [{tag}] 异常: {e}', flush=True)
             traceback.print_exc()
@@ -262,6 +264,8 @@ def register_bk_flow_after_close():
         (15, 36, 'bk_flow_concept_after_close',      '15:36'),
         (16, 30, 'bk_flow_industry_after_close_late','16:30'),
         (16, 31, 'bk_flow_concept_after_close_late', '16:31'),
+        (20, 0,  'bk_flow_industry_after_close_night', '20:00'),
+        (20, 1,  'bk_flow_concept_after_close_night',  '20:01'),
     ]:
         st = 'industry' if 'industry' in jid else 'concept'
         trigger = CronTrigger(hour=hh, minute=mm)
@@ -325,19 +329,21 @@ def register_ths_flow_after_close():
     """盘后抓同花顺个股资金流 (data.10jqka.com.cn/ggzjl) → fund_flow_ths 表.
     17:05 主跑 + 19:30 兜底: 用户要求自动触发等 17 点后 (同花顺页面数据盘后较晚定格);
     兜底防一次抓取中途翻车 (翻页超时/Chrome 抽风).
-    幂等: _ths_sync_market_bg(force=False) 自带 skip_if_exists, 已有 ≥4000 行直接跳过,
-    非交易日/已有数据都不会启动 Chrome (守卫在 launch 之前)."""
+    抓取跑在独立 launchd agent (同花顺必须真 Chrome 有界面, Flask 进程里起不来),
+    这里只 HTTP 触发本机 Flask 的 /api/flow/ths/sync, 由它转 agent ——
+    不 import app, 免得在调度线程里重复加载整个模块.
+    幂等: agent 那边 skip_if_exists, 已有 ≥4000 行直接跳过, 非交易日/已有数据都不启动 Chrome."""
     from datetime import datetime
 
     def _job(tag):
-        from app import _ths_sync_market_bg, _THSSYNC_STATE
+        import urllib.request as _ur
         today = datetime.now().strftime('%Y%m%d')
-        if _THSSYNC_STATE.get('running'):
-            print(f'[ths fflow] {today} [{tag}] 上一次还在跑, 跳过', flush=True)
-            return
         try:
-            # 同步调用 (job 线程里跑 5-8 分钟没问题, APScheduler 每个 job 独立线程)
-            _ths_sync_market_bg(force=False)
+            req = _ur.Request('http://127.0.0.1:5555/api/flow/ths/sync',
+                              data=b'{}', headers={'Content-Type': 'application/json'},
+                              method='POST')
+            with _ur.urlopen(req, timeout=5) as r:
+                print(f'[ths fflow] {today} [{tag}] 触发: {r.read()[:120]}', flush=True)
         except Exception as e:
             print(f'[ths fflow] {today} [{tag}] 异常: {e}', flush=True)
             traceback.print_exc()

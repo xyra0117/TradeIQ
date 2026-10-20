@@ -201,18 +201,46 @@ def run(sector_type: str, trade_date: Optional[str] = None,
 
     url_base, page_url = _build_url(sector_type)
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=headless, channel="chrome")
-        page = browser.new_page(viewport={"width": 1920, "height": 1080})
+        # 第 1 页拿不到 = 大概率被 push2 的 IP 级冷却盯上了 (不是这次请求的问题).
+        # 换新 session + 退避重试, 冷却过去就能接着跑.
+        import time as _time
+        attempts = max(1, int(os.environ.get('SECTOR_SYNC_RETRIES', '3')))
+        data = None
+        browser = page = None
+        for attempt in range(attempts):
+            if browser is not None:
+                try:
+                    browser.close()
+                except Exception:
+                    pass
+            browser = p.chromium.launch(headless=headless, channel="chrome")
+            page = browser.new_page(viewport={"width": 1920, "height": 1080})
+            if verbose:
+                print(f"[{datetime.now():%H:%M:%S}] [{sector_type}] 打开 {page_url} 建立 session"
+                      f"{' (重试)' if attempt else ''}...")
+            try:
+                page.goto(page_url, wait_until="domcontentloaded", timeout=30000)
+                page.wait_for_timeout(1500)
+            except Exception as e:
+                if verbose:
+                    print(f"  [{sector_type}] 打开页面失败: {e}", file=sys.stderr)
+                data = None
+                continue
 
-        if verbose:
-            print(f"[{datetime.now():%H:%M:%S}] [{sector_type}] 打开 {page_url} 建立 session...")
-        page.goto(page_url, wait_until="domcontentloaded", timeout=30000)
-        page.wait_for_timeout(1500)
+            # 第 1 页: 看 total
+            if verbose:
+                print(f"[{sector_type}] 拉第 1 页...")
+            data = fetch_page_jsonp(page, 1, url_base)
+            if data and data.get("data") and data["data"].get("diff"):
+                break
+            data = None
+            if attempt < attempts - 1:
+                wait = 20 + attempt * 20
+                if verbose:
+                    print(f"  [{sector_type}] 第 1 页拿不到 (可能被反爬冷却), 等 {wait}s 换 session 重试",
+                          file=sys.stderr)
+                _time.sleep(wait)
 
-        # 第 1 页: 看 total
-        if verbose:
-            print(f"[{sector_type}] 拉第 1 页...")
-        data = fetch_page_jsonp(page, 1, url_base)
         if not data or not data.get("data"):
             # 第 1 页失败: wait_for_user 模式兜底 (反爬限流)
             if wait_for_user:
@@ -285,10 +313,18 @@ def run(sector_type: str, trade_date: Optional[str] = None,
         for pn in range(2, total_pages + 1):
             page.wait_for_timeout(WAIT_MS_PER_PAGE)
             data = fetch_page_jsonp(page, pn, url_base)
+            # 单页失败也是反爬盯上了, 重试 2 次 (退避), 还是不行才记失败
+            for attempt in range(2):
+                if data and data.get("data") and data["data"].get("diff"):
+                    break
+                if verbose:
+                    print(f"  [{sector_type}] pn={pn}: 无数据, 重试 {attempt + 1}/2", file=sys.stderr)
+                _time.sleep(5 + attempt * 5)
+                data = fetch_page_jsonp(page, pn, url_base)
             if not data or not data.get("data") or not data["data"].get("diff"):
                 failed_pages.append(pn)
                 if verbose:
-                    print(f"  [{sector_type}] pn={pn}: 无数据", file=sys.stderr)
+                    print(f"  [{sector_type}] pn={pn}: 放弃", file=sys.stderr)
                 _emit("page", pn=pn, total_pages=total_pages, rows_count=len(all_rows), failed=failed_pages[:])
                 continue
             all_rows.extend(data["data"]["diff"])
@@ -309,6 +345,67 @@ def run(sector_type: str, trade_date: Optional[str] = None,
         'is_already_synced': False, 'is_holiday': is_holiday,
         'waited_for_user': waited_for_user,
     }
+
+
+def save_rows(rows, trade_date: str, sector_type: str) -> int:
+    """把 push2 拿到的 rows (raw f-code dict) 写入 sector_fund_flow 表, 返回写入条数.
+
+    字段映射 (push2 行业/概念 通用):
+      f12 sector_code, f14 name, f2 close, f3 change_pct,
+      f62 main_net_inflow, f184 main_net_pct,
+      f66 super_net, f69 super_pct,
+      f72 big_net, f75 big_pct,
+      f78 mid_net, f81 mid_pct,
+      f84 small_net, f87 small_pct,
+      f128 lead_stock_name, f140 lead_stock_code
+    """
+    import math
+
+    def _f(v):
+        if v is None or v == '-' or v == '':
+            return None
+        try:
+            x = float(v)
+            return 0.0 if math.isnan(x) else x
+        except (ValueError, TypeError):
+            return None
+
+    def _s(v):
+        if v is None or v == '-':
+            return None
+        s = str(v).strip()
+        return s if s else None
+
+    conn = sqlite3.connect(DB_PATH, timeout=30)
+    cur = conn.cursor()
+    count = 0
+    for r in rows:
+        sector_code = _s(r.get('f12'))
+        if not sector_code or not sector_code.startswith('BK'):
+            continue
+        cur.execute('DELETE FROM sector_fund_flow WHERE trade_date=? AND sector_type=? AND sector_code=?',
+                    (trade_date, sector_type, sector_code))
+        cur.execute('''INSERT INTO sector_fund_flow
+            (trade_date, sector_type, sector_code, name,
+             close, change_pct,
+             main_net_inflow, main_net_pct,
+             super_net, super_pct, big_net, big_pct,
+             mid_net, mid_pct, small_net, small_pct,
+             lead_stock_name, lead_stock_code, source)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+            (trade_date, sector_type, sector_code, r.get('f14', '') or '',
+             _f(r.get('f2')), _f(r.get('f3')),
+             _f(r.get('f62')) or 0.0, _f(r.get('f184')),
+             _f(r.get('f66')), _f(r.get('f69')),
+             _f(r.get('f72')), _f(r.get('f75')),
+             _f(r.get('f78')), _f(r.get('f81')),
+             _f(r.get('f84')), _f(r.get('f87')),
+             _s(r.get('f128')), _s(r.get('f140')),
+             'eastmoney-push2'))
+        count += 1
+    conn.commit()
+    conn.close()
+    return count
 
 
 def main():

@@ -8488,90 +8488,27 @@ _BKSYNC_STATE = {
 
 
 def _save_bk_fund_flow_rows(rows, trade_date, sector_type):
-    """把 sector JSONP 拿到的 rows (raw f-code dict) 写入 sector_fund_flow 表.
-    字段映射 (push2 行业/概念 通用):
-      f12 sector_code, f14 name, f2 close, f3 change_pct,
-      f62 main_net_inflow, f184 main_net_pct,
-      f66 super_net, f69 super_pct,
-      f72 big_net, f75 big_pct,
-      f78 mid_net, f81 mid_pct,
-      f84 small_net, f87 small_pct,
-      f128 lead_stock_name, f140 lead_stock_code
-    Returns: 写入条数.
-    """
-    import math
-    def _f(v):
-        if v is None or v == '-' or v == '':
-            return None
-        try:
-            x = float(v)
-            return 0.0 if math.isnan(x) else x
-        except (ValueError, TypeError):
-            return None
-
-    def _s(v):
-        if v is None or v == '-':
-            return None
-        s = str(v).strip()
-        return s if s else None
-
-    conn = sqlite3.connect(DB_PATH, timeout=30)
-    cur = conn.cursor()
-    count = 0
-    for r in rows:
-        sector_code = _s(r.get('f12'))
-        if not sector_code or not sector_code.startswith('BK'):
-            continue
-        name = r.get('f14', '') or ''
-        close = _f(r.get('f2'))
-        change_pct = _f(r.get('f3'))
-        main_net_inflow = _f(r.get('f62')) or 0.0
-        main_net_pct = _f(r.get('f184'))
-        super_net = _f(r.get('f66'))
-        super_pct = _f(r.get('f69'))
-        big_net = _f(r.get('f72'))
-        big_pct = _f(r.get('f75'))
-        mid_net = _f(r.get('f78'))
-        mid_pct = _f(r.get('f81'))
-        small_net = _f(r.get('f84'))
-        small_pct = _f(r.get('f87'))
-        lead_stock_name = _s(r.get('f128'))
-        lead_stock_code = _s(r.get('f140'))
-
-        cur.execute('DELETE FROM sector_fund_flow WHERE trade_date=? AND sector_type=? AND sector_code=?',
-                    (trade_date, sector_type, sector_code))
-        cur.execute('''INSERT INTO sector_fund_flow
-            (trade_date, sector_type, sector_code, name,
-             close, change_pct,
-             main_net_inflow, main_net_pct,
-             super_net, super_pct, big_net, big_pct,
-             mid_net, mid_pct, small_net, small_pct,
-             lead_stock_name, lead_stock_code, source)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
-            (trade_date, sector_type, sector_code, name,
-             close, change_pct,
-             main_net_inflow, main_net_pct,
-             super_net, super_pct, big_net, big_pct,
-             mid_net, mid_pct, small_net, small_pct,
-             lead_stock_name, lead_stock_code, 'eastmoney-push2'))
-        count += 1
-    conn.commit()
-    conn.close()
-    return count
+    """写 sector_fund_flow 表. 实现在 fetch_fund_flow_sector.save_rows ——
+    agent 进程那边也调同一个实现, 别在这里再抄一份字段映射."""
+    from fetch_fund_flow_sector import save_rows
+    return save_rows(rows, trade_date, sector_type)
 
 
 def _bk_sync_market_bg(sector_type='industry', force=False, wait_for_user=False):
     """后台线程: 抓取今日板块资金流 (行业/概念) → sector_fund_flow 表.
-    仿 _em_sync_market_bg, 但走 fetch_fund_flow_sector.run, 写 sector_fund_flow 表.
-    跟个股版不同: trade_date 用 last_trading_date (跟个股同步, 节日归上一交易日).
+
+    浏览器必须在 GUI session 里起: Flask 进程内 launch Chrome 会被 macOS 直接拒掉
+    (TargetClosedError: Target page, context or browser has been closed),
+    所以这块走独立 launchd agent (sync_agent.py, 5556 端口) 跑, Flask 只负责
+    trigger + 轮询 state file —— 跟个股主力净流入 (_em_sync_market_bg) 同一套架构.
     """
     import time as _t
-    import sys as _sys
-    _sys.path.insert(0, os.path.dirname(__file__))
-    from fetch_fund_flow_sector import run as fetch_bk
+    import threading as _th
+    import urllib.request as _ur
 
     t0 = _t.time()
     today = datetime.now().strftime('%Y%m%d')
+    state_file = f'/tmp/tradeiq-sector-sync-{sector_type}.json'
 
     _BKSYNC_STATE.update({
         'running': True, 'started_at': datetime.now().isoformat(),
@@ -8581,110 +8518,72 @@ def _bk_sync_market_bg(sector_type='industry', force=False, wait_for_user=False)
         'current_code': f'准备同步 {sector_type}/{today}...',
         'elapsed_sec': 0, 'source': 'eastmoney-push2',
         'target_date': today,
+        'is_already_synced': False, 'is_holiday': False, 'actual_date': '',
+        'waiting_for_user': False, 'wait_elapsed_sec': 0, 'wait_remaining_sec': 0,
     })
+    # 清掉旧 state file, 让前端从「已启动」开始看
+    try:
+        if os.path.exists(state_file):
+            os.remove(state_file)
+    except Exception:
+        pass
     print(f'[bk-sync] 开始: {sector_type}/{today}' + (' (强制刷新)' if force else ''), flush=True)
 
-    def _cb(stage, sector_type=sector_type, **kw):
-        if stage == 'start':
-            ad = kw.get('actual_date', today)
-            if ad != today:
-                _BKSYNC_STATE['is_holiday'] = True
-                _BKSYNC_STATE['actual_date'] = ad
-                _BKSYNC_STATE['current_code'] = f'⏸ {today} 非交易日, 数据将归属到 {ad}'
-            else:
-                _BKSYNC_STATE['is_holiday'] = False
-                _BKSYNC_STATE['actual_date'] = ad
-        elif stage == 'total':
-            _BKSYNC_STATE['total'] = kw.get('total', 0)
-            _BKSYNC_STATE['current_code'] = f'总 {kw["total"]} 个, 开始翻页...'
-        elif stage == 'page':
-            pn = kw.get('pn', 0)
-            total_pages = kw.get('total_pages', 0)
-            rows_count = kw.get('rows_count', 0)
-            _BKSYNC_STATE['done'] = rows_count
-            _BKSYNC_STATE['failed'] = len(kw.get('failed', []))
-            _BKSYNC_STATE['current_code'] = f'pn={pn}/{total_pages} 累计 {rows_count} 行'
-        elif stage == 'done':
-            _BKSYNC_STATE['done'] = kw.get('rows', 0)
-            _BKSYNC_STATE['failed'] = len(kw.get('failed', []))
-            ad = kw.get('actual_date', _BKSYNC_STATE.get('actual_date', today))
-            _BKSYNC_STATE['current_code'] = (
-                f'抓取完成 {kw["rows"]}/{kw["total"]} 行 (写入 {ad})'
-                + (f' (失败 {len(kw["failed"])} 页)' if kw.get('failed') else '')
-            )
-        elif stage == 'already_synced':
-            ad = kw.get('actual_date', today)
-            cnt = kw.get('existing_count', 0)
-            _BKSYNC_STATE['is_already_synced'] = True
-            _BKSYNC_STATE['actual_date'] = ad
-            _BKSYNC_STATE['current_code'] = f'✅ {sector_type}/{ad} 已有数据 ({cnt} 行), 跳过抓取'
-        elif stage == 'waiting_for_user':
-            elapsed = kw.get('elapsed_sec', 0)
-            remaining = kw.get('remaining_sec', 0)
-            _BKSYNC_STATE['waiting_for_user'] = True
-            _BKSYNC_STATE['wait_elapsed_sec'] = elapsed
-            _BKSYNC_STATE['wait_remaining_sec'] = remaining
-            _BKSYNC_STATE['current_code'] = (
-                f'⏳ {sector_type} 浏览器已弹出, 请按 Cmd+R 刷新 (已等 {elapsed}s, 剩 {remaining}s)'
-            )
-        elif stage == 'error':
-            _BKSYNC_STATE['errors'].append((f'bk-{sector_type}', kw.get('message', '')))
-
-    _BKSYNC_STATE['is_holiday'] = False
-    _BKSYNC_STATE['is_already_synced'] = False
-    _BKSYNC_STATE['waiting_for_user'] = False
-    _BKSYNC_STATE['wait_elapsed_sec'] = 0
-    _BKSYNC_STATE['wait_remaining_sec'] = 0
-    _BKSYNC_STATE['actual_date'] = today
+    agent_url = os.environ.get('TRADEIQ_AGENT_URL', 'http://127.0.0.1:5556')
+    payload = json.dumps({'sector_type': sector_type, 'force': bool(force),
+                          'state_file': state_file,
+                          'wait_for_user': bool(wait_for_user)}).encode()
     try:
-        result = fetch_bk(
-            sector_type=sector_type, headless=False, verbose=True,
-            force=force, skip_if_exists=not force, wait_for_user=wait_for_user,
-            progress_callback=_cb,
-        )
+        req = _ur.Request(f'{agent_url}/sync/sector', data=payload,
+                          headers={'Content-Type': 'application/json'}, method='POST')
+        with _ur.urlopen(req, timeout=3) as r:
+            resp = json.loads(r.read())
+        _BKSYNC_STATE['current_code'] = f'agent 已接收 (pid={resp.get("pid")})'
+        print(f'[bk-sync] 触发 agent 成功: {resp}', flush=True)
     except Exception as e:
-        err_msg = f'{type(e).__name__}: {str(e)[:200]}'
-        _BKSYNC_STATE['errors'].append((f'bk-{sector_type}', err_msg))
+        err = f'agent 触发失败 (syncagent 没起来?): {type(e).__name__}: {str(e)[:200]}'
+        _BKSYNC_STATE['errors'].append((f'bk-{sector_type}', err))
         _BKSYNC_STATE['failed'] = 1
         _BKSYNC_STATE['running'] = False
         _BKSYNC_STATE['finished_at'] = datetime.now().isoformat()
-        _BKSYNC_STATE['elapsed_sec'] = round(_t.time() - t0, 1)
-        print(f'[bk-sync] 异常: {err_msg}', flush=True)
+        _BKSYNC_STATE['current_code'] = err
+        print(f'[bk-sync] {err}', flush=True)
         return
 
-    actual_date = result.get('actual_date', today)
-    rows = result.get('rows', [])
-
-    # 幂等守卫命中: 早退, 算成功不算错误
-    if not rows and result.get('is_already_synced'):
+    def _watcher():
+        # 最多等 2 小时: clist 拿不到时 agent 会兜底走 daykline 通道 (1000 个板块 ≈ 80 分钟)
+        for _ in range(60 * 120):
+            _t.sleep(1.0)
+            state = None
+            try:
+                if os.path.exists(state_file):
+                    with open(state_file, 'r', encoding='utf-8') as f:
+                        state = json.load(f)
+            except Exception:
+                state = None
+            if state:
+                for k in ('total', 'done', 'success', 'failed', 'current_code',
+                          'elapsed_sec', 'is_already_synced', 'is_holiday',
+                          'actual_date', 'waiting_for_user', 'wait_elapsed_sec',
+                          'wait_remaining_sec', 'source', 'target_date', 'errors'):
+                    if k in state:
+                        _BKSYNC_STATE[k] = state[k]
+            if state and not state.get('running') and state.get('finished_at'):
+                _BKSYNC_STATE['running'] = False
+                _BKSYNC_STATE['finished_at'] = state['finished_at']
+                _BKSYNC_STATE['elapsed_sec'] = state.get(
+                    'elapsed_sec', _BKSYNC_STATE.get('elapsed_sec', 0))
+                print(f'[bk-sync] 完成: {sector_type}/{state.get("actual_date", today)} '
+                      f'success={_BKSYNC_STATE["success"]} '
+                      f'elapsed={_BKSYNC_STATE["elapsed_sec"]}s', flush=True)
+                return
         _BKSYNC_STATE['running'] = False
+        _BKSYNC_STATE['failed'] = max(_BKSYNC_STATE.get('failed', 0), 1)
         _BKSYNC_STATE['finished_at'] = datetime.now().isoformat()
-        _BKSYNC_STATE['elapsed_sec'] = round(_t.time() - t0, 1)
-        print(f'[bk-sync] ⏭ {sector_type}/{actual_date} 已有数据, 跳过 ({_BKSYNC_STATE["elapsed_sec"]}s)', flush=True)
-        return
+        _BKSYNC_STATE['current_code'] = '⚠ 2 小时没结束, 判定卡住'
+        print(f'[bk-sync] {sector_type} 超时未完成', flush=True)
 
-    if not rows:
-        _BKSYNC_STATE['failed'] = 1
-        if not _BKSYNC_STATE['errors']:
-            _BKSYNC_STATE['errors'].append((f'bk-{sector_type}', '抓取结果为空'))
-    else:
-        try:
-            _BKSYNC_STATE['current_code'] = f'写入 DB {len(rows)} 行 ({actual_date})...'
-            inserted = _save_bk_fund_flow_rows(rows, actual_date, sector_type)
-            _BKSYNC_STATE['success'] = inserted
-            _BKSYNC_STATE['current_code'] = f'✅ {sector_type}/{actual_date} 已写入 {inserted} 行'
-            print(f'[bk-sync] ✅ {sector_type}/{actual_date} 写入 {inserted} 行', flush=True)
-        except Exception as e:
-            err_msg = f'写入 DB: {type(e).__name__}: {str(e)[:200]}'
-            _BKSYNC_STATE['errors'].append(('db.write', err_msg))
-            _BKSYNC_STATE['failed'] = 1
-            print(f'[bk-sync] 写 DB 失败: {err_msg}', flush=True)
-
-    _BKSYNC_STATE['elapsed_sec'] = round(_t.time() - t0, 1)
-    _BKSYNC_STATE['running'] = False
-    _BKSYNC_STATE['finished_at'] = datetime.now().isoformat()
-    print(f'[bk-sync] 完成: {sector_type}/{today} success={_BKSYNC_STATE["success"]} '
-          f'elapsed={_BKSYNC_STATE["elapsed_sec"]}s', flush=True)
+    _th.Thread(target=_watcher, daemon=True).start()
 
 
 @app.route('/api/flow/sector/dates', methods=['GET'])
@@ -8939,11 +8838,20 @@ _THSSYNC_STATE = {
 
 
 def _ths_sync_market_bg(force=False):
-    """后台线程: 抓同花顺全市场个股资金流 → fund_flow_ths 表."""
+    """后台线程: 抓同花顺全市场个股资金流 → fund_flow_ths 表.
+
+    同花顺页面必须用真 Chrome (channel='chrome') + 有界面 + 反检测标记, 没有退路;
+    而 Flask 进程内 launch Chrome 会被 macOS 拒 (TargetClosedError), 所以这块走
+    独立 launchd agent (sync_agent.py, 5556 端口) 跑, Flask 只负责 trigger +
+    轮询 state file —— 跟个股主力净流入 (_em_sync_market_bg) 同一套架构.
+    """
     import time as _t
-    from fetch_fund_flow_ths import fetch_ths_market, write_rows_to_db
+    import threading as _th
+    import urllib.request as _ur
+
     t0 = _t.time()
     today = datetime.now().strftime('%Y%m%d')
+    state_file = '/tmp/tradeiq-ths-sync-state.json'
 
     _THSSYNC_STATE.update({
         'running': True, 'started_at': datetime.now().isoformat(),
@@ -8953,73 +8861,65 @@ def _ths_sync_market_bg(force=False):
         'elapsed_sec': 0, 'target_date': today,
         'is_already_synced': False, 'actual_date': today,
     })
+    # 清掉旧 state file, 让前端从「已启动」开始看
+    try:
+        if os.path.exists(state_file):
+            os.remove(state_file)
+    except Exception:
+        pass
     print(f'[ths-sync] 开始: 同步 {today}' + (' (强制刷新)' if force else ''), flush=True)
 
-    def _cb(stage, **kw):
-        if stage == 'start':
-            ad = kw.get('actual_date', today)
-            _THSSYNC_STATE['actual_date'] = ad
-            if ad != today:
-                _THSSYNC_STATE['current_code'] = f'⏸ {today} 非交易日, 数据将归属到 {ad}'
-        elif stage == 'total':
-            _THSSYNC_STATE['total'] = kw.get('total', 0)
-            _THSSYNC_STATE['current_code'] = f"总 {kw.get('total_pages', 0)} 页, 开始翻页..."
-        elif stage == 'page':
-            _THSSYNC_STATE['done'] = kw.get('rows_count', 0)
-            _THSSYNC_STATE['failed'] = len(kw.get('failed', []))
-            _THSSYNC_STATE['current_code'] = f"pn={kw.get('pn')}/{kw.get('total_pages')} 累计 {kw.get('rows_count')} 行"
-        elif stage == 'done':
-            _THSSYNC_STATE['done'] = kw.get('rows', 0)
-            _THSSYNC_STATE['failed'] = len(kw.get('failed', []))
-            _THSSYNC_STATE['current_code'] = f"抓取完成 {kw.get('rows')} 行"
-        elif stage == 'already_synced':
-            _THSSYNC_STATE['is_already_synced'] = True
-            _THSSYNC_STATE['actual_date'] = kw.get('actual_date', today)
-            _THSSYNC_STATE['current_code'] = f"✅ {_THSSYNC_STATE['actual_date']} 已有数据 ({kw.get('existing_count')} 行), 跳过抓取"
-        elif stage == 'error':
-            _THSSYNC_STATE['errors'].append(('10jqka', kw.get('message', '')))
-
+    agent_url = os.environ.get('TRADEIQ_AGENT_URL', 'http://127.0.0.1:5556')
+    payload = json.dumps({'force': bool(force), 'state_file': state_file}).encode()
     try:
-        rows, total, failed, actual_date = fetch_ths_market(
-            progress_callback=_cb, verbose=True, force=force, skip_if_exists=not force)
+        req = _ur.Request(f'{agent_url}/sync/ths', data=payload,
+                          headers={'Content-Type': 'application/json'}, method='POST')
+        with _ur.urlopen(req, timeout=3) as r:
+            resp = json.loads(r.read())
+        _THSSYNC_STATE['current_code'] = f'agent 已接收 (pid={resp.get("pid")})'
+        print(f'[ths-sync] 触发 agent 成功: {resp}', flush=True)
     except Exception as e:
-        err_msg = f'{type(e).__name__}: {str(e)[:200]}'
-        _THSSYNC_STATE['errors'].append(('10jqka', err_msg))
+        err = f'agent 触发失败 (syncagent 没起来?): {type(e).__name__}: {str(e)[:200]}'
+        _THSSYNC_STATE['errors'].append(('agent', err))
         _THSSYNC_STATE['failed'] = 1
         _THSSYNC_STATE['running'] = False
         _THSSYNC_STATE['finished_at'] = datetime.now().isoformat()
-        _THSSYNC_STATE['elapsed_sec'] = round(_t.time() - t0, 1)
-        print(f'[ths-sync] 异常: {err_msg}', flush=True)
+        _THSSYNC_STATE['current_code'] = err
+        print(f'[ths-sync] {err}', flush=True)
         return
 
-    if not rows and _THSSYNC_STATE.get('is_already_synced'):
+    def _watcher():
+        # 同花顺全市场翻页要 5-8 分钟, 给 30 分钟
+        for _ in range(60 * 30):
+            _t.sleep(1.0)
+            state = None
+            try:
+                if os.path.exists(state_file):
+                    with open(state_file, 'r', encoding='utf-8') as f:
+                        state = json.load(f)
+            except Exception:
+                state = None
+            if state:
+                for k in ('total', 'done', 'success', 'failed', 'current_code',
+                          'elapsed_sec', 'is_already_synced', 'actual_date',
+                          'target_date', 'source', 'errors'):
+                    if k in state:
+                        _THSSYNC_STATE[k] = state[k]
+            if state and not state.get('running') and state.get('finished_at'):
+                _THSSYNC_STATE['running'] = False
+                _THSSYNC_STATE['finished_at'] = state['finished_at']
+                _THSSYNC_STATE['elapsed_sec'] = state.get(
+                    'elapsed_sec', _THSSYNC_STATE.get('elapsed_sec', 0))
+                print(f'[ths-sync] 完成: success={_THSSYNC_STATE["success"]} '
+                      f'elapsed={_THSSYNC_STATE["elapsed_sec"]}s', flush=True)
+                return
         _THSSYNC_STATE['running'] = False
+        _THSSYNC_STATE['failed'] = max(_THSSYNC_STATE.get('failed', 0), 1)
         _THSSYNC_STATE['finished_at'] = datetime.now().isoformat()
-        _THSSYNC_STATE['elapsed_sec'] = round(_t.time() - t0, 1)
-        print(f'[ths-sync] ⏭ {actual_date} 已有数据, 跳过', flush=True)
-        return
+        _THSSYNC_STATE['current_code'] = '⚠ 30 分钟没结束, 判定卡住'
+        print('[ths-sync] 超时未完成', flush=True)
 
-    if not rows:
-        _THSSYNC_STATE['failed'] = 1
-        if not _THSSYNC_STATE['errors']:
-            _THSSYNC_STATE['errors'].append(('10jqka', '抓取结果为空'))
-    else:
-        try:
-            _THSSYNC_STATE['current_code'] = f'写入 DB {len(rows)} 行 ({actual_date})...'
-            inserted = write_rows_to_db(rows, actual_date)
-            _THSSYNC_STATE['success'] = inserted
-            _THSSYNC_STATE['current_code'] = f'✅ {actual_date} 已写入 {inserted} 行'
-            print(f'[ths-sync] ✅ {actual_date} 写入 {inserted} 行', flush=True)
-        except Exception as e:
-            err_msg = f'写入 DB: {type(e).__name__}: {str(e)[:200]}'
-            _THSSYNC_STATE['errors'].append(('db.write', err_msg))
-            _THSSYNC_STATE['failed'] = 1
-            print(f'[ths-sync] 写 DB 失败: {err_msg}', flush=True)
-
-    _THSSYNC_STATE['elapsed_sec'] = round(_t.time() - t0, 1)
-    _THSSYNC_STATE['running'] = False
-    _THSSYNC_STATE['finished_at'] = datetime.now().isoformat()
-    print(f'[ths-sync] 完成: success={_THSSYNC_STATE["success"]} elapsed={_THSSYNC_STATE["elapsed_sec"]}s', flush=True)
+    _th.Thread(target=_watcher, daemon=True).start()
 
 
 @app.route('/api/flow/ths/sync', methods=['POST'])

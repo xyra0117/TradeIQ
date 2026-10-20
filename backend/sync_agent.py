@@ -33,8 +33,8 @@ os.chdir(BACKEND_DIR)
 try:
     import sync_jobs  # noqa: E402
     # 关键函数 assert
-    for _fn in ('run_em_sync', 'run_fetch_and_ocr', 'fetch_jiuye_diagram',
-                'run_ocr_job', '_save_em_fund_flow_rows', 'DB_PATH'):
+    for _fn in ('run_em_sync', 'run_sector_sync', 'run_ths_sync', 'run_fetch_and_ocr',
+                'fetch_jiuye_diagram', 'run_ocr_job', '_save_em_fund_flow_rows', 'DB_PATH'):
         if not hasattr(sync_jobs, _fn):
             raise RuntimeError(f'sync_jobs 缺关键符号: {_fn}')
 except Exception as _e:
@@ -65,6 +65,28 @@ def _run_em_sync(force, wait_for_user, state_file):
                               state_file=state_file)
     except Exception as e:
         _write_log(f'EM sync 异常: {type(e).__name__}: {e}')
+        traceback.print_exc()
+
+
+@_threaded
+def _run_sector_sync(sector_type, force, state_file, wait_for_user=False):
+    """板块资金流 (行业/概念) 同步 — 浏览器必须在 GUI session 里起, 所以跑在 agent 进程."""
+    try:
+        sync_jobs.run_sector_sync(sector_type=sector_type, force=force,
+                                  state_file=state_file,
+                                  wait_for_user=bool(wait_for_user))
+    except Exception as e:
+        _write_log(f'Sector sync 异常: {type(e).__name__}: {e}')
+        traceback.print_exc()
+
+
+@_threaded
+def _run_ths_sync(force, state_file):
+    """同花顺个股资金流同步 — 同理, 真 Chrome 必须在 GUI session 里起."""
+    try:
+        sync_jobs.run_ths_sync(force=force, state_file=state_file)
+    except Exception as e:
+        _write_log(f'THS sync 异常: {type(e).__name__}: {e}')
         traceback.print_exc()
 
 
@@ -168,6 +190,22 @@ class Handler(BaseHTTPRequestHandler):
                          sf)
             return self._json(202, {'job': 'em', 'state_file': sf,
                                      'pid': AGENT_PID})
+
+        if self.path == '/sync/ths':
+            sf = data.get('state_file') or '/tmp/tradeiq-ths-sync-state.json'
+            _run_ths_sync(bool(data.get('force')), sf)
+            return self._json(202, {'job': 'ths', 'state_file': sf,
+                                     'pid': AGENT_PID})
+
+        if self.path == '/sync/sector':
+            st = (data.get('sector_type') or 'industry').strip()
+            if st not in ('industry', 'concept'):
+                return self._json(400, {'error': f'invalid sector_type: {st}'})
+            sf = data.get('state_file') or f'/tmp/tradeiq-sector-sync-{st}.json'
+            _run_sector_sync(st, bool(data.get('force')), sf,
+                             bool(data.get('wait_for_user')))
+            return self._json(202, {'job': 'sector', 'sector_type': st,
+                                     'state_file': sf, 'pid': AGENT_PID})
 
         if self.path == '/sync/ocr':
             for k in ('date', 'job_id', 'trade_date'):

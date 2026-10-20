@@ -623,10 +623,281 @@ def run_em_sync(force: bool = False, wait_for_user: bool = False,
     print(f'[run_em_sync] 完成 success={state["success"]} elapsed={state["elapsed_sec"]}s', flush=True)
 
 
+def run_ths_sync(force: bool = False, state_file: str = '/tmp/tradeiq-ths-sync-state.json'):
+    """同花顺个股资金流同步 — 在独立 agent 进程里跑 (Chrome 需要 GUI session).
+
+    为什么必须在 agent 里跑: Flask 进程内直接 launch Chrome 会被 macOS 拒
+    (TargetClosedError: Target page, context or browser has been closed),
+    同花顺页面又必须用真 Chrome + 有界面 + 反检测标记, 没有退路.
+    个股主力净流入已经是这个架构, 同花顺照抄一份.
+
+    流程: fetch_ths_market.fetch_ths_market (真 Chrome 翻页) → 写 fund_flow_ths 表
+         → 进度写 state_file, Flask 侧轮询这个文件显示进度.
+    """
+    state = {
+        'running': True,
+        'started_at': datetime.now().isoformat(),
+        'finished_at': None,
+        'total': 0, 'done': 0, 'success': 0, 'failed': 0,
+        'errors': [],
+        'current_code': '准备启动 Chrome (同花顺)...',
+        'elapsed_sec': 0,
+        'source': '10jqka',
+        'target_date': '',
+        'is_already_synced': False,
+        'actual_date': '',
+    }
+    _write_em_state(state_file, state)
+
+    t0 = time.time()
+    today = datetime.now().strftime('%Y%m%d')
+    state['target_date'] = today
+
+    def _cb(stage, **kw):
+        if stage == 'start':
+            ad = kw.get('actual_date', today)
+            state['actual_date'] = ad
+            if ad != today:
+                state['current_code'] = f'⏸ {today} 非交易日, 数据将归属到 {ad}'
+        elif stage == 'total':
+            state['total'] = kw.get('total', 0)
+            state['current_code'] = f"总 {kw.get('total_pages', 0)} 页, 开始翻页..."
+        elif stage == 'page':
+            state['done'] = kw.get('rows_count', 0)
+            state['failed'] = len(kw.get('failed', []))
+            state['current_code'] = (f"pn={kw.get('pn')}/{kw.get('total_pages')} "
+                                     f"累计 {kw.get('rows_count', 0)} 行")
+        elif stage == 'done':
+            state['done'] = kw.get('rows', 0)
+            state['failed'] = len(kw.get('failed', []))
+            state['current_code'] = f"抓取完成 {kw.get('rows', 0)} 行"
+        elif stage == 'already_synced':
+            state['is_already_synced'] = True
+            state['actual_date'] = kw.get('actual_date', today)
+            state['current_code'] = f"✅ {state['actual_date']} 已有数据 ({kw.get('existing_count', 0)} 行), 跳过抓取"
+        elif stage == 'error':
+            state['errors'].append(('10jqka', kw.get('message', '')))
+        state['elapsed_sec'] = round(time.time() - t0, 1)
+        _write_em_state(state_file, state)
+
+    try:
+        from fetch_fund_flow_ths import fetch_ths_market, write_rows_to_db
+        rows, total, failed, actual_date = fetch_ths_market(
+            progress_callback=_cb, verbose=True, force=force, skip_if_exists=not force)
+    except Exception as e:
+        err_msg = f'{type(e).__name__}: {str(e)[:200]}'
+        state['errors'].append(('10jqka', err_msg))
+        state['failed'] = max(state['failed'], 1)
+        state['running'] = False
+        state['finished_at'] = datetime.now().isoformat()
+        state['elapsed_sec'] = round(time.time() - t0, 1)
+        state['current_code'] = f'❌ {err_msg}'
+        _write_em_state(state_file, state)
+        print(f'[run_ths_sync] 异常退出: {err_msg}', flush=True)
+        traceback.print_exc()
+        return
+
+    if not rows and state.get('is_already_synced'):
+        state['running'] = False
+        state['finished_at'] = datetime.now().isoformat()
+        state['elapsed_sec'] = round(time.time() - t0, 1)
+        _write_em_state(state_file, state)
+        print(f'[run_ths_sync] ⏭ {actual_date} 已有数据, 跳过', flush=True)
+        return
+
+    if not rows:
+        state['failed'] = 1
+        if not state['errors']:
+            state['errors'].append(('10jqka', '抓取结果为空'))
+    else:
+        try:
+            state['current_code'] = f'写入 DB {len(rows)} 行 ({actual_date})...'
+            inserted = write_rows_to_db(rows, actual_date)
+            state['success'] = inserted
+            state['current_code'] = f'✅ {actual_date} 已写入 {inserted} 行'
+            print(f'[run_ths_sync] ✅ {actual_date} 写入 {inserted} 行', flush=True)
+        except Exception as e:
+            err_msg = f'写入 DB: {type(e).__name__}: {str(e)[:200]}'
+            state['errors'].append(('db.write', err_msg))
+            state['failed'] = 1
+            state['current_code'] = err_msg
+            print(f'[run_ths_sync] 写 DB 失败: {err_msg}', flush=True)
+
+    state['elapsed_sec'] = round(time.time() - t0, 1)
+    state['running'] = False
+    state['finished_at'] = datetime.now().isoformat()
+    _write_em_state(state_file, state)
+    print(f'[run_ths_sync] 完成 success={state["success"]} elapsed={state["elapsed_sec"]}s', flush=True)
+
+
+def _run_sector_daykline_fallback(trade_date: str, state: dict, state_file: str, t0: float) -> bool:
+    """clist 通道被盯防时的兜底: 跑 backfill_sector_flow_daykline.py 补当天缺的板块.
+
+    该脚本自己起浏览器 (要 GUI session, 所以只能在 agent 进程里跑) 并写 sector_fund_flow.
+    --skip-existing: 只补当天还缺的板块, 已有数据不重拉.
+    """
+    import subprocess as _sp
+    import os as _os
+    import sys as _sys
+    script = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)),
+                           'backfill_sector_flow_daykline.py')
+    cmd = [_sys.executable, script, '--date', trade_date, '--skip-existing']
+    try:
+        proc = _sp.Popen(cmd, cwd=_os.path.dirname(script))
+        # 最多等 2 小时 (1000 个板块 × ~3s)
+        proc.wait(timeout=7200)
+        return proc.returncode == 0
+    except Exception as e:
+        state['errors'].append(('daykline-fallback', f'{type(e).__name__}: {str(e)[:200]}'))
+        print(f'[run_sector_sync] daykline 兜底失败: {e}', flush=True)
+        return False
+
+
+def run_sector_sync(sector_type: str = 'industry', force: bool = False,
+                    state_file: str = '/tmp/tradeiq-sector-sync-industry.json',
+                    wait_for_user: bool = False):
+    """板块资金流 (行业/概念) 同步 — 在独立 agent 进程里跑 (Playwright 需要 GUI session).
+
+    为什么必须在 agent 里跑: Flask 进程内直接 launch Chrome 会被 macOS 拒
+    (TargetClosedError: Target page, context or browser has been closed),
+    个股主力净流入已经是这个架构 (Flask → HTTP → agent → 这里), 板块照抄一份.
+
+    流程: fetch_fund_flow_sector.run (真浏览器 + JSONP) → 写 sector_fund_flow 表
+         → 进度写 state_file, Flask 侧轮询这个文件显示进度.
+    """
+    state = {
+        'running': True,
+        'started_at': datetime.now().isoformat(),
+        'finished_at': None,
+        'total': 0, 'done': 0, 'success': 0, 'failed': 0,
+        'errors': [],
+        'current_code': f'准备启动 Playwright ({sector_type})...',
+        'elapsed_sec': 0,
+        'source': 'eastmoney-push2',
+        'target_date': '',
+        'is_already_synced': False,
+        'is_holiday': False,
+        'actual_date': '',
+        'sector_type': sector_type,
+        'waiting_for_user': False,
+        'wait_elapsed_sec': 0,
+        'wait_remaining_sec': 0,
+    }
+    _write_em_state(state_file, state)
+
+    t0 = time.time()
+    today = datetime.now().strftime('%Y%m%d')
+    state['target_date'] = today
+
+    def _cb(stage, **kw):
+        if stage == 'start':
+            ad = kw.get('actual_date', today)
+            state['is_holiday'] = ad != today
+            state['actual_date'] = ad
+        elif stage == 'total':
+            state['total'] = kw.get('total', 0)
+            state['current_code'] = f"总 {kw['total']} 个板块, 开始翻页..."
+        elif stage == 'page':
+            state['done'] = kw.get('rows_count', 0)
+            state['failed'] = len(kw.get('failed', []))
+            state['current_code'] = (f"pn={kw.get('pn', 0)}/{kw.get('total_pages', 0)} "
+                                     f"累计 {state['done']} 行")
+        elif stage == 'done':
+            state['done'] = kw.get('rows', 0)
+            state['failed'] = len(kw.get('failed', []))
+            ad = kw.get('actual_date', state.get('actual_date', today))
+            state['actual_date'] = ad
+            state['current_code'] = (f"抓取完成 {kw.get('rows', 0)}/{kw.get('total', 0)} 行 (写入 {ad})"
+                                     + (f" (失败 {len(kw.get('failed', []))} 页)" if kw.get('failed') else ''))
+        elif stage == 'already_synced':
+            state['is_already_synced'] = True
+            state['actual_date'] = kw.get('actual_date', today)
+            state['current_code'] = f"✅ {state['actual_date']} 已有数据 ({kw.get('existing_count', 0)} 行), 跳过抓取"
+        elif stage == 'waiting_for_user':
+            state['waiting_for_user'] = True
+            state['wait_elapsed_sec'] = kw.get('elapsed_sec', 0)
+            state['wait_remaining_sec'] = kw.get('remaining_sec', 0)
+            state['current_code'] = (f"⏳ 浏览器已弹出, 请按 Cmd+R 刷新 (已等 {state['wait_elapsed_sec']}s, "
+                                     f"剩 {state['wait_remaining_sec']}s)")
+        elif stage == 'error':
+            state['errors'].append((f'bk-{sector_type}', kw.get('message', '')))
+        state['elapsed_sec'] = round(time.time() - t0, 1)
+        _write_em_state(state_file, state)
+
+    try:
+        from fetch_fund_flow_sector import run as fetch_bk, save_rows
+        result = fetch_bk(
+            sector_type=sector_type, headless=False, verbose=True,
+            force=force, skip_if_exists=not force, wait_for_user=bool(wait_for_user),
+            progress_callback=_cb,
+        )
+    except Exception as e:
+        err_msg = f'{type(e).__name__}: {str(e)[:200]}'
+        state['errors'].append((f'bk-{sector_type}', err_msg))
+        state['failed'] = max(state['failed'], 1)
+        state['running'] = False
+        state['finished_at'] = datetime.now().isoformat()
+        state['elapsed_sec'] = round(time.time() - t0, 1)
+        state['current_code'] = f'❌ {err_msg}'
+        _write_em_state(state_file, state)
+        print(f'[run_sector_sync] 异常退出: {err_msg}', flush=True)
+        traceback.print_exc()
+        return
+
+    actual_date = result.get('actual_date', today)
+    rows = result.get('rows', [])
+
+    if not rows and result.get('is_already_synced'):
+        state['running'] = False
+        state['finished_at'] = datetime.now().isoformat()
+        state['elapsed_sec'] = round(time.time() - t0, 1)
+        _write_em_state(state_file, state)
+        print(f'[run_sector_sync] ⏭ {sector_type}/{actual_date} 已有数据, 跳过', flush=True)
+        return
+
+    if not rows:
+        # 兜底: push2 盯防 (IP 级冷却) 时 clist 整个拿不到 → 换 daykline 通道逐板块补.
+        # daykline 一个板块一次请求, 慢 (1000 个 ≈ 80 分钟) 但抗盯防, 脚本自己写库.
+        state['current_code'] = f'⚠ clist 通道没拿到, 兜底走 daykline 通道补 {actual_date}...'
+        _write_em_state(state_file, state)
+        print(f'[run_sector_sync] clist 通道 0 行, 兜底走 daykline 通道 ({actual_date})', flush=True)
+        ok = _run_sector_daykline_fallback(actual_date, state, state_file, t0)
+        state['running'] = False
+        state['finished_at'] = datetime.now().isoformat()
+        state['elapsed_sec'] = round(time.time() - t0, 1)
+        _write_em_state(state_file, state)
+        print(f'[run_sector_sync] daykline 兜底结束 ok={ok} '
+              f'elapsed={state["elapsed_sec"]}s', flush=True)
+        return
+
+    if not rows:
+        state['failed'] = 1
+        if not state['errors']:
+            state['errors'].append((f'bk-{sector_type}', '抓取结果为空'))
+    else:
+        try:
+            state['current_code'] = f'写入 DB {len(rows)} 行 ({actual_date})...'
+            inserted = save_rows(rows, actual_date, sector_type)
+            state['success'] = inserted
+            state['current_code'] = f'✅ {sector_type}/{actual_date} 已写入 {inserted} 行'
+            print(f'[run_sector_sync] ✅ {sector_type}/{actual_date} 写入 {inserted} 行', flush=True)
+        except Exception as e:
+            err_msg = f'写入 DB: {type(e).__name__}: {str(e)[:200]}'
+            state['errors'].append(('db.write', err_msg))
+            state['failed'] = 1
+            state['current_code'] = err_msg
+            print(f'[run_sector_sync] 写 DB 失败: {err_msg}', flush=True)
+
+    state['elapsed_sec'] = round(time.time() - t0, 1)
+    state['running'] = False
+    state['finished_at'] = datetime.now().isoformat()
+    _write_em_state(state_file, state)
+    print(f'[run_sector_sync] 完成 success={state["success"]} elapsed={state["elapsed_sec"]}s', flush=True)
+
+
 # ============================================================
 # OCR + 韭研拉图 wrapper (供 agent 直接调)
 # ============================================================
-
 def run_fetch_and_ocr(date_str, job_id, trade_date):
     """拉韭研图 + 调 run_ocr_job。任何阶段失败都写到 _ocr_<job_id>.json 让前端轮询能拿到."""
     import json as _json2

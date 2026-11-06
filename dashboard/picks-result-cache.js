@@ -40,6 +40,7 @@
     return {ok,status,json:async()=>copy(data)};
   }
   function cacheable(data, req) {
+    if (data.intraday_estimate || data.readiness_reason === 'intraday_live') return false;
     const date = data.date || data.trade_date;
     if (!/^\d{8}$/.test(date || '') || (req.date && date !== req.date) || (data.requested_date && req.date && data.requested_date !== req.date)) return false;
     if (['error','fail'].includes(data.status) || data.daily_ready === false || data.available === false) return false;

@@ -1014,7 +1014,8 @@ def push_barometer_to_feishu(date: str) -> dict:
     # 数值列做 None→"" 的兼容; 整型列 (L/M) 也用 None→""
     cells = []
     for i, v in enumerate(raw):
-        style = {'font_size': 13, 'vertical_alignment': 'middle'}
+        # 字号 10 = 跟飞书表存量行一致 (表里所有行都是默认 10, 写 13 会让新行跟老行一眼看出不一样)
+        style = {'font_size': 10, 'vertical_alignment': 'middle'}
         if i in pct_indices:
             style['number_format'] = '0.00"%"'
         cells.append({'value': (v if v is not None else ''), 'cell_styles': style})
@@ -1150,7 +1151,7 @@ def sync_user_picks_to_feishu(date: str) -> dict:
         }
 
     rng = f'{BAROMETER_USER_PICKS_COL}{row}'
-    payload = [{'value': text, 'cell_styles': {'font_size': 13, 'vertical_alignment': 'middle'}}]
+    payload = [{'value': text, 'cell_styles': {'font_size': 10, 'vertical_alignment': 'middle'}}]
     # 写前复核: 单格读 A{row}, 日期必须仍是 iso_date.
     # row_indices 语义万一跟预期不符, 这一步会挡住, 不会把名单写到别的日期那一行.
     ok_v, parsed_v, _, _ = _lark_sheets_call(
@@ -6777,7 +6778,7 @@ def fetch_sina_quotes(ts_codes, cache_ttl=None):
                 vol_shares = _f(8)  # sina 单位: 股
                 amount_yuan = _f(9)  # sina 单位: 元
                 # 时间: index 30 起始 HHMMSS (不同市场略有差异)
-                quote_time = fields[30] if len(fields) > 30 else ''
+                quote_time = (fields[30] + ' ' + fields[31]) if len(fields) > 31 else (fields[30] if len(fields) > 30 else '')
                 ts_code = _ts_code_for_sina(sina_code)
                 if ts_code:
                     entry = {
@@ -11230,6 +11231,7 @@ def _filter_conditional_new_intraday(rows, trade_date, volume_ratio_pct=80):
         'below_ma10': 0,
         'volume_not_shrunk': 0,
         'matched': 0,
+        'volume_filter_on': float(volume_ratio_pct or 0) > 0,
     }
     if not rows:
         return [], stats, {}
@@ -11278,7 +11280,8 @@ def _filter_conditional_new_intraday(rows, trade_date, volume_ratio_pct=80):
         if price < ma10:
             stats['below_ma10'] += 1
             continue
-        if current_volume > previous_volume * ratio_limit:
+        # volume_ratio_pct == 0 = 关闭缩量过滤 (前端开关), 只跳过这一项, 收盘 ≥ MA10 照旧
+        if stats['volume_filter_on'] and current_volume > previous_volume * ratio_limit:
             stats['volume_not_shrunk'] += 1
             continue
         item = dict(source_row)
@@ -15357,14 +15360,17 @@ from surge_picks import register_surge_picks
 register_surge_picks(app, lambda: DB_PATH)
 
 from dip_picks import register_dip_picks
-register_dip_picks(app, lambda: DB_PATH, outcome_loader=_attach_preferred_outcomes)
+from intraday_picks import IntradayPicks, fetch_eastmoney_intraday
+_intraday_picks = IntradayPicks(fetch_sina_quotes, fund_loader=fetch_eastmoney_intraday)
+register_dip_picks(app, lambda: DB_PATH, outcome_loader=_attach_preferred_outcomes,
+                   intraday_provider=_intraday_picks)
 
 from custom_picks import register_custom_picks
 register_custom_picks(app, lambda: DB_PATH, outcome_loader=_attach_preferred_outcomes,
                        preview_dir=PREVIEW_DIR,
                        preview_builder=_build_conditional_preview_html,
                        preview_renderer=_render_html_to_png,
-                       config_path=CUSTOM_PICKS_CONFIG_PATH)
+                       config_path=CUSTOM_PICKS_CONFIG_PATH, intraday_provider=_intraday_picks)
 
 from hot_sectors import register_hot_sectors
 register_hot_sectors(app, lambda: DB_PATH)

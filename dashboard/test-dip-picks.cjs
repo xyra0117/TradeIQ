@@ -594,5 +594,22 @@ assert.equal(vm.runInContext('PICKS_SUB_TABS.em.find(t=>t.key==="dip2").label',c
   assert.equal(calls.length,rangeCalls);
   assert.equal(vm.runInContext('_dipParametersSignature()',ctx),rangeSignature);
   assert.match(element('dipParameterMessage').textContent,/下限必须小于上限/);
+  // Live counts wait for the selected batch, and all follow-up requests pin it.
+  let liveEpoch=0,liveBatch='';
+  ctx.PicksIntraday={query(date,force){if(force){liveEpoch++;liveBatch='';}return 'intraday=1'+(liveBatch?'&snapshot_id='+liveBatch:'');},token(){return 'live'+liveEpoch;},capture(data,basis){if(basis!==this.token())return false;liveBatch=data.snapshot_id;return true;}};
+  const countBefore=dipCountCalls.length;
+  const liveLoad=vm.runInContext('loadDipPicks(true)',ctx);
+  assert.equal(dipCountCalls.length,countBefore,'数量标签必须等待名单批次');
+  assert.match(calls.at(-1).url,/intraday=1/);
+  calls.at(-1).resolve({ok:true,json:async()=>({...payload('20260928',[row]),daily_ready:false,selection_ready:true,snapshot_id:'pin1',intraday_estimate:true})});
+  await liveLoad;
+  assert.match(dipCountCalls.at(-1).url,/intraday=1&snapshot_id=pin1/);
+  assert.equal(element('dipPriceHead').textContent,'最新价');
+  assert.doesNotMatch(element('dipSummary').textContent,/等待数据/);
+  assert.match(vm.runInContext('_diagnosticUrl(_pickDiagnosticBasis)',ctx),/snapshot_id=pin1/);
+  const liveCountsPromise=vm.runInContext('_dipConditionCountsPromise',ctx);
+  dipCountCalls.at(-1).resolve({ok:true,json:async()=>({...dipCountPayload('20260928'),daily_ready:false,selection_ready:true,snapshot_id:'pin1'})});
+  await liveCountsPromise;
+  assert.notEqual(element('dipCount_volume').textContent,'数据不足');
   console.log('PASS: isolated persisted dip/chase preferences, 10/11 whole-market badges, zero vs missing data, independent counts/config/date races and refresh, original selector, T+1..T+5, independent diagnostics/preview/pagination/Apply and stale-response guards, collapsible condition panel shared by dip/chase, compact hot-sector board under market temperature');
 })().catch(error=>{console.error(error);process.exitCode=1;});

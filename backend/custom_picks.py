@@ -14,6 +14,7 @@ from pathlib import Path
 from threading import Lock
 
 from dip_picks import _daily_context, _limit_up_price_for
+from intraday_picks import picks_connection
 from surge_picks import (_bar_valid, _reference_valid, _number, _flow_where,
                          flow_source_for_range, attach_sector_history)
 
@@ -389,7 +390,7 @@ def screen_custom(conn, date, config, now=None, offset=0, limit=50, query='', in
                    results=[], counts={}, diagnostics=[], inspected=None,
                    stats={'total': context['total'], 'evaluated': 0, 'missing': 0},
                    offset=offset, limit=limit, filtered_count=0)
-    if not context['daily_ready']:
+    if not context.get('selection_ready', context['daily_ready']):
         payload['note'] = context['note'].replace('低吸名单', '自定义名单')
         return payload
     if not compiled:
@@ -592,7 +593,7 @@ def _preview_summary(config, total, shown):
 
 
 def register_custom_picks(app, db_path, outcome_loader=None, preview_dir=None, preview_builder=None, preview_renderer=None,
-                          config_path=None):
+                          config_path=None, intraday_provider=None):
     """outcome_loader: 名单确定后再补 T+1~T+5 回看结果.
     preview_dir / preview_builder / preview_renderer: 预览图能力, 由 app 注入
     (HTML 模板和 playwright 截图都住在 app.py, 避免这里反向 import app).
@@ -641,14 +642,14 @@ def register_custom_picks(app, db_path, outcome_loader=None, preview_dir=None, p
             if not isinstance(data.get('date', ''), str):
                 raise ValueError('日期应为YYYYMMDD')
             validate_config(data.get('config'))
-            with _scan_lock, closing(sqlite3.connect(Path(db_path()).resolve().as_uri() + '?mode=ro', uri=True, timeout=10)) as conn:
-                conn.execute('PRAGMA query_only=ON')
-                conn.execute('BEGIN')
+            with _scan_lock, picks_connection(db_path(), intraday_provider, data.get('date', ''),
+                    data.get('intraday') in (True, 1, '1', 'true', 'True'),
+                    data.get('snapshot_id', ''), data.get('refresh') in (True, 1, '1')) as conn:
                 payload = screen_custom(conn, data.get('date', ''), data.get('config'),
                                         offset=data.get('offset', 0), limit=data.get('limit', 50),
                                         query=data.get('query', ''), inspect=data.get('inspect', ''))
                 attach_sector_history(conn, payload['results'])
-                if outcome_loader and payload['results']:
+                if outcome_loader and payload['results'] and payload['daily_ready']:
                     days, live = outcome_loader(payload['results'], payload['date'], conn, key='custom_outcomes')
                     payload.update(next_dates=days, live_next_index=live)
                 return payload
@@ -693,11 +694,10 @@ def register_custom_picks(app, db_path, outcome_loader=None, preview_dir=None, p
             if not isinstance(data.get('date', ''), str):
                 raise ValueError('日期应为YYYYMMDD')
             clean, _ = validate_config(data.get('config'))
-            with _scan_lock, closing(sqlite3.connect(Path(db_path()).resolve().as_uri() + '?mode=ro', uri=True, timeout=10)) as conn:
-                conn.execute('PRAGMA query_only=ON')
-                conn.execute('BEGIN')
+            with _scan_lock, picks_connection(db_path(), intraday_provider, data.get('date', ''),
+                    data.get('intraday') in (True, 1, '1', 'true', 'True'), data.get('snapshot_id', '')) as conn:
                 payload = screen_custom(conn, data.get('date', ''), clean, offset=0, limit=100, all_results=True)
-            if not payload.get('daily_ready'):
+            if not payload.get('selection_ready', payload.get('daily_ready')):
                 raise ValueError(payload.get('note') or '当前日期数据不足，暂时不能生成预览图')
             rows = payload.get('results') or []
             total = payload.get('count') or 0
@@ -706,7 +706,7 @@ def register_custom_picks(app, db_path, outcome_loader=None, preview_dir=None, p
             shown = rows[:CUSTOM_PREVIEW_MAX]
             html = preview_builder({
                 'date': payload['date'], 'count': total, 'results': shown,
-                'title_kind': 'custom', 'subtitle': _preview_summary(clean, total, len(shown)),
+                'title_kind': 'custom', 'subtitle': (('盘中预选 · '+payload['intraday']['captured_at']+' · ') if payload.get('intraday_estimate') else '') + _preview_summary(clean, total, len(shown)),
             })
             os.makedirs(preview_dir, exist_ok=True)
             # 文件名带条件指纹: 同一套条件重复生成覆盖同一个文件, 换条件另存一张

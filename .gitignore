@@ -59,6 +59,7 @@ env/
 backend/market_data.db
 market_data.db
 backend/visitors.db
+backend/ths_concepts.db
 backend/index_daily_backup_*.json
 
 # 工具/本地杂项

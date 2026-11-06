@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 
 from surge_picks import (attach_sector_history, flow_source_for_range, _bar_valid, _closed,
                          _flow_where, _number, _reference_valid)
+from intraday_picks import picks_connection, down_state
 
 
 # Public rule keys are stable across the UI and read-only API.
@@ -108,9 +109,14 @@ def _market_gate(conn, day, dates, disabled=()):
     market['down_count'] = overview[0] if overview else None
     market['index_change'] = index[0] if index else None
     down, change = market['down_count'], market['index_change']
+    breadth = getattr(conn, 'intraday_breadth', None)
+    down_passed = down_state(conn) if breadth is not None else (down > 2600 if _number(down) and down >= 0 else None)
+    if breadth is not None:
+        market.update(down_count=breadth['down'], down_count_max=breadth['down']+breadth['unknown'])
+        down = breadth['down']
     check_down = 'market_down' not in disabled
     check_index = 'market_index' not in disabled
-    if ((check_down and (not _number(down) or down < 0)) or (check_index and not _number(change))):
+    if ((check_down and down_passed is None) or (check_index and not _number(change))):
         market['note'] = '同日下跌家数或上证涨跌幅缺失，暂不推荐'
         return market
     if not _number(down) or down < 0:
@@ -126,7 +132,7 @@ def _market_gate(conn, day, dates, disabled=()):
     if len(previous) == 3 and all(_number(r['change_pct']) for r in market['previous_three']):
         market['previous_three_up'] = all(r['change_pct'] > 0 for r in market['previous_three'])
     market['status'] = 'unmet'
-    if check_down and down <= 2600:
+    if check_down and down_passed is False:
         market['note'] = f'下跌家数 {int(down)} 家，未超过2600家，不推荐'
     elif not check_index:
         market.update(status='matched', passed=True, note='上证走势条件已关闭，大盘已开启条件通过' if check_down else '两项大盘条件均已关闭，按已开启的个股条件筛选')
@@ -157,9 +163,14 @@ def _market_gate_v2(conn, day, dates, disabled=()):
     market['down_count'] = overview[0] if overview else None
     market['index_change'] = index[0] if index else None
     down, change = market['down_count'], market['index_change']
+    breadth = getattr(conn, 'intraday_breadth', None)
+    down_passed = down_state(conn, below=True) if breadth is not None else (down < 2600 if _number(down) and down >= 0 else None)
+    if breadth is not None:
+        market.update(down_count=breadth['down'], down_count_max=breadth['down']+breadth['unknown'])
+        down = breadth['down']
     check_down = 'market_down' not in disabled
     check_up = 'market_up' not in disabled
-    if ((check_down and (not _number(down) or down < 0))
+    if ((check_down and down_passed is None)
             or (check_up and not _number(change))):
         market['note'] = '已开启大盘条件所需的同日数据缺失，暂不推荐'
         return market
@@ -169,7 +180,7 @@ def _market_gate_v2(conn, day, dates, disabled=()):
     if not _number(change):
         market['index_change'] = None
     market['status'] = 'unmet'
-    if check_down and down >= 2600:
+    if check_down and down_passed is False:
         market['note'] = f'下跌家数 {int(down)} 家，未少于2600家，不推荐'
     elif check_up and change <= 0:
         market['note'] = '上证当日未上涨，不推荐'
@@ -218,6 +229,10 @@ def _daily_context(conn, requested_date, now=None, history_days=121):
         except ValueError:
             raise ValueError('日期格式应为 YYYYMMDD，且必须为有效日期') from None
     today = now.strftime('%Y%m%d')
+    live = getattr(conn, 'intraday_context', None)
+    if live is not None and (not requested_date or requested_date == live['date']):
+        dates = [r[0] for r in conn.execute('SELECT DISTINCT cal_date FROM trading_dates_cache WHERE cal_date<=? ORDER BY cal_date DESC LIMIT ?', (live['date'], history_days))][::-1]
+        return dict(live, requested_date=requested_date), dates
     comparison = '<=' if _closed(today, now) else '<'
     counts = dict(conn.execute('SELECT trade_date,COUNT(*) FROM stock_daily WHERE trade_date' + comparison + '? '
                               'AND close>0 GROUP BY trade_date ORDER BY trade_date DESC LIMIT 2', (today,)).fetchall())
@@ -302,7 +317,7 @@ def _screen_dip(conn, requested_date, now, market_gate, rising=False, disabled=(
         result['required_history_days'] = required_days
         stats.update(candidate_count=0, funds_display_missing=0, strong_rising=0)
         result['v2_stats'] = dict(base_count=0, missing_limit=0, limit_up=0, not_bullish=0, matched=0)
-    if not context['daily_ready']:
+    if not context.get('selection_ready', context['daily_ready']):
         return result
     market = market_gate(conn, day, dates)
     result.update(market=market, market_passed=market['passed'], note=market['note'])
@@ -462,14 +477,16 @@ def _build_condition_snapshot(conn, requested_date='', now=None, rising=True, pa
     if not rising:
         result['parameters'] = dict(parameters)
     records = []
-    if not context['daily_ready']:
+    if not context.get('selection_ready', context['daily_ready']):
         return result, records
     day = context['date']
     market = _market_gate_v2(conn, day, dates, disabled=('market_down', 'market_up'))
     result['market'] = {key: market[key] for key in ('down_count', 'index_change')}
     down = market['down_count']
-    if _number(down):
-        counts['market_down'].update(matched=total if (down < 2600 if rising else down > 2600) else 0,
+    breadth = getattr(conn, 'intraday_breadth', None)
+    down_passed = down_state(conn, below=rising) if breadth is not None else ((down < 2600 if rising else down > 2600) if _number(down) else None)
+    if down_passed is not None:
+        counts['market_down'].update(matched=total if down_passed else 0,
                                      evaluated=total, missing=0)
     if rising:
         change = market['index_change']
@@ -570,7 +587,7 @@ def _pick_diagnostics(conn, requested_date='', now=None, disabled=None, remove=N
                   singles=[], pairs=[], pairs_checked=False, pair_total=0,
                   market_blockers=[], data_summary=None, preview=None,
                   kind='waiting', message=snapshot['note'])
-    if not snapshot['daily_ready']:
+    if not snapshot.get('selection_ready', snapshot['daily_ready']):
         return result
     full = (1 << len(records)) - 1
     masks, states = {}, {}
@@ -650,14 +667,14 @@ def chase_diagnostics(conn, requested_date='', now=None, **options):
     return _pick_diagnostics(conn, requested_date, now, rising=True, **options)
 
 
-def register_dip_picks(app, db_path, outcome_loader=None):
+def register_dip_picks(app, db_path, outcome_loader=None, intraday_provider=None):
     from flask import jsonify, request
 
     def respond(screen, enrich=True):
         try:
-            with closing(sqlite3.connect(Path(db_path()).resolve().as_uri() + '?mode=ro', uri=True, timeout=10)) as conn:
-                conn.execute('PRAGMA query_only=ON')
-                conn.execute('BEGIN')
+            with picks_connection(db_path(), intraday_provider, request.args.get('date', ''),
+                                  request.args.get('intraday') in ('1','true','True'),
+                                  request.args.get('snapshot_id', ''), request.args.get('refresh') == '1') as conn:
                 options = {'disabled': request.args.get('disabled', '')} if screen in (screen_dip, screen_dip_v2) else {}
                 if screen in (dip_diagnostics, chase_diagnostics):
                     options = {key: request.args.get(key, default) for key, default in

@@ -82,8 +82,8 @@ const tick=async(n=4)=>{for(let i=0;i<n;i++)await new Promise(r=>setImmediate(r)
   assert.match(html,/key: 'dip2', label: '追高选股'\}, \{key: 'custom', label: '自定义选股'\}/);
   assert.match(html,/currentPicksGroup === 'custom'\) return CustomPicks.load\(force\)/);
   assert.match(html,/customPicksContainer.*?display:none/);
-  assert.match(html,/custom-picks.css\?v=20261019-2/);
-  assert.match(html,/custom-picks.js\?v=20261019-2/);
+  assert.match(html,/custom-picks.css\?v=20261102-4/);
+  assert.match(html,/custom-picks.js\?v=20261102-4/);
   // 预览图按钮: 带上当前日期和当前条件, 成功后提示结果, 失败提示原因
   const previewButton=get('customPreviewBtn');
   assert.equal(typeof previewButton.onclick,'function');

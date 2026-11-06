@@ -93,7 +93,8 @@ class ConditionalPicksNewTests(unittest.TestCase):
         self.assertFalse(ready)
         self.assertEqual(reason, 'market_not_closed')
 
-    def test_api_invalid_volume_ratio_falls_back_to_80(self):
+    def test_api_volume_ratio_zero_means_filter_off(self):
+        """0 = 关闭缩量过滤 (前端开关关掉时传 0), 不是非法值, 不能回退成 80."""
         base = {'status': 'success', 'date': '20260110', 'count': 1,
                 'results': [self._candidate('A.SZ')], 'filter': {}}
         filtered = ([dict(self._candidate('A.SZ'), ma10=10)], {'base_count': 1, 'matched': 1})
@@ -104,9 +105,27 @@ class ConditionalPicksNewTests(unittest.TestCase):
             data = backend.app.test_client().get(
                 '/api/conditional-picks/new?volume_ratio_pct=0&threshold_yi=3'
             ).get_json()
-        self.assertEqual(data['filter']['max_volume_ratio_pct'], 80)
+        self.assertEqual(data['filter']['max_volume_ratio_pct'], 0)
+        self.assertEqual(data['filter']['volume_rule'], '缩量过滤已关闭 (不按成交量比剔除)')
         self.assertEqual(data['count'], 1)
-        self.assertEqual(apply_new.call_args.args[2], 80)
+        self.assertEqual(apply_new.call_args.args[2], 0)
+
+    def test_api_invalid_volume_ratio_falls_back_to_80(self):
+        """越界值 (101 / 负数) 才回落到 80."""
+        base = {'status': 'success', 'date': '20260110', 'count': 1,
+                'results': [self._candidate('A.SZ')], 'filter': {}}
+        filtered = ([dict(self._candidate('A.SZ'), ma10=10)], {'base_count': 1, 'matched': 1})
+        for raw in ('101', '-1'):
+            with patch.object(backend, '_resolve_conditional_new_date', return_value='20260110'), \
+                    patch.object(backend, '_conditional_new_daily_ready', return_value=(True, 'ready')), \
+                    patch.object(backend, '_read_conditional_snapshot', return_value=base), \
+                    patch.object(backend, '_filter_conditional_new', return_value=filtered) as apply_new:
+                data = backend.app.test_client().get(
+                    f'/api/conditional-picks/new?volume_ratio_pct={raw}&threshold_yi=3'
+                ).get_json()
+            self.assertEqual(data['filter']['max_volume_ratio_pct'], 80)
+            self.assertEqual(data['count'], 1)
+            self.assertEqual(apply_new.call_args.args[2], 80)
 
     def test_api_waiting_state_skips_base_calculation(self):
         with patch.object(backend, '_resolve_conditional_new_date', return_value='20260110'), \
@@ -184,6 +203,68 @@ class ConditionalPicksNewTests(unittest.TestCase):
             backend.DB_PATH = old_path
         finally:
             os.unlink(tmp_path)
+
+
+class ConditionalPicksIntradayVolumeTests(unittest.TestCase):
+    """盘中版 MA10/缩量过滤: 缩量开关关闭时不能把候选全剔光。"""
+
+    def setUp(self):
+        self.tmp = tempfile.NamedTemporaryFile(suffix='.db', delete=False)
+        self.tmp.close()
+        self.db = sqlite3.connect(self.tmp.name)
+        self.db.execute(
+            'CREATE TABLE stock_daily '
+            '(ts_code TEXT, trade_date TEXT, close REAL, volume REAL)'
+        )
+        # 前 9 个交易日: 收盘 10、量 1000
+        for index in range(1, 10):
+            self.db.execute('INSERT INTO stock_daily VALUES (?,?,?,?)',
+                            ('A.SZ', f'202601{index:02d}', 10.0, 1000.0))
+        self.db.commit()
+        self.db.close()
+
+    def tearDown(self):
+        os.unlink(self.tmp.name)
+
+    @staticmethod
+    def _rows():
+        return [{'ts_code': 'A.SZ', 'name': 'A', 'close': 10, 'change_pct': 1,
+                 'used_bucket': 'main', 'hit_threshold': '3d',
+                 'sum_3d': 4e8, 'sum_5d': 4e8, 'sum_10d': 4e8, 'sum_20d': 4e8}]
+
+    def _run(self, volume_ratio_pct, intraday_volume):
+        quotes = {'A.SZ': {'price': 10.0, 'volume': intraday_volume}}
+        with patch.object(backend, 'DB_PATH', self.tmp.name), \
+                patch.object(backend, 'fetch_sina_quotes', return_value=quotes):
+            return backend._filter_conditional_new_intraday(
+                self._rows(), '20260110', volume_ratio_pct)
+
+    def test_volume_filter_off_keeps_candidates(self):
+        """volume_ratio_pct=0 = 关闭缩量过滤, 只跳过缩量这一项, 候选必须留下."""
+        hits, stats, _ = self._run(0, 300.0)
+        self.assertEqual(len(hits), 1)
+        self.assertEqual(stats['volume_not_shrunk'], 0)
+        self.assertEqual(stats['matched'], 1)
+
+    def test_volume_filter_off_still_enforces_ma10(self):
+        """关闭缩量不等于放水: 收盘低于 MA10 照样剔除."""
+        quotes = {'A.SZ': {'price': 9.0, 'volume': 300.0}}
+        with patch.object(backend, 'DB_PATH', self.tmp.name), \
+                patch.object(backend, 'fetch_sina_quotes', return_value=quotes):
+            hits, stats, _ = backend._filter_conditional_new_intraday(
+                self._rows(), '20260110', 0)
+        self.assertEqual(hits, [])
+        self.assertEqual(stats['below_ma10'], 1)
+
+    def test_volume_filter_on_still_rejects_loud_volume(self):
+        """开关打开时缩量规则照旧生效 (盘中量 > 昨日量 × 80% → 剔除)."""
+        hits, stats, _ = self._run(80, 900.0)
+        self.assertEqual(hits, [])
+        self.assertEqual(stats['volume_not_shrunk'], 1)
+
+        hits, stats, _ = self._run(80, 300.0)
+        self.assertEqual(len(hits), 1)
+        self.assertEqual(stats['matched'], 1)
 
 
 if __name__ == '__main__':

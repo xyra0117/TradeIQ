@@ -7,13 +7,14 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>A股行情看板</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
-<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/zh.js"></script>
+<!-- 依赖本地化: CDN(jsdelivr) 在部分代理节点下连不上, 会导致图表全空 + flatpickr 未定义 -->
+<script src="/dashboard/vendor/chart.umd.min.js"></script>
+<script src="/dashboard/vendor/chartjs-plugin-datalabels.min.js"></script>
+<script src="/dashboard/vendor/echarts.min.js"></script>
+<link rel="stylesheet" href="/dashboard/vendor/flatpickr.min.css">
+<link rel="stylesheet" href="/dashboard/vendor/flatpickr-dark.css">
+<script src="/dashboard/vendor/flatpickr.min.js"></script>
+<script src="/dashboard/vendor/flatpickr-zh.js"></script>
 <style>
   .index-chart-card { cursor: pointer; transition: box-shadow .15s ease; text-align: left; font: inherit; }
   .index-chart-card:hover { box-shadow: 0 0 0 1px #7ac8ff; }
@@ -2126,6 +2127,11 @@ body.simple-mode #simpleRoot { display:block; }
     <div class="filters">
       <div class="filter-group" style="flex:1;display:flex;justify-content:flex-end;align-items:center;gap:10px;flex-wrap:wrap;color:var(--text-muted);font-size:11px;font-family:'JetBrains Mono',monospace">
         <span id="picksInfo" style="margin-right:auto">—</span>
+        <span id="picksLiveModeGroup" style="display:none;align-items:center;gap:6px">
+          <button type="button" class="date-sync-btn" id="picksMode_intraday" onclick="PicksIntraday.setMode('intraday')" aria-pressed="false">盘中预选（今日）</button>
+          <button type="button" class="date-sync-btn" id="picksMode_close" onclick="PicksIntraday.setMode('close')" aria-pressed="true">盘后确认</button>
+          <button type="button" class="date-sync-btn" id="picksLiveFunds" onclick="PicksIntraday.syncFunds()" style="display:none">更新东方财富资金</button>
+        </span>
         <span id="picksThresholdGroup" style="display:none;align-items:center;gap:6px;color:var(--text);font-size:12px">
           420净流入门槛
           <select id="picksThresholdSel" style="background:var(--bg-secondary);color:var(--text);border:1px solid var(--border);border-radius:3px;padding:2px 6px;font-family:inherit;font-size:12px">
@@ -2169,6 +2175,7 @@ body.simple-mode #simpleRoot { display:block; }
         <button class="date-sync-btn" id="combinedBackfillBtn" style="display:none" title="扫描最近 60 天历史日期, 把没入库的全部补上 (约 2-3 分钟)">📥 补入库</button>
       </div>
     </div>
+    <div id="picksLiveNotice" role="status" style="display:none;padding:10px 14px;margin-bottom:10px;border:1px solid var(--border);border-radius:5px;background:var(--bg-secondary);color:var(--text-secondary);font-size:12px;line-height:1.8"></div>
     <div class="table-box" style="max-height:65vh;overflow:auto">
       <!-- 资金流数据状态提示 (文档要求多窗口累计, 但需要数据积累) -->
       <div id="picksFlowStatus" style="padding:8px 12px;background:rgba(255,200,0,0.06);border-bottom:1px solid var(--border);font-size:12px;color:var(--text-secondary);font-family:'JetBrains Mono',monospace;display:flex;justify-content:space-between;align-items:center">
@@ -2585,7 +2592,7 @@ body.simple-mode #simpleRoot { display:block; }
         </div>
         <div style="overflow-x:auto">
           <table id="dipPicksTable"><thead><tr>
-            <th>序号</th><th>名称 / 代码</th><th>收盘价</th><th>当日涨幅</th>
+            <th>序号</th><th>名称 / 代码</th><th id="dipPriceHead">收盘价</th><th>当日涨幅</th>
             <th id="dipReturnHead" title="收盘价相对120个交易日前的区间涨幅">120日涨幅</th>
             <th title="当日成交量 / 此前5个交易日均量，不含当日">5日均量比</th>
             <th id="dipMa5Head" style="display:none">MA5</th>
@@ -2986,7 +2993,7 @@ body.simple-mode #simpleRoot { display:block; }
   </div>
 </div>
 
-<script src="/dashboard/picks-result-cache.js?v=20261007-6"></script>
+<script src="/dashboard/picks-result-cache.js?v=20261102-4"></script>
 <script>
 window.addEventListener('tradeiq:picks-result-updated', event => {
   const groups = {'/api/picks':'system','/api/picks/ths':'ths','/api/conditional-picks':'conditional','/api/conditional-picks/snapshot':'conditional','/api/conditional-picks/new':'conditionalNew','/api/conditional-picks/preferred':'conditionalPreferred','/api/combined-picks':'combined','/api/combined-picks/snapshot':'combined','/api/picks/ths/conditional':'conditionalThs','/api/picks/ths/conditional/snapshot':'conditionalThs','/api/picks/ths/combined':'combinedThs','/api/picks/ths/combined/snapshot':'combinedThs','/api/picks/dip':'dip','/api/picks/dip-v2':'dip2','/api/picks/surge':'surge','/api/picks/custom/screen':'custom'};
@@ -7676,13 +7683,14 @@ function _paintChaseCountTags() {
   for (const [key] of CHASE_RULES) {
     const badge = document.getElementById(`chaseCount_${key}`);
     const count = _chaseCounts?.counts?.[key];
-    const ready = _chaseCounts?.daily_ready && count && Number.isInteger(count.matched) && count.matched >= 0 && count.evaluated > 0;
+    const ready = (_chaseCounts?.daily_ready || _chaseCounts?.selection_ready) && count && Number.isInteger(count.matched) && count.matched >= 0 && count.evaluated > 0;
     badge.textContent = _chaseCountsState === 'loading' ? '统计中…' : _chaseCountsState === 'error' ? '统计失败' : !ready ? '数据不足' : count.matched ? `${count.matched}个符合` : '全军覆没';
     badge.dataset.state = _chaseCountsState === 'ready' && ready ? count.matched ? 'matched' : 'none' : _chaseCountsState;
     badge.title = _chaseCountsState === 'error' ? _chaseCountsError : _chaseCountsState === 'loading' ? '正在独立统计当前日期全市场，不受开关影响' : !ready ? _chaseCounts?.note || '该条件所需数据不足，不能认定为零匹配' : `${fmtDate(_chaseCounts.date)} · 全市场 ${count.total} 只 · 已核验 ${count.evaluated} 只 · 符合 ${count.matched} 只 · 缺失或异常 ${count.missing} 只${key.startsWith('market_') ? '；这是统一大盘条件，满足时全市场均符合' : '；仅核验本项条件，不受其他条件或开关影响'}`;
   }
 }
 async function _loadChaseCounts(requestedDate, force=false) {
+  const liveToken = typeof PicksIntraday !== 'undefined' ? PicksIntraday.token() : '';
   if (!force && _chaseCountsDate === requestedDate && _chaseCounts && Date.now() - _chaseCountsUpdated < 120000) { _paintChaseCountTags(); return; }
   if (!force && _chaseCountsPendingDate === requestedDate && _chaseCountsPromise) return _chaseCountsPromise;
   const requestId = ++_chaseCountsRequestId;
@@ -7691,14 +7699,15 @@ async function _loadChaseCounts(requestedDate, force=false) {
   _paintChaseCountTags();
   _chaseCountsPromise = (async () => {
     try {
-      const response = await _fetchPicksResult('/api/picks/dip-v2/condition-counts' + (requestedDate ? `?date=${encodeURIComponent(requestedDate)}` : ''));
+      const qs = [requestedDate ? `date=${encodeURIComponent(requestedDate)}` : '', typeof PicksIntraday !== 'undefined' ? PicksIntraday.query(requestedDate) : ''].filter(Boolean).join('&');
+      const response = await _fetchPicksResult('/api/picks/dip-v2/condition-counts' + (qs ? `?${qs}` : ''));
       const data = await response.json();
-      if (requestId !== _chaseCountsRequestId || currentPicksGroup !== 'dip2' || (picksSelDate || '') !== requestedDate) return;
+      if (requestId !== _chaseCountsRequestId || currentPicksGroup !== 'dip2' || (picksSelDate || '') !== requestedDate || (typeof PicksIntraday !== 'undefined' && PicksIntraday.token() !== liveToken)) return;
       if (!response.ok || data.status === 'error') throw new Error(data.message || '全市场条件统计失败');
       _chaseCounts = data; _chaseCountsDate = requestedDate; _chaseCountsUpdated = Date.now(); _chaseCountsState = 'ready';
       _paintChaseCountTags();
     } catch (error) {
-      if (requestId !== _chaseCountsRequestId || currentPicksGroup !== 'dip2' || (picksSelDate || '') !== requestedDate) return;
+      if (requestId !== _chaseCountsRequestId || currentPicksGroup !== 'dip2' || (picksSelDate || '') !== requestedDate || (typeof PicksIntraday !== 'undefined' && PicksIntraday.token() !== liveToken)) return;
       _chaseCountsState = 'error'; _chaseCountsError = error.message; _paintChaseCountTags();
     } finally {
       if (requestId === _chaseCountsRequestId) { _chaseCountsPromise = null; _chaseCountsPendingDate = null; }
@@ -7838,13 +7847,14 @@ function _paintDipCountTags() {
   for (const [key] of DIP_RULES) {
     const badge = document.getElementById(`dipCount_${key}`);
     const count = _dipConditionCounts?.counts?.[key];
-    const ready = _dipConditionCounts?.daily_ready && count && Number.isInteger(count.matched) && count.matched >= 0 && count.evaluated > 0;
+    const ready = (_dipConditionCounts?.daily_ready || _dipConditionCounts?.selection_ready) && count && Number.isInteger(count.matched) && count.matched >= 0 && count.evaluated > 0;
     badge.textContent = _dipConditionCountsState === 'loading' ? '统计中…' : _dipConditionCountsState === 'error' ? '统计失败' : !ready ? '数据不足' : count.matched ? `${count.matched}个符合` : '全军覆没';
     badge.dataset.state = _dipConditionCountsState === 'ready' && ready ? count.matched ? 'matched' : 'none' : _dipConditionCountsState;
     badge.title = _dipConditionCountsState === 'error' ? _dipConditionCountsError : _dipConditionCountsState === 'loading' ? '正在独立统计当前日期全市场，不受开关影响' : !ready ? _dipConditionCounts?.note || '该条件所需数据不足，不能认定为零匹配' : `${fmtDate(_dipConditionCounts.date)} · 全市场 ${count.total} 只 · 已核验 ${count.evaluated} 只 · 符合 ${count.matched} 只 · 缺失或异常 ${count.missing} 只${key.startsWith('market_') ? '；这是统一大盘条件，满足时全市场均符合' : '；仅核验本项条件，不受其他条件或开关影响'}`;
   }
 }
 async function _loadDipCounts(requestedDate, force=false) {
+  const liveToken = typeof PicksIntraday !== 'undefined' ? PicksIntraday.token() : '';
   const config = _dipParametersSignature();
   const query = _dipParameterQuery();
   if (!force && _dipConditionCountsDate === requestedDate && _dipConditionCountsConfig === config && _dipConditionCounts && Date.now() - _dipConditionCountsUpdated < 120000) { _paintDipCountTags(); return; }
@@ -7855,15 +7865,15 @@ async function _loadDipCounts(requestedDate, force=false) {
   _paintDipCountTags();
   _dipConditionCountsPromise = (async () => {
     try {
-      const params = [requestedDate ? `date=${encodeURIComponent(requestedDate)}` : '', query].filter(Boolean).join('&');
+      const params = [requestedDate ? `date=${encodeURIComponent(requestedDate)}` : '', query, typeof PicksIntraday !== 'undefined' ? PicksIntraday.query(requestedDate) : ''].filter(Boolean).join('&');
       const response = await _fetchPicksResult('/api/picks/dip/condition-counts' + (params ? `?${params}` : ''));
       const data = await response.json();
-      if (requestId !== _dipConditionCountsRequestId || currentPicksGroup !== 'dip' || (picksSelDate || '') !== requestedDate || _dipParametersSignature() !== config) return;
+      if (requestId !== _dipConditionCountsRequestId || currentPicksGroup !== 'dip' || (picksSelDate || '') !== requestedDate || _dipParametersSignature() !== config || (typeof PicksIntraday !== 'undefined' && PicksIntraday.token() !== liveToken)) return;
       if (!response.ok || data.status === 'error') throw new Error(data.message || '全市场条件统计失败');
       _dipConditionCounts = data; _dipConditionCountsDate = requestedDate; _dipConditionCountsConfig = config; _dipConditionCountsUpdated = Date.now(); _dipConditionCountsState = 'ready';
       _paintDipCountTags();
     } catch (error) {
-      if (requestId !== _dipConditionCountsRequestId || currentPicksGroup !== 'dip' || (picksSelDate || '') !== requestedDate || _dipParametersSignature() !== config) return;
+      if (requestId !== _dipConditionCountsRequestId || currentPicksGroup !== 'dip' || (picksSelDate || '') !== requestedDate || _dipParametersSignature() !== config || (typeof PicksIntraday !== 'undefined' && PicksIntraday.token() !== liveToken)) return;
       _dipConditionCountsState = 'error'; _dipConditionCountsError = error.message; _paintDipCountTags();
     } finally {
       if (requestId === _dipConditionCountsRequestId) { _dipConditionCountsPromise = null; _dipConditionCountsPendingDate = null; }
@@ -7938,19 +7948,20 @@ function _clearPickDiagnostics() {
   document.getElementById('pickDiagnosticPreview').style.display = 'none';
 }
 function _showPickDiagnostics(data, group, requestedDate, signature) {
-  _pickDiagnosticBasis = {group, requestedDate, signature, date:data.date, parametersSignature:_dipParametersSignature(), parameterQuery:group==='dip' ? _dipParameterQuery() : ''};
+  _pickDiagnosticBasis = {group, requestedDate, signature, date:data.date, parametersSignature:_dipParametersSignature(), parameterQuery:group==='dip' ? _dipParameterQuery() : '', liveQuery:typeof PicksIntraday !== 'undefined' ? PicksIntraday.query(requestedDate) : ''};
   document.getElementById('pickDiagnostics').style.display = '';
   document.getElementById('pickDiagnosticTitle').textContent = (data.results || []).length ? '条件影响对比' : '为什么没选出来';
-  document.getElementById('pickDiagnosticMessage').textContent = !data.daily_ready ? data.note || '等待完整收盘数据，暂时无法诊断。'
+  document.getElementById('pickDiagnosticMessage').textContent = !(data.daily_ready || data.selection_ready) ? data.note || '等待完整收盘数据，暂时无法诊断。'
     : (data.results || []).length ? `当前入选 ${data.results.length} 只，点击查看只关闭各项条件后的数量。` : '正在核验大盘、必要数据，并试算关闭单项条件后的名单…';
   const button = document.getElementById('pickDiagnosticToggle');
-  button.textContent = '查看诊断'; button.disabled = !data.daily_ready;
-  if (data.daily_ready && !(data.results || []).length) _loadPickDiagnostics();
+  button.textContent = '查看诊断'; button.disabled = !(data.daily_ready || data.selection_ready);
+  if ((data.daily_ready || data.selection_ready) && !(data.results || []).length) _loadPickDiagnostics();
 }
 function _diagnosticUrl(basis, remove=[], offset=0) {
   const params = [`date=${encodeURIComponent(basis.date || basis.requestedDate)}`];
   if (basis.signature) params.push(`disabled=${encodeURIComponent(basis.signature)}`);
   if (basis.parameterQuery) params.push(basis.parameterQuery);
+  if (basis.liveQuery) params.push(basis.liveQuery);
   if (remove.length) params.push(`remove=${encodeURIComponent(remove.join(','))}`,`offset=${offset}`, 'limit=50');
   return (basis.group === 'dip2' ? '/api/picks/dip-v2/diagnostics' : '/api/picks/dip/diagnostics') + '?' + params.join('&');
 }
@@ -8140,6 +8151,7 @@ function _resetDipMarketContext(group, requestedDate, signature) {
 function _startDipMarketContext(data, context) {
   if (!_dipMarketActive(context.basis)) return;
   context.basis.date = data.date;
+  context.basis.liveBreadth = data.intraday?.breadth;
   if (!data.date) {
     _renderConditionalPreferredBreadth({available:false, message:data.note || '暂无筛选日期'}, '', 'dipMarketContext');
     CONDITIONAL_PREFERRED_INDEXES.forEach(item => _setDipMarketIndexStatus(item.code, data.note || '暂无筛选日期'));
@@ -8167,6 +8179,11 @@ async function _refreshDipMarketForDate(date) {
   CONDITIONAL_PREFERRED_INDEXES.forEach(item => _setDipMarketIndexStatus(item.code, '加载中…'));
   const breadth = (async () => {
     try {
+      if (basis.liveBreadth && date === basis.date) {
+        const b = basis.liveBreadth;
+        _renderConditionalPreferredBreadth(b.unknown ? {available:false, message:`盘中有效覆盖 ${b.expected-b.unknown}/${b.expected} 只；未知 ${b.unknown} 只，未填作平盘`} : {available:true,date,upCount:b.up,downCount:b.down,flatCount:b.flat,totalCount:b.expected}, date, 'dipMarketContext');
+        return;
+      }
       const response = await _fetchPicksResult(`/api/conditional-picks/preferred/market-overview?date=${encodeURIComponent(date)}`);
       const overview = await response.json();
       if (!active()) return;
@@ -8295,14 +8312,18 @@ function _configureDipPanel(group) {
 
 async function loadDipPicks(refreshCounts=false) {
   stopPicksAutoRefresh();
+  if (typeof PicksIntraday !== 'undefined') PicksIntraday.begin?.();
   const group = currentPicksGroup === 'dip2' ? 'dip2' : 'dip';
   const v2 = group === 'dip2';
   const columns = 21;
   _configureDipPanel(group);
   const requestId = ++_dipRequestId;
   const requestedDate = picksSelDate || '';
+  const liveQuery = typeof PicksIntraday !== 'undefined' ? PicksIntraday.query(requestedDate, refreshCounts) : '';
+  const liveToken = typeof PicksIntraday !== 'undefined' ? PicksIntraday.token() : '';
   if (refreshCounts) PicksResultCache.invalidate(requestedDate);
-  if (v2) _loadChaseCounts(requestedDate, refreshCounts); else _loadDipCounts(requestedDate, refreshCounts);
+  if (!liveQuery) { if (v2) _loadChaseCounts(requestedDate, refreshCounts); else _loadDipCounts(requestedDate, refreshCounts); }
+  else { if (v2) { _chaseCounts=null; _chaseCountsState='loading'; _paintChaseCountTags(); } else { _dipConditionCounts=null; _dipConditionCountsState='loading'; _paintDipCountTags(); } }
   const rules = v2 ? CHASE_RULES : DIP_RULES;
   const signature = v2 ? _chaseSignature() : _dipSignature();
   const parametersSignature = _dipParametersSignature();
@@ -8321,14 +8342,16 @@ async function loadDipPicks(refreshCounts=false) {
   marketBox.dataset.state = 'loading';
   document.getElementById('dipCoverage').textContent = '';
   document.getElementById('dipVisibleCount').textContent = '';
-  body.innerHTML = `<tr><td colspan="${columns}" class="surge-empty">正在读取完整收盘数据…</td></tr>`;
+  body.innerHTML = `<tr><td colspan="${columns}" class="surge-empty">${liveQuery ? '正在采集盘中行情并筛选…' : '正在读取完整收盘数据…'}</td></tr>`;
   for (let i = 1; i <= 5; i++) document.getElementById(`dipTnHead${i}`).title = '';
   try {
-    const params = [requestedDate ? `date=${encodeURIComponent(requestedDate)}` : '', signature ? `disabled=${encodeURIComponent(signature)}` : '', parameterQuery].filter(Boolean).join('&');
+    const params = [requestedDate ? `date=${encodeURIComponent(requestedDate)}` : '', signature ? `disabled=${encodeURIComponent(signature)}` : '', parameterQuery, liveQuery].filter(Boolean).join('&');
     const response = await _fetchPicksResult((v2 ? '/api/picks/dip-v2' : '/api/picks/dip') + (params ? `?${params}` : ''), undefined, refreshCounts);
     const data = await response.json();
-    if (requestId !== _dipRequestId || currentPicksGroup !== group || (picksSelDate || '') !== requestedDate || ((v2 ? _chaseSignature() : _dipSignature()) !== signature) || (!v2 && _dipParametersSignature() !== parametersSignature)) return;
+    if (requestId !== _dipRequestId || currentPicksGroup !== group || (picksSelDate || '') !== requestedDate || ((v2 ? _chaseSignature() : _dipSignature()) !== signature) || (!v2 && _dipParametersSignature() !== parametersSignature) || (typeof PicksIntraday !== 'undefined' && PicksIntraday.token() !== liveToken)) return;
     if (!response.ok || data.status === 'error') throw new Error(data.message || '加载失败');
+    if (typeof PicksIntraday !== 'undefined' && !PicksIntraday.capture(data, liveToken)) return;
+    if (liveQuery) { if (v2) _loadChaseCounts(requestedDate,true); else _loadDipCounts(requestedDate,true); }
     if (v2) { _dip2Payload = data; dip2PicksCache = data.results || []; }
     else { _dipPayload = data; dipPicksCache = data.results || []; }
     (data.next_dates || []).slice(0, 5).forEach((date, i) => {
@@ -8336,20 +8359,21 @@ async function loadDipPicks(refreshCounts=false) {
     });
     const market = data.market;
     const stats = data.stats || {};
-    const state = !data.daily_ready || !market || market.status === 'missing' ? '等待数据'
+    const state = !(data.daily_ready || data.selection_ready) || !market || market.status === 'missing' ? '等待数据'
       : data.market_passed ? (!conditions.market_down && !(v2 ? conditions.market_up : conditions.market_index) ? '大盘条件已关闭' : '大盘已触发') : '大盘未触发 · 不推荐';
-    summary.textContent = `${data.date ? fmtDate(data.date) : '—'} · ${state} · ${v2 ? `基础条件 ${data.v2_stats?.base_count || 0} 只 · 追高` : ''}入选 ${(data.results || []).length} 只`;
+    summary.textContent = `${data.date ? fmtDate(data.date) : '—'}${data.intraday_estimate ? (data.awaiting_close?' · 待收盘确认':' · 盘中预选') : ''} · ${state} · ${v2 ? `基础条件 ${data.v2_stats?.base_count || 0} 只 · 追高` : ''}入选 ${(data.results || []).length} 只`;
     {
       summary.textContent += ` · 启用 ${rules.length - signature.split(',').filter(Boolean).length} / ${rules.length} 项`;
       const previousResult = v2 ? _chaseLastResult : _dipConditionLastResult;
-      const complete = data.daily_ready && market && market.status !== 'missing';
-      const comparable = complete && previousResult?.date === data.date && (previousResult.signature !== signature || (!v2 && previousResult.parametersSignature !== parametersSignature));
+      const complete = (data.daily_ready || data.selection_ready) && market && market.status !== 'missing';
+      const basis = data.snapshot_id || 'close';
+      const comparable = complete && previousResult?.date === data.date && previousResult.basis === basis && (previousResult.signature !== signature || (!v2 && previousResult.parametersSignature !== parametersSignature));
       const count = (data.results || []).length;
       const delta = comparable ? count - previousResult.count : 0;
       document.getElementById(v2 ? 'chaseComparison' : 'dipComparison').textContent = comparable
         ? `同日对比：上次 ${previousResult.count} 只 → 本次 ${count} 只（${delta > 0 ? '增加' : delta < 0 ? '减少' : '不变'}${delta ? ` ${Math.abs(delta)} 只` : ''}）。上次关闭：${previousResult.signature ? rules.filter(([key]) => previousResult.signature.split(',').includes(key)).map(([, label]) => label).join('、') : '无'}。`
         : complete ? '修改条件后，可查看同一天上次和本次的数量变化；当前结果只要求已开启条件。' : '当前数据不足，暂无法比较名单。';
-      if (complete) { if (v2) _chaseLastResult = {date:data.date, signature, count}; else _dipConditionLastResult = {date:data.date, signature, count, parametersSignature}; }
+      if (complete) { if (v2) _chaseLastResult = {date:data.date, signature, count, basis}; else _dipConditionLastResult = {date:data.date, signature, count, parametersSignature, basis}; }
     }
     marketBox.dataset.state = market?.status || 'missing';
     const change = market?.index_change;
@@ -8359,12 +8383,12 @@ async function loadDipPicks(refreshCounts=false) {
     marketBox.innerHTML = `<strong>${escapeHtml(market?.note || data.note || '等待完整收盘数据')}</strong>`
       + (market ? `<span>下跌家数 ${market.down_count ?? '—'} 家 · 上证 ${change == null ? '—' : `${change > 0 ? '+' : ''}${Number(change).toFixed(2)}%`}${v2 ? '' : ` · ${previous}${priorDays ? `<br>${escapeHtml(priorDays)}` : ''}`}</span>` : '');
     document.getElementById('dipCoverage').textContent = data.market_passed
-      ? `当日日线 ${stats.total || 0} 只 · ${v2 ? `涨幅超5% ${stats.strong_rising || 0}` : `下跌 ${stats.declining || 0}`} 只 · 资金缺失 ${stats.missing_funds || 0} 只 · 资金非全红 ${stats.funds_not_red || 0} 只 · 净额未过门槛 ${stats.funds_below_threshold || 0} 只 · 历史缺失 ${stats.missing_history || 0} 只 · 行情异常 ${(stats.invalid_prices || 0) + (stats.reference_mismatch || 0)} 只 · 可完整评估 ${stats.eligible || 0} 只`
+      ? `${data.intraday_estimate?'有效当日行情':'当日日线'} ${stats.total || 0} 只 · ${v2 ? `涨幅超5% ${stats.strong_rising || 0}` : `下跌 ${stats.declining || 0}`} 只 · 资金缺失 ${stats.missing_funds || 0} 只 · 资金非全红 ${stats.funds_not_red || 0} 只 · 净额未过门槛 ${stats.funds_below_threshold || 0} 只 · 历史缺失 ${stats.missing_history || 0} 只 · 行情异常 ${(stats.invalid_prices || 0) + (stats.reference_mismatch || 0)} 只 · 可完整评估 ${stats.eligible || 0} 只`
       : (data.note || '大盘条件未触发，不推荐');
     if (data.market_passed) {
       const extra = data.v2_stats || {};
       const excluded = (key, label, count) => `${label} ${conditions[key] ? `${count || 0} 只` : '未启用'}`;
-      document.getElementById('dipCoverage').textContent = `当日日线 ${stats.total || 0} 只 · ${v2 ? (conditions.gain ? `涨幅超5% ${stats.strong_rising || 0}` : `未限制当日涨幅 ${stats.candidate_count || 0}`) : (conditions.decline ? `${_dipRuleLabel('decline')} ${stats.candidate_count || 0}` : `未限制当日涨跌 ${stats.candidate_count || 0}`)} 只 · 资金缺失 ${stats.missing_funds || 0} 只`
+      document.getElementById('dipCoverage').textContent = `${data.intraday_estimate?'有效当日行情':'当日日线'} ${stats.total || 0} 只 · ${v2 ? (conditions.gain ? `涨幅超5% ${stats.strong_rising || 0}` : `未限制当日涨幅 ${stats.candidate_count || 0}`) : (conditions.decline ? `${_dipRuleLabel('decline')} ${stats.candidate_count || 0}` : `未限制当日涨跌 ${stats.candidate_count || 0}`)} 只 · 资金缺失 ${stats.missing_funds || 0} 只`
         + ` · ${excluded('funds_red', '资金非全红', stats.funds_not_red)} · ${excluded('funds_threshold', '净额未过门槛', stats.funds_below_threshold)}`
         + ` · 历史缺失 ${stats.missing_history || 0} 只 · 行情异常 ${(stats.invalid_prices || 0) + (stats.reference_mismatch || 0)} 只 · 可完整评估 ${stats.eligible || 0} 只`
         + ` · ${excluded('return120', `${v2?120:_dipParameters.return_days}日涨幅未过`, stats.return_too_high)} · ${excluded('volume', '量比未过', stats.volume_too_high)} · ${excluded('above_ma20', '未高于MA20', stats.below_ma20)} · ${excluded('amplitude', '振幅不足', stats.inactive)}`
@@ -8375,7 +8399,7 @@ async function loadDipPicks(refreshCounts=false) {
     _showPickDiagnostics(data, group, requestedDate, signature);
     _startDipMarketContext(data, marketContext);
   } catch (error) {
-    if (requestId !== _dipRequestId || currentPicksGroup !== group || (picksSelDate || '') !== requestedDate || ((v2 ? _chaseSignature() : _dipSignature()) !== signature) || (!v2 && _dipParametersSignature() !== parametersSignature)) return;
+    if (requestId !== _dipRequestId || currentPicksGroup !== group || (picksSelDate || '') !== requestedDate || ((v2 ? _chaseSignature() : _dipSignature()) !== signature) || (!v2 && _dipParametersSignature() !== parametersSignature) || (typeof PicksIntraday !== 'undefined' && PicksIntraday.token() !== liveToken)) return;
     summary.textContent = '加载失败，可点击刷新重试';
     document.getElementById(v2 ? 'chaseComparison' : 'dipComparison').textContent = '本次筛选失败，未形成可比较结果；点击刷新重试。';
     marketBox.textContent = error.message;
@@ -8391,6 +8415,8 @@ function renderDipPicksTable() {
   const cache = v2 ? dip2PicksCache : dipPicksCache;
   const payload = v2 ? _dip2Payload : _dipPayload;
   _configureDipPanel(v2 ? 'dip2' : 'dip');
+  document.getElementById('dipPriceHead').textContent = payload?.intraday_estimate ? '最新价' : '收盘价';
+  if (payload?.intraday_estimate) document.getElementById('dipStrategySubtitle').textContent = '盘中预选 · 当前累计量/此前5日全天均量 · 当前价计算均线';
   const body = document.getElementById('dipPicksBody');
   const query = document.getElementById('dipSearch').value.trim().toLowerCase();
   const sort = document.getElementById('dipSort').value;
@@ -8401,7 +8427,7 @@ function renderDipPicksTable() {
   if (!list.length) {
     const message = !payload ? '等待加载结果'
       : query && cache.length ? '没有匹配的名称或代码'
-      : !payload.daily_ready || !payload.market_passed || !payload.stats?.eligible || v2 || _dipSignature()
+      : !(payload.daily_ready || payload.selection_ready) || !payload.market_passed || !payload.stats?.eligible || v2 || _dipSignature()
         ? payload.note || '数据不足，暂不推荐'
         : '该日没有同时满足全部个股条件的股票，不推荐';
     body.innerHTML = `<tr><td colspan="21" class="surge-empty">${escapeHtml(message)}</td></tr>`;
@@ -13994,6 +14020,7 @@ function _renderPicksSubTabs(source) {
 }
 
 function _updatePicksButtons() {
+  if (typeof PicksIntraday !== 'undefined') PicksIntraday.sync();
   // 跟随当前 sub-group 更新所有按钮显隐 / 文案
   const g = currentPicksGroup;
   const isUser = g === 'user';
@@ -15300,8 +15327,9 @@ try {
   </div>
 </div>
 
-<link rel="stylesheet" href="/dashboard/custom-picks.css?v=20261019-2">
-<script src="/dashboard/custom-picks.js?v=20261019-2"></script>
+<script src="/dashboard/intraday-picks.js?v=20261102-4"></script>
+<link rel="stylesheet" href="/dashboard/custom-picks.css?v=20261102-4">
+<script src="/dashboard/custom-picks.js?v=20261102-4"></script>
 <!-- 模拟盘: 历史行情回放 + 纸面交易。必须排在 index.html 主 script 之后:
      TAB_HANDLERS 里的 sim 入口通过 window.SimTrading 懒引用, 加载顺序不影响。 -->
 <script src="/dashboard/sim.js?v=20261017-1"></script>
